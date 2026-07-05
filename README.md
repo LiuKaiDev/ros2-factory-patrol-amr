@@ -8,7 +8,9 @@ claiming production deployment.
 The current codebase includes Nav2, AMCL, Gazebo/RViz simulation, task and
 station orchestration, mock/serial/UDP chassis adapters, velocity muxing, safety
 gating, localization health monitoring, standalone tracking experiments, and
-factory patrol demo assets. Real hardware tuning, long-duration field results,
+Factory Patrol demo assets. Factory Patrol scenarios are provided as simulation
+assets and demo workflows for low-speed AMR patrol validation. Real hardware
+tuning, long-duration field results,
 and production certification remain out of scope until they are measured and
 documented with real logs.
 
