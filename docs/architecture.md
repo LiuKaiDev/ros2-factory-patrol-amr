@@ -73,3 +73,21 @@ High-risk states (`SENSOR_STALE`, `LOCALIZATION_LOST`, `CHASSIS_FAULT`,
 keeps the command path alive but clamps it to the low-speed policy. This phase
 does not change mission-runner recovery behavior or add new factory-patrol
 scenarios.
+
+## Phase 5A Factory Patrol Assets
+
+Simulation now includes a factory patrol asset skeleton alongside the existing
+`indoor_room` demo:
+
+```text
+robot_simulation/worlds/factory_patrol.sdf
+robot_simulation/config/factory_patrol_stations.yaml
+robot_simulation/config/factory_patrol_zones.yaml
+robot_simulation/config/factory_patrol_route.yaml
+robot_bringup/launch/factory_patrol_demo.launch.py
+```
+
+The Phase 5A assets add a main patrol road, equipment area, narrow corridor,
+turning area, static obstacles, `station_A/B/C`, and `dock` markers. The route
+config is a multi-point patrol asset, but it is not claimed as a closed-loop
+mission execution result yet.

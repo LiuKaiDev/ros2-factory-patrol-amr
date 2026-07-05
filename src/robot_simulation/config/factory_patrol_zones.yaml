@@ -1,0 +1,39 @@
+# Phase 5A factory patrol zone assets.
+# These polygons are configuration assets only. They are not wired into Nav2
+# keepout/speed filters in this phase.
+zones:
+  - zone_id: factory_slow_corridor
+    map_name: factory_patrol
+    frame_id: map
+    type: speed_limit
+    enabled: true
+    max_linear_speed_mps: 0.20
+    rule: planned low-speed policy through the narrow corridor
+    polygon:
+      - [-2.85, 1.25]
+      - [-1.55, 1.25]
+      - [-1.55, 3.65]
+      - [-2.85, 3.65]
+  - zone_id: factory_no_go_equipment_service_area
+    map_name: factory_patrol
+    frame_id: map
+    type: keepout_planned
+    enabled: true
+    rule: planned keepout around fixed equipment service area
+    polygon:
+      - [2.80, 1.00]
+      - [4.25, 1.00]
+      - [4.25, 2.40]
+      - [2.80, 2.40]
+  - zone_id: factory_turning_caution_area
+    map_name: factory_patrol
+    frame_id: map
+    type: caution_area
+    enabled: true
+    max_linear_speed_mps: 0.30
+    rule: planned caution area around the station_C turning loop
+    polygon:
+      - [1.45, -3.45]
+      - [3.95, -3.45]
+      - [3.95, -1.05]
+      - [1.45, -1.05]

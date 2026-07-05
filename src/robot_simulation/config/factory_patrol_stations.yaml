@@ -1,0 +1,62 @@
+# Phase 5A factory patrol station seed configuration.
+# Coordinates are simulation design anchors matched to factory_patrol.sdf, not
+# measured field data. They can be refined after a real SLAM/map alignment pass.
+frame_id: map
+map_name: factory_patrol
+stations:
+  - id: start
+    frame_id: map
+    x: -3.85
+    y: -3.65
+    yaw: 1.57
+    type: start
+    description: initial pose near the charging dock
+  - id: station_A
+    frame_id: map
+    x: -3.55
+    y: 0.0
+    yaw: 0.0
+    type: inspection
+    description: main road equipment intake checkpoint
+  - id: station_B
+    frame_id: map
+    x: -2.20
+    y: 3.20
+    yaw: 1.57
+    type: inspection
+    description: narrow corridor inspection checkpoint
+  - id: station_C
+    frame_id: map
+    x: 2.70
+    y: -2.25
+    yaw: -1.57
+    type: inspection
+    description: turning area inspection checkpoint
+  - id: dock
+    frame_id: map
+    x: -3.85
+    y: -3.65
+    yaw: 3.14
+    type: charging
+    description: simulated charging dock
+edges:
+  - from: start
+    to: station_A
+    distance_m: 3.7
+    bidirectional: true
+    enabled: true
+  - from: station_A
+    to: station_B
+    distance_m: 3.5
+    bidirectional: true
+    enabled: true
+  - from: station_B
+    to: station_C
+    distance_m: 7.2
+    bidirectional: true
+    enabled: true
+  - from: station_C
+    to: dock
+    distance_m: 6.8
+    bidirectional: true
+    enabled: true

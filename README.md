@@ -245,3 +245,29 @@ bash scripts/check_safety_runtime_topics.sh
 ```
 
 Details: [docs/safety_state_machine.md](docs/safety_state_machine.md).
+
+## Factory Patrol Demo
+
+Phase 5A adds factory patrol simulation assets:
+
+- `src/robot_simulation/worlds/factory_patrol.sdf`
+- `src/robot_simulation/config/factory_patrol_stations.yaml`
+- `src/robot_simulation/config/factory_patrol_zones.yaml`
+- `src/robot_simulation/config/factory_patrol_route.yaml`
+- `src/robot_bringup/launch/factory_patrol_demo.launch.py`
+- `scripts/run_factory_patrol_demo.sh`
+- `scripts/check_factory_patrol_assets.sh`
+
+Run helper:
+
+```bash
+bash scripts/run_factory_patrol_demo.sh
+```
+
+Static asset check:
+
+```bash
+bash scripts/check_factory_patrol_assets.sh
+```
+
+Details: [docs/simulation_scenarios.md](docs/simulation_scenarios.md).

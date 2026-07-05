@@ -64,3 +64,110 @@ Status: current logic / planned factory demo.
 - 任务恢复。
 
 当前代码和检查脚本已有定位健康 / 重定位入口；最终巡检场景中的可视化演示和实验报告仍待补齐。
+
+## Phase 5A Factory Patrol Assets
+
+Phase 5A adds a factory patrol simulation asset skeleton for a low-speed
+semi-closed AMR patrol site. This phase adds files, configuration, and launch
+entry points only. It does not claim a full Gazebo/Nav2 mission has been run.
+
+Scanned current structure:
+
+| Area | Existing path |
+| --- | --- |
+| Gazebo world | `src/robot_simulation/worlds/indoor_room.sdf` |
+| Maps | `src/robot_navigation/maps/indoor_room.yaml`, `src/robot_navigation/maps/indoor_room.pgm` |
+| RViz | `src/robot_simulation/rviz/amr_sim.rviz`, `src/robot_simulation/rviz/nav2_basic_debug.rviz` |
+| Simulation launch | `src/robot_simulation/launch/sim.launch.py` |
+| Navigation launch | `src/robot_navigation/launch/nav.launch.py`, `src/robot_navigation/launch/navigation_no_docking.launch.py` |
+| Bringup launch | `src/robot_bringup/launch/amr_demo.launch.py`, `src/robot_bringup/launch/bringup.launch.py` |
+| Mission launch | `src/robot_tasks/launch/mission_runner.launch.py` |
+| Existing sim stations/zones | `src/robot_simulation/config/amr_sim_stations.yaml`, `src/robot_simulation/config/amr_sim_map_zones.yaml` |
+| Existing task station config | `src/robot_tasks/config/stations/warehouse_stations.yaml` |
+
+New Phase 5A assets:
+
+| Asset | Path | Status |
+| --- | --- | --- |
+| Factory world | `src/robot_simulation/worlds/factory_patrol.sdf` | current asset |
+| Station seed config | `src/robot_simulation/config/factory_patrol_stations.yaml` | current config asset |
+| Zone seed config | `src/robot_simulation/config/factory_patrol_zones.yaml` | current config asset |
+| Patrol route config | `src/robot_simulation/config/factory_patrol_route.yaml` | current config asset / planned mission input |
+| Map note | `src/robot_navigation/maps/factory_patrol_map_README.md` | current documentation |
+| Demo launch | `src/robot_bringup/launch/factory_patrol_demo.launch.py` | current launch skeleton |
+| Demo helper | `scripts/run_factory_patrol_demo.sh` | current helper script |
+| Static check | `scripts/check_factory_patrol_assets.sh` | current static check |
+
+`factory_patrol.sdf` contains:
+
+- main patrol road
+- equipment inspection area
+- narrow corridor marker
+- turning area
+- station markers for `station_A`, `station_B`, `station_C`, and `dock`
+- static obstacles using simple boxes/cylinders
+- slow-zone visual overlay
+- no-go planned visual overlay
+
+Station config:
+
+`src/robot_simulation/config/factory_patrol_stations.yaml` defines `start`,
+`station_A`, `station_B`, `station_C`, and `dock` in the `map` frame. Coordinates
+are simulation seed poses aligned to the SDF layout, not measured field poses.
+
+Zone config:
+
+`src/robot_simulation/config/factory_patrol_zones.yaml` defines
+`factory_slow_corridor`, `factory_no_go_equipment_service_area`, and
+`factory_turning_caution_area`. These are Phase 5A configuration assets only and
+are not claimed to be wired into Nav2 costmap filters yet.
+
+Route config:
+
+`src/robot_simulation/config/factory_patrol_route.yaml` defines
+`factory_patrol_loop`:
+
+```text
+start -> station_A -> station_B -> station_C -> dock
+```
+
+The current mission runner is not claimed to execute this YAML directly. Later
+phases can wire it into mission execution or convert it into the package's
+existing mission format.
+
+Map handling:
+
+Phase 5A does not commit a fake occupancy map. See
+`src/robot_navigation/maps/factory_patrol_map_README.md` for the planned
+SLAM/map_saver flow. Until a real or reviewed placeholder map exists, the
+factory demo launch keeps Nav2 disabled by default.
+
+Demo entry:
+
+```bash
+bash scripts/run_factory_patrol_demo.sh
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+```
+
+To experiment with Nav2 after providing an explicit factory map:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  use_nav2:=true nav2_map:=/absolute/path/to/factory_patrol.yaml
+```
+
+RViz debug:
+
+Use `src/robot_simulation/rviz/nav2_basic_debug.rviz` to observe RobotModel, TF,
+LaserScan, odom, map, costmaps, global path, and command/debug topics. The demo
+launch starts this config when `use_rviz:=true`.
+
+Current / planned boundary:
+
+- Current in Phase 5A: world/config assets, map-generation note, demo launch
+  skeleton, run script, static check script, documentation.
+- Planned after Phase 5A: dynamic obstacle demo, real/reviewed factory map,
+  closed-loop multi-point mission execution, localization-lost recovery demo,
+  and any experiment result report.
+
+No Gazebo, RViz, Nav2, or real robot runtime result is claimed by this document.

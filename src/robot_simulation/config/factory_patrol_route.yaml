@@ -1,0 +1,14 @@
+# Phase 5A multi-point patrol route asset.
+# Current status: planned/config-only route. The mission runner is not claimed
+# to execute this YAML directly unless a later integration wires it in.
+route:
+  name: factory_patrol_loop
+  frame_id: map
+  station_file: factory_patrol_stations.yaml
+  description: start at the dock, inspect A/B/C, then return to dock
+  waypoints:
+    - start
+    - station_A
+    - station_B
+    - station_C
+    - dock

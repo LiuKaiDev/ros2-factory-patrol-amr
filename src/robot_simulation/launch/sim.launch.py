@@ -11,7 +11,9 @@ def generate_launch_description():
     use_gui = LaunchConfiguration("gui")
     labels_enabled = LaunchConfiguration("labels_enabled")
     label_scale = LaunchConfiguration("label_scale")
-    world = PathJoinSubstitution(
+    world_file = LaunchConfiguration("world_file")
+    world_name = LaunchConfiguration("world_name")
+    default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "indoor_room.sdf"]
     )
     sensors_launch = PathJoinSubstitution(
@@ -28,13 +30,15 @@ def generate_launch_description():
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("labels_enabled", default_value="true"),
             DeclareLaunchArgument("label_scale", default_value="0.55"),
+            DeclareLaunchArgument("world_file", default_value=default_world_file),
+            DeclareLaunchArgument("world_name", default_value="indoor_room"),
             ExecuteProcess(
-                cmd=["gz", "sim", "-r", world],
+                cmd=["gz", "sim", "-r", world_file],
                 condition=IfCondition(use_gui),
                 output="screen",
             ),
             ExecuteProcess(
-                cmd=["gz", "sim", "-s", "-r", world],
+                cmd=["gz", "sim", "-s", "-r", world_file],
                 condition=UnlessCondition(use_gui),
                 output="screen",
             ),
@@ -50,8 +54,8 @@ def generate_launch_description():
                     "/sim/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
                     "/robot_2/sim/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
                     "/sim/imu@sensor_msgs/msg/Imu[gz.msgs.IMU",
-                    "/world/indoor_room/set_pose@ros_gz_interfaces/srv/SetEntityPose",
-                    "/world/indoor_room/control@ros_gz_interfaces/srv/ControlWorld",
+                    ["/world/", world_name, "/set_pose@ros_gz_interfaces/srv/SetEntityPose"],
+                    ["/world/", world_name, "/control@ros_gz_interfaces/srv/ControlWorld"],
                 ],
                 output="screen",
             ),
@@ -127,6 +131,7 @@ def generate_launch_description():
                         "labels_enabled": labels_enabled,
                         "label_scale": label_scale,
                         "robot2_pose_bridge_enabled": True,
+                        "set_pose_service": ["/world/", world_name, "/set_pose"],
                     }
                 ],
                 output="screen",
@@ -185,7 +190,7 @@ def generate_launch_description():
                 executable="gazebo_unpause_node",
                 parameters=[
                     {
-                        "service_name": "/world/indoor_room/control",
+                        "service_name": ["/world/", world_name, "/control"],
                         "max_attempts": 30,
                         "retry_period_s": 0.5,
                     }
