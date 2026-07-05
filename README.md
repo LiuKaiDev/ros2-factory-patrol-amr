@@ -70,6 +70,10 @@ ros2 launch robot_navigation nav.launch.py navigation_start_delay:=5.0
 bash scripts/run_factory_patrol_demo.sh
 ```
 
+Factory Patrol Demo includes Phase 5B demo workflows for multipoint patrol,
+temporary obstacle validation entries, and localization recovery entries. These
+workflows are demo and validation entry points, not measured runtime results.
+
 Nav2 basic debug RViz config:
 
 ```text
