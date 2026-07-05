@@ -26,9 +26,13 @@ grep -q "topic: /scan" "${CONFIG_FILE}" ||
   fail "LaserScan topic /scan is missing"
 grep -q "footprint:" "${CONFIG_FILE}" ||
   fail "robot footprint is missing"
+grep -q "inflation_layer" "${CONFIG_FILE}" ||
+  fail "inflation_layer is missing"
+grep -q "nav2_costmap_2d::InflationLayer" "${CONFIG_FILE}" ||
+  fail "InflationLayer plugin is missing"
 grep -q "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController" "${CONFIG_FILE}" ||
   fail "RPP controller plugin is missing"
 grep -q "use_collision_detection: true" "${CONFIG_FILE}" ||
   fail "RPP collision detection is missing"
 
-pass "Nav2 basic costmap obstacle layer and RPP collision checks are configured in ${CONFIG_FILE}"
+pass "Nav2 basic local obstacle layer, inflation layer, footprint, /scan source, and RPP collision checks are configured in ${CONFIG_FILE}"

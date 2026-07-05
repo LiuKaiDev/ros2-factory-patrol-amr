@@ -102,8 +102,10 @@ ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=udp ip:=192.
 ### Navigation
 
 - `robot_navigation` 提供 Nav2、AMCL、SLAM、地图管理、语义区和 costmap 相关配置。
-- `nav2_basic.yaml` 当前使用 NavfnPlanner + Regulated Pure Pursuit。
+- `nav2_basic.yaml` 当前使用 NavfnPlanner + Regulated Pure Pursuit，并已补强 local obstacle layer、footprint、`/scan` observation source、inflation 和 RPP collision checks。
 - `nav2_advanced.yaml` 当前使用 SmacPlanner2D + MPPI，并包含 voxel / inflation / footprint 配置。
+- Nav2 basic 调试视图：`src/robot_simulation/rviz/nav2_basic_debug.rviz`。
+- 最小检查脚本：`scripts/check_nav2_costmap_obstacle_layer.sh`、`scripts/run_nav2_basic_demo.sh`、`scripts/check_nav2_runtime_topics.sh`。
 - 详情见 [docs/navigation.md](docs/navigation.md)。
 
 ### Localization
