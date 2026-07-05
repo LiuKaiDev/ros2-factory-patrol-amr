@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
@@ -50,6 +52,13 @@ class ChassisDriverNode final : public rclcpp::Node {
     wheel_base_m_ = declare_parameter<double>("wheel_base_m", 0.42);
     track_width_m_ = declare_parameter<double>("track_width_m", 0.36);
     io_timeout_ms_ = declare_parameter<int>("io_timeout_ms", 500);
+    heartbeat_period_ms_ = declare_parameter<int>("heartbeat_period_ms", 500);
+    heartbeat_timeout_ms_ = declare_parameter<int>("heartbeat_timeout_ms", 1500);
+    command_timeout_ms_ = declare_parameter<int>("command_timeout_ms", 500);
+    command_max_linear_velocity_mps_ =
+        declare_parameter<double>("command_max_linear_velocity_mps", 0.0);
+    command_max_angular_velocity_radps_ =
+        declare_parameter<double>("command_max_angular_velocity_radps", 0.0);
 
     robot_hardware::ChassisSystemAdapterConfig adapter_config;
     adapter_config.kinematics_model = kinematics_model_;
@@ -93,6 +102,7 @@ class ChassisDriverNode final : public rclcpp::Node {
 
     last_update_ = now();
     last_packet_stamp_ = now();
+    last_heartbeat_stamp_ = now();
     OpenBackend();
     timer_ = create_wall_timer(20ms, [this]() { Tick(); });
   }
@@ -124,15 +134,23 @@ class ChassisDriverNode final : public rclcpp::Node {
     cmd_.linear_x_mps = twist.linear.x;
     cmd_.linear_y_mps = twist.linear.y;
     cmd_.angular_z_radps = twist.angular.z;
+    last_command_stamp_ = now();
+    received_command_ = true;
+    command_timeout_active_ = false;
     if (!backend_open_) {
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kBackendDisconnected;
       return;
     }
     std::string error;
-    if (!chassis_adapter_->Write(cmd_, &error) && !error.empty()) {
+    const auto frame = BuildCommandFrame(last_command_stamp_, cmd_, false);
+    if (!chassis_adapter_->Write(frame, &error) && !error.empty()) {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000, "%s command write failed: %s",
           backend_name_.c_str(), error.c_str());
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kBackendDisconnected;
+      return;
     }
+    local_fault_code_ = robot_hardware::ChassisFaultCode::kNone;
   }
 
   template <typename RequestT, typename ResponseT>
@@ -171,6 +189,8 @@ class ChassisDriverNode final : public rclcpp::Node {
     const double dt = std::max(0.001, (stamp - last_update_).seconds());
     last_update_ = stamp;
 
+    EnforceCommandTimeout(stamp);
+    SendHeartbeatIfDue(stamp);
     ReadChassisSystem(dt, stamp);
     IntegrateWheelOdometry(dt);
 
@@ -190,6 +210,9 @@ class ChassisDriverNode final : public rclcpp::Node {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000, "%s backend read failed: %s",
           backend_name_.c_str(), error.c_str());
+      if (error.find("malformed") != std::string::npos) {
+        local_fault_code_ = robot_hardware::ChassisFaultCode::kMalformedPacket;
+      }
     }
     if (system_state_.packet_sequence != previous_packet_sequence) {
       last_packet_stamp_ = stamp;
@@ -197,8 +220,88 @@ class ChassisDriverNode final : public rclcpp::Node {
     if (backend_name_ == "mock") {
       connected_ = read_ok;
     } else {
+      const int active_timeout_ms = heartbeat_timeout_ms_ > 0 ? heartbeat_timeout_ms_
+                                                              : io_timeout_ms_;
       connected_ = backend_open_ &&
-                   ((stamp - last_packet_stamp_).nanoseconds() / 1000000 <= io_timeout_ms_);
+                   ((stamp - last_packet_stamp_).nanoseconds() / 1000000 <= active_timeout_ms);
+    }
+
+    if (!backend_open_) {
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kBackendDisconnected;
+    } else if (!connected_) {
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kHeartbeatTimeout;
+    } else if (system_state_.emergency_stop) {
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kEmergencyStopActive;
+    } else if (system_state_.fault_code != robot_hardware::ChassisFaultCode::kNone) {
+      local_fault_code_ = system_state_.fault_code;
+    } else if (!command_timeout_active_) {
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kNone;
+    }
+  }
+
+  robot_hardware::ChassisCommandFrameV2 BuildCommandFrame(
+      const rclcpp::Time& stamp, const robot_hardware::ChassisCommand& command,
+      const bool emergency_stop) {
+    robot_hardware::ChassisCommandFrameV2 frame;
+    frame.seq = ++tx_sequence_;
+    frame.timestamp_sec = stamp.seconds();
+    frame.mode = mode_;
+    frame.command = command;
+    frame.max_linear_velocity_mps = command_max_linear_velocity_mps_;
+    frame.max_angular_velocity_radps = command_max_angular_velocity_radps_;
+    frame.emergency_stop = emergency_stop;
+    return frame;
+  }
+
+  void EnforceCommandTimeout(const rclcpp::Time& stamp) {
+    if (!received_command_ || command_timeout_ms_ <= 0 || command_timeout_active_) {
+      return;
+    }
+    if ((stamp - last_command_stamp_).nanoseconds() / 1000000 <= command_timeout_ms_) {
+      return;
+    }
+
+    robot_hardware::ChassisCommand stop_command;
+    cmd_ = stop_command;
+    command_timeout_active_ = true;
+    local_fault_code_ = robot_hardware::ChassisFaultCode::kCommandTimeout;
+    if (!backend_open_) {
+      return;
+    }
+
+    std::string error;
+    const auto frame = BuildCommandFrame(stamp, stop_command, false);
+    if (!chassis_adapter_->Write(frame, &error) && !error.empty()) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000, "%s timeout stop write failed: %s",
+          backend_name_.c_str(), error.c_str());
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kBackendDisconnected;
+      return;
+    }
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "cmd_vel timeout after %d ms; sent zero velocity command", command_timeout_ms_);
+  }
+
+  void SendHeartbeatIfDue(const rclcpp::Time& stamp) {
+    if (heartbeat_period_ms_ <= 0 || !backend_open_) {
+      return;
+    }
+    if ((stamp - last_heartbeat_stamp_).nanoseconds() / 1000000 < heartbeat_period_ms_) {
+      return;
+    }
+    last_heartbeat_stamp_ = stamp;
+
+    robot_hardware::ChassisHeartbeatPacket heartbeat;
+    heartbeat.seq = ++tx_sequence_;
+    heartbeat.timestamp_sec = stamp.seconds();
+    heartbeat.source = "chassis_driver_node";
+    std::string error;
+    if (!chassis_adapter_->WriteHeartbeat(heartbeat, &error) && !error.empty()) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000, "%s heartbeat write failed: %s",
+          backend_name_.c_str(), error.c_str());
+      local_fault_code_ = robot_hardware::ChassisFaultCode::kBackendDisconnected;
     }
   }
 
@@ -300,12 +403,26 @@ class ChassisDriverNode final : public rclcpp::Node {
     state.battery_voltage = system_state_.battery_voltage;
     state.linear_velocity = system_state_.linear_x_mps;
     state.angular_velocity = system_state_.angular_z_radps;
-    state.status = backend_open_ ? system_state_.hardware_status + ":" + mode_ + ":wheels_rpm=" +
-                                       std::to_string(system_state_.wheel_speeds.rpm[0]) + "," +
-                                       std::to_string(system_state_.wheel_speeds.rpm[1]) + "," +
-                                       std::to_string(system_state_.wheel_speeds.rpm[2]) + "," +
-                                       std::to_string(system_state_.wheel_speeds.rpm[3])
-                                 : "backend_unavailable:" + mode_;
+    const auto reported_fault = local_fault_code_ != robot_hardware::ChassisFaultCode::kNone
+                                    ? local_fault_code_
+                                    : system_state_.fault_code;
+    std::ostringstream status;
+    if (backend_open_) {
+      status << system_state_.hardware_status << ":" << mode_;
+    } else {
+      status << "backend_unavailable:" << mode_;
+    }
+    status << ":fault_code=" << robot_hardware::FaultCodeName(reported_fault) << "("
+           << robot_hardware::FaultCodeValue(reported_fault) << ")"
+           << ":rx_seq=" << system_state_.last_rx_seq
+           << ":rx_ts=" << system_state_.last_rx_timestamp_sec
+           << ":estop=" << (system_state_.emergency_stop ? 1 : 0)
+           << ":temp_c=" << system_state_.temperature_c
+           << ":wheels_rpm=" << system_state_.wheel_speeds.rpm[0] << ","
+           << system_state_.wheel_speeds.rpm[1] << ","
+           << system_state_.wheel_speeds.rpm[2] << ","
+           << system_state_.wheel_speeds.rpm[3];
+    state.status = status.str();
     state_pub_->publish(state);
   }
 
@@ -328,6 +445,9 @@ class ChassisDriverNode final : public rclcpp::Node {
   std::string odom_topic_;
   std::string imu_source_;
   int io_timeout_ms_;
+  int heartbeat_period_ms_;
+  int heartbeat_timeout_ms_;
+  int command_timeout_ms_;
   bool publish_tf_;
   bool publish_odom_;
   bool publish_synthetic_imu_ = false;
@@ -340,13 +460,21 @@ class ChassisDriverNode final : public rclcpp::Node {
   double wheel_diameter_m_ = 0.15;
   double wheel_base_m_ = 0.42;
   double track_width_m_ = 0.36;
+  double command_max_linear_velocity_mps_ = 0.0;
+  double command_max_angular_velocity_radps_ = 0.0;
+  uint64_t tx_sequence_ = 0;
   robot_hardware::ChassisCommand cmd_;
   robot_hardware::ChassisCommand wheel_odom_command_;
+  robot_hardware::ChassisFaultCode local_fault_code_ = robot_hardware::ChassisFaultCode::kNone;
   rclcpp::Time last_update_;
   rclcpp::Time last_packet_stamp_;
+  rclcpp::Time last_command_stamp_;
+  rclcpp::Time last_heartbeat_stamp_;
   rclcpp::Time previous_imu_stamp_;
   double previous_imu_linear_velocity_ = 0.0;
   bool has_previous_imu_sample_ = false;
+  bool received_command_ = false;
+  bool command_timeout_active_ = false;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr wheel_odom_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;

@@ -58,6 +58,36 @@ bool ChassisSystemAdapter::Write(const ChassisCommand& command, std::string* err
   return true;
 }
 
+bool ChassisSystemAdapter::Write(const ChassisCommandFrameV2& frame, std::string* error) {
+  RefreshOpenState();
+  if (!state_.backend_open) {
+    if (error != nullptr) {
+      *error = "chassis backend is not open";
+    }
+    return false;
+  }
+
+  ChassisCommandFrameV2 normalized_frame = frame;
+  normalized_frame.command = NormalizeCommand(frame.command);
+  if (!backend_->WriteCommandV2(normalized_frame, error)) {
+    return false;
+  }
+  command_ = normalized_frame.command;
+  return true;
+}
+
+bool ChassisSystemAdapter::WriteHeartbeat(
+    const ChassisHeartbeatPacket& heartbeat, std::string* error) {
+  RefreshOpenState();
+  if (!state_.backend_open) {
+    if (error != nullptr) {
+      *error = "chassis backend is not open";
+    }
+    return false;
+  }
+  return backend_->WriteHeartbeatV2(heartbeat, error);
+}
+
 bool ChassisSystemAdapter::Read(
     const double period_seconds, ChassisSystemState* state, std::string* error) {
   RefreshOpenState();
@@ -113,6 +143,9 @@ void ChassisSystemAdapter::IntegrateMock(const double period_seconds) {
   state_.wheel_speeds = EstimateWheelSpeeds(
       command_, config_.kinematics_model, config_.wheel_diameter_m, config_.wheel_base_m,
       config_.track_width_m);
+  state_.fault_code = ChassisFaultCode::kNone;
+  state_.emergency_stop = false;
+  ++state_.packet_sequence;
 }
 
 bool ChassisSystemAdapter::ReadBackendPackets(std::string* error) {
@@ -128,6 +161,7 @@ bool ChassisSystemAdapter::ReadBackendPackets(std::string* error) {
     binary_stream_.Append(*bytes);
     if (binary_stream_.Overflowed()) {
       binary_stream_.ClearOverflow();
+      state_.fault_code = ChassisFaultCode::kMalformedPacket;
       if (error != nullptr) {
         *error = "cleared oversized chassis binary receive buffer";
       }
@@ -138,6 +172,7 @@ bool ChassisSystemAdapter::ReadBackendPackets(std::string* error) {
     }
     if (binary_stream_.InvalidFrameCount() > 0) {
       binary_stream_.ClearInvalidFrameCount();
+      state_.fault_code = ChassisFaultCode::kMalformedPacket;
       if (error != nullptr) {
         *error = "ignored malformed Mick binary frame";
       }
@@ -149,6 +184,7 @@ bool ChassisSystemAdapter::ReadBackendPackets(std::string* error) {
   text_stream_.Append(*bytes);
   if (text_stream_.Overflowed()) {
     text_stream_.ClearOverflow();
+    state_.fault_code = ChassisFaultCode::kMalformedPacket;
     if (error != nullptr) {
       *error = "cleared oversized chassis receive buffer";
     }
@@ -159,6 +195,7 @@ bool ChassisSystemAdapter::ReadBackendPackets(std::string* error) {
   }
   if (text_stream_.InvalidLineCount() > 0) {
     text_stream_.ClearInvalidLineCount();
+    state_.fault_code = ChassisFaultCode::kMalformedPacket;
     if (error != nullptr) {
       *error = "ignored malformed chassis packet line";
     }
@@ -174,17 +211,42 @@ void ChassisSystemAdapter::ApplyPacket(const ChassisPacket& packet) {
     state_.y_m = odom.y_m;
     state_.yaw_rad = odom.yaw_rad;
     state_.linear_x_mps = odom.linear_x_mps;
-    state_.linear_y_mps = 0.0;
+    state_.linear_y_mps = odom.linear_y_mps;
     state_.angular_z_radps = odom.angular_z_radps;
     ChassisCommand measured;
     measured.linear_x_mps = odom.linear_x_mps;
+    measured.linear_y_mps = odom.linear_y_mps;
     measured.angular_z_radps = odom.angular_z_radps;
     state_.wheel_speeds = EstimateWheelSpeeds(
         measured, config_.kinematics_model, config_.wheel_diameter_m, config_.wheel_base_m,
         config_.track_width_m);
+    if (odom.left_rpm.has_value()) {
+      state_.wheel_speeds.rpm[0] = *odom.left_rpm;
+      state_.wheel_speeds.rpm[2] = *odom.left_rpm;
+    }
+    if (odom.right_rpm.has_value()) {
+      state_.wheel_speeds.rpm[1] = *odom.right_rpm;
+      state_.wheel_speeds.rpm[3] = *odom.right_rpm;
+    }
     if (odom.battery_voltage.has_value()) {
       state_.battery_voltage = *odom.battery_voltage;
     }
+    if (odom.seq.has_value()) {
+      state_.last_rx_seq = *odom.seq;
+    }
+    if (odom.timestamp_sec.has_value()) {
+      state_.last_rx_timestamp_sec = *odom.timestamp_sec;
+    }
+    state_.fault_code = ChassisFaultCode::kNone;
+    ++state_.packet_sequence;
+    state_.connected = true;
+    return;
+  }
+
+  if (packet.kind == ChassisPacketKind::kHeartbeat) {
+    state_.last_rx_seq = packet.heartbeat.seq;
+    state_.last_rx_timestamp_sec = packet.heartbeat.timestamp_sec;
+    state_.fault_code = ChassisFaultCode::kNone;
     ++state_.packet_sequence;
     state_.connected = true;
     return;
@@ -193,11 +255,25 @@ void ChassisSystemAdapter::ApplyPacket(const ChassisPacket& packet) {
   if (!packet.state.status.empty()) {
     state_.hardware_status = packet.state.status;
   }
+  if (!packet.state.mode.empty()) {
+    state_.hardware_status = packet.state.mode;
+  }
   if (packet.state.battery_voltage.has_value()) {
     state_.battery_voltage = *packet.state.battery_voltage;
   }
+  if (packet.state.seq.has_value()) {
+    state_.last_rx_seq = *packet.state.seq;
+  }
+  if (packet.state.timestamp_sec.has_value()) {
+    state_.last_rx_timestamp_sec = *packet.state.timestamp_sec;
+  }
+  state_.fault_code = packet.state.fault_code;
+  state_.emergency_stop = packet.state.emergency_stop;
+  state_.connected = packet.state.connected;
+  if (packet.state.temperature_c.has_value()) {
+    state_.temperature_c = *packet.state.temperature_c;
+  }
   ++state_.packet_sequence;
-  state_.connected = true;
 }
 
 void ChassisSystemAdapter::RefreshOpenState() {

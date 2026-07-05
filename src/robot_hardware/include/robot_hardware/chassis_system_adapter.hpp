@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -32,6 +33,11 @@ struct ChassisSystemState {
   double battery_voltage = 24.0;
   WheelSpeeds wheel_speeds;
   unsigned long long packet_sequence = 0;
+  uint64_t last_rx_seq = 0;
+  double last_rx_timestamp_sec = 0.0;
+  ChassisFaultCode fault_code = ChassisFaultCode::kNone;
+  bool emergency_stop = false;
+  double temperature_c = 0.0;
 };
 
 class ChassisSystemAdapter {
@@ -45,6 +51,8 @@ class ChassisSystemAdapter {
   bool IsOpen() const;
   void SetKinematicsModel(const std::string& model);
   bool Write(const ChassisCommand& command, std::string* error);
+  bool Write(const ChassisCommandFrameV2& frame, std::string* error);
+  bool WriteHeartbeat(const ChassisHeartbeatPacket& heartbeat, std::string* error);
   bool Read(double period_seconds, ChassisSystemState* state, std::string* error);
   void ResetOdometry();
   const ChassisSystemState& State() const;

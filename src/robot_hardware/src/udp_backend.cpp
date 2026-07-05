@@ -48,6 +48,11 @@ void UdpBackend::Close() {
 bool UdpBackend::IsOpen() const { return fd_ >= 0; }
 
 bool UdpBackend::WriteCommand(const ChassisCommand& command, std::string* error) {
+  if (config_.protocol == "text_v2") {
+    ChassisCommandFrameV2 frame;
+    frame.command = command;
+    return WriteCommandV2(frame, error);
+  }
   if (!IsOpen()) {
     if (error != nullptr) {
       *error = "UDP backend is not open";
@@ -61,6 +66,33 @@ bool UdpBackend::WriteCommand(const ChassisCommand& command, std::string* error)
                          : text_packet.data();
   const std::size_t size = config_.protocol == "mick_binary" ? binary_packet.size()
                                                              : text_packet.size();
+  return SendBytes(data, size, error);
+}
+
+bool UdpBackend::WriteCommandV2(const ChassisCommandFrameV2& frame, std::string* error) {
+  if (config_.protocol != "text_v2") {
+    return WriteCommand(frame.command, error);
+  }
+  const std::string packet = EncodeCommandV2(frame);
+  return SendBytes(packet.data(), packet.size(), error);
+}
+
+bool UdpBackend::WriteHeartbeatV2(
+    const ChassisHeartbeatPacket& heartbeat, std::string* error) {
+  if (config_.protocol != "text_v2") {
+    return ChassisBackend::WriteHeartbeatV2(heartbeat, error);
+  }
+  const std::string packet = EncodeHeartbeatV2(heartbeat);
+  return SendBytes(packet.data(), packet.size(), error);
+}
+
+bool UdpBackend::SendBytes(const char* data, const std::size_t size, std::string* error) {
+  if (!IsOpen()) {
+    if (error != nullptr) {
+      *error = "UDP backend is not open";
+    }
+    return false;
+  }
   const ssize_t sent =
       sendto(fd_, data, size, 0,
              reinterpret_cast<const sockaddr*>(&remote_addr_), sizeof(remote_addr_));

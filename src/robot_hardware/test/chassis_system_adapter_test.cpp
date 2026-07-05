@@ -115,6 +115,29 @@ TEST(ChassisSystemAdapterTest, Read_MockMecanumCommand_PreservesSidewaysVelocity
   EXPECT_NEAR(backend_ptr->LastCommand().linear_y_mps, 0.25, 1e-9);
 }
 
+TEST(ChassisSystemAdapterTest, Write_CommandFrameV2_NormalizesAndStoresMetadata) {
+  auto backend = std::make_unique<MockBackend>();
+  const MockBackend* backend_ptr = backend.get();
+  ChassisSystemAdapter adapter(std::move(backend));
+  ASSERT_TRUE(adapter.Open(nullptr));
+  ChassisCommandFrameV2 frame;
+  frame.seq = 5;
+  frame.timestamp_sec = 12.0;
+  frame.mode = "velocity";
+  frame.command.linear_x_mps = 0.5;
+  frame.command.linear_y_mps = 0.25;
+  frame.command.angular_z_radps = 0.1;
+
+  ASSERT_TRUE(adapter.Write(frame, nullptr));
+
+  const auto stored = backend_ptr->LastCommandFrameV2();
+  ASSERT_TRUE(stored.has_value());
+  EXPECT_EQ(stored->seq, 5U);
+  EXPECT_NEAR(stored->command.linear_x_mps, 0.5, 1e-9);
+  EXPECT_NEAR(stored->command.linear_y_mps, 0.0, 1e-9);
+  EXPECT_NEAR(stored->command.angular_z_radps, 0.1, 1e-9);
+}
+
 TEST(ChassisSystemAdapterTest, Read_MockFourWheelSteerAliasDegradesToDiffDrive) {
   auto backend = std::make_unique<MockBackend>();
   const MockBackend* backend_ptr = backend.get();
@@ -153,6 +176,25 @@ TEST(ChassisSystemAdapterTest, Read_TextPackets_UpdatesMeasuredState) {
   EXPECT_NEAR(state.angular_z_radps, -0.04, 1e-9);
   EXPECT_EQ(state.hardware_status, "simulated");
   EXPECT_NEAR(state.battery_voltage, 23.8, 1e-9);
+  EXPECT_EQ(state.packet_sequence, 2U);
+}
+
+TEST(ChassisSystemAdapterTest, Read_TextV2Packets_UpdatesHeartbeatAndFaultMetadata) {
+  auto backend = std::make_unique<ScriptedBackend>(
+      std::deque<std::string>{"HEARTBEATV2 7 10.0 chassis\nSTATEV2 8 10.1 velocity 23.8 5 1 0 36.5\n"});
+  ChassisSystemAdapter adapter(std::move(backend));
+  ASSERT_TRUE(adapter.Open(nullptr));
+
+  ChassisSystemState state;
+  EXPECT_FALSE(adapter.Read(0.02, &state, nullptr));
+
+  EXPECT_FALSE(state.connected);
+  EXPECT_EQ(state.last_rx_seq, 8U);
+  EXPECT_DOUBLE_EQ(state.last_rx_timestamp_sec, 10.1);
+  EXPECT_EQ(state.hardware_status, "velocity");
+  EXPECT_EQ(state.fault_code, ChassisFaultCode::kEmergencyStopActive);
+  EXPECT_TRUE(state.emergency_stop);
+  EXPECT_DOUBLE_EQ(state.temperature_c, 36.5);
   EXPECT_EQ(state.packet_sequence, 2U);
 }
 
@@ -204,6 +246,7 @@ TEST(ChassisSystemAdapterTest, Read_MalformedTextPacket_ReturnsObservableError) 
   EXPECT_FALSE(ok);
   EXPECT_EQ(error, "ignored malformed chassis packet line");
   EXPECT_FALSE(state.connected);
+  EXPECT_EQ(state.fault_code, ChassisFaultCode::kMalformedPacket);
 }
 
 TEST(ChassisSystemAdapterTest, Close_OpenBackend_DropsConnectionState) {

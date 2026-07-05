@@ -16,8 +16,8 @@ flowchart LR
   Teleop[teleop / virtual RC] --> Mux
   Mux --> Gate[cmd_vel_safety_gate<br/>watchdog / estop / speed limit]
   Gate --> Driver[chassis_driver_node]
-  Driver --> Backend[Mock / Serial / UDP backend]
-  Backend --> Feedback[/odom / wheel odom<br/>/chassis/state / TF]
+  Driver --> Backend[Mock / Serial / UDP backend<br/>text / text_v2 / Mick binary]
+  Backend --> Feedback[/odom / wheel odom<br/>/chassis/state / TF<br/>heartbeat / fault_code]
   Feedback --> AMCL
   Feedback --> Monitor[system_monitor]
   Monitor --> Fault[fault_supervisor]
@@ -47,6 +47,6 @@ flowchart LR
 | --- | --- | --- |
 | Low-speed patrol positioning | 项目文档已统一定位；现有 indoor_room 仿真和站点任务可承载演示。 | 厂区 / 园区专用 `factory_patrol` 场景、地图、stations、zones。 |
 | Navigation loop | Nav2 + AMCL + Navfn / Smac + RPP / MPPI 配置存在。 | Phase 1 系统化调参、costmap 能力验证和巡检场景参数收敛。 |
-| Chassis adapter | Mock / Serial / UDP 后端和行文本协议存在。 | 协议 v2：seq、timestamp、heartbeat、fault_code、timeout、odom covariance。 |
+| Chassis adapter | Mock / Serial / UDP 后端和行文本协议存在；Phase 3A 已补充 `text_v2` 的 seq、timestamp、heartbeat、fault_code 和命令超时停车 hook。 | 真实底盘联调、完整故障码表、odom covariance 和接口字段化。 |
 | Safety | safety gate、watchdog、dynamic speed limit、manual takeover、fault supervisor 存在。 | 统一安全状态机、状态事件记录、任务暂停 / 恢复策略完整化。 |
 | Experiment report | benchmark 基础设施和部分历史结果文件存在。 | 不复用为正式结论；后续按模板重新跑实验并记录。 |

@@ -36,7 +36,60 @@ int16_t ClampToInt16(const double value) {
   return static_cast<int16_t>(std::lround(clamped));
 }
 
+bool ParseBoolToken(const std::string& token, bool* value) {
+  if (token == "1" || token == "true" || token == "TRUE") {
+    *value = true;
+    return true;
+  }
+  if (token == "0" || token == "false" || token == "FALSE") {
+    *value = false;
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
+
+std::string FaultCodeName(const ChassisFaultCode code) {
+  switch (code) {
+    case ChassisFaultCode::kNone:
+      return "NONE";
+    case ChassisFaultCode::kCommandTimeout:
+      return "CMD_TIMEOUT";
+    case ChassisFaultCode::kHeartbeatTimeout:
+      return "HEARTBEAT_TIMEOUT";
+    case ChassisFaultCode::kBackendDisconnected:
+      return "BACKEND_DISCONNECTED";
+    case ChassisFaultCode::kMalformedPacket:
+      return "MALFORMED_PACKET";
+    case ChassisFaultCode::kEmergencyStopActive:
+      return "ESTOP_ACTIVE";
+  }
+  return "UNKNOWN";
+}
+
+int FaultCodeValue(const ChassisFaultCode code) {
+  return static_cast<int>(code);
+}
+
+std::optional<ChassisFaultCode> FaultCodeFromValue(const int value) {
+  switch (value) {
+    case 0:
+      return ChassisFaultCode::kNone;
+    case 1:
+      return ChassisFaultCode::kCommandTimeout;
+    case 2:
+      return ChassisFaultCode::kHeartbeatTimeout;
+    case 3:
+      return ChassisFaultCode::kBackendDisconnected;
+    case 4:
+      return ChassisFaultCode::kMalformedPacket;
+    case 5:
+      return ChassisFaultCode::kEmergencyStopActive;
+    default:
+      return std::nullopt;
+  }
+}
 
 std::string EncodeCommand(const ChassisCommand& command) {
   std::ostringstream out;
@@ -44,6 +97,16 @@ std::string EncodeCommand(const ChassisCommand& command) {
   out << std::setprecision(4) << "CMD " << command.linear_x_mps << " "
       << command.linear_y_mps << " "
       << command.angular_z_radps << "\n";
+  return out.str();
+}
+
+std::string EncodeCommandV2(const ChassisCommandFrameV2& frame) {
+  std::ostringstream out;
+  out.setf(std::ios::fixed);
+  out << std::setprecision(6) << "CMDV2 " << frame.seq << " " << frame.timestamp_sec << " "
+      << frame.mode << " " << frame.command.linear_x_mps << " " << frame.command.linear_y_mps
+      << " " << frame.command.angular_z_radps << " " << frame.max_linear_velocity_mps << " "
+      << frame.max_angular_velocity_radps << " " << (frame.emergency_stop ? 1 : 0) << "\n";
   return out.str();
 }
 
@@ -59,6 +122,17 @@ std::string EncodeOdometry(const ChassisOdometryPacket& odometry) {
   return out.str();
 }
 
+std::string EncodeOdometryV2(const ChassisOdometryPacket& odometry) {
+  std::ostringstream out;
+  out.setf(std::ios::fixed);
+  out << std::setprecision(6) << "ODOMV2 " << odometry.seq.value_or(0) << " "
+      << odometry.timestamp_sec.value_or(0.0) << " " << odometry.x_m << " " << odometry.y_m
+      << " " << odometry.yaw_rad << " " << odometry.linear_x_mps << " "
+      << odometry.linear_y_mps << " " << odometry.angular_z_radps << " "
+      << odometry.left_rpm.value_or(0.0) << " " << odometry.right_rpm.value_or(0.0) << "\n";
+  return out.str();
+}
+
 std::string EncodeState(const ChassisStatePacket& state) {
   std::ostringstream out;
   out.setf(std::ios::fixed);
@@ -67,6 +141,27 @@ std::string EncodeState(const ChassisStatePacket& state) {
     out << " " << std::setprecision(4) << *state.battery_voltage;
   }
   out << "\n";
+  return out.str();
+}
+
+std::string EncodeStateV2(const ChassisStatePacket& state) {
+  std::ostringstream out;
+  out.setf(std::ios::fixed);
+  const std::string mode =
+      !state.mode.empty() ? state.mode : (state.status.empty() ? "unknown" : state.status);
+  out << std::setprecision(6) << "STATEV2 " << state.seq.value_or(0) << " "
+      << state.timestamp_sec.value_or(0.0) << " " << mode << " "
+      << state.battery_voltage.value_or(0.0) << " " << FaultCodeValue(state.fault_code) << " "
+      << (state.emergency_stop ? 1 : 0) << " " << (state.connected ? 1 : 0) << " "
+      << state.temperature_c.value_or(0.0) << "\n";
+  return out.str();
+}
+
+std::string EncodeHeartbeatV2(const ChassisHeartbeatPacket& heartbeat) {
+  std::ostringstream out;
+  out.setf(std::ios::fixed);
+  out << std::setprecision(6) << "HEARTBEATV2 " << heartbeat.seq << " "
+      << heartbeat.timestamp_sec << " " << heartbeat.source << "\n";
   return out.str();
 }
 
@@ -96,6 +191,43 @@ std::optional<ChassisCommand> ParseCommandLine(const std::string& raw_line) {
   return command;
 }
 
+std::optional<ChassisCommandFrameV2> ParseCommandFrameV2(const std::string& raw_line) {
+  const std::string line = TrimCarriageReturn(raw_line);
+  std::istringstream in(line);
+  std::string tag;
+  ChassisCommandFrameV2 frame;
+  int estop = 0;
+  if (!(in >> tag >> frame.seq >> frame.timestamp_sec >> frame.mode >>
+        frame.command.linear_x_mps >> frame.command.linear_y_mps >>
+        frame.command.angular_z_radps >> frame.max_linear_velocity_mps >>
+        frame.max_angular_velocity_radps >> estop) ||
+      tag != "CMDV2") {
+    return std::nullopt;
+  }
+  frame.emergency_stop = estop != 0;
+  std::string trailing;
+  if (in >> trailing) {
+    return std::nullopt;
+  }
+  return frame;
+}
+
+std::optional<ChassisHeartbeatPacket> ParseHeartbeatFrameV2(const std::string& raw_line) {
+  const std::string line = TrimCarriageReturn(raw_line);
+  std::istringstream in(line);
+  std::string tag;
+  ChassisHeartbeatPacket heartbeat;
+  if (!(in >> tag >> heartbeat.seq >> heartbeat.timestamp_sec >> heartbeat.source) ||
+      tag != "HEARTBEATV2") {
+    return std::nullopt;
+  }
+  std::string trailing;
+  if (in >> trailing) {
+    return std::nullopt;
+  }
+  return heartbeat;
+}
+
 std::optional<ChassisPacket> ParsePacketLine(const std::string& raw_line) {
   const std::string line = TrimCarriageReturn(raw_line);
   std::istringstream in(line);
@@ -111,6 +243,31 @@ std::optional<ChassisPacket> ParsePacketLine(const std::string& raw_line) {
     if (in >> battery) {
       odometry.battery_voltage = battery;
     }
+    std::string trailing;
+    if (in >> trailing) {
+      return std::nullopt;
+    }
+    ChassisPacket packet;
+    packet.kind = ChassisPacketKind::kOdometry;
+    packet.odometry = odometry;
+    return packet;
+  }
+
+  if (tag == "ODOMV2") {
+    ChassisOdometryPacket odometry;
+    uint64_t seq = 0;
+    double timestamp_sec = 0.0;
+    double left_rpm = 0.0;
+    double right_rpm = 0.0;
+    if (!(in >> seq >> timestamp_sec >> odometry.x_m >> odometry.y_m >> odometry.yaw_rad >>
+          odometry.linear_x_mps >> odometry.linear_y_mps >> odometry.angular_z_radps >>
+          left_rpm >> right_rpm)) {
+      return std::nullopt;
+    }
+    odometry.seq = seq;
+    odometry.timestamp_sec = timestamp_sec;
+    odometry.left_rpm = left_rpm;
+    odometry.right_rpm = right_rpm;
     std::string trailing;
     if (in >> trailing) {
       return std::nullopt;
@@ -138,6 +295,56 @@ std::optional<ChassisPacket> ParsePacketLine(const std::string& raw_line) {
     packet.kind = ChassisPacketKind::kState;
     packet.state = state;
     return packet;
+  }
+
+  if (tag == "STATEV2") {
+    ChassisStatePacket state;
+    uint64_t seq = 0;
+    double timestamp_sec = 0.0;
+    double battery = 0.0;
+    int fault_code = 0;
+    std::string estop_token;
+    std::string connected_token;
+    double temperature = 0.0;
+    if (!(in >> seq >> timestamp_sec >> state.mode >> battery >> fault_code >>
+          estop_token >> connected_token >> temperature)) {
+      return std::nullopt;
+    }
+    bool estop = false;
+    bool connected = false;
+    if (!ParseBoolToken(estop_token, &estop) || !ParseBoolToken(connected_token, &connected)) {
+      return std::nullopt;
+    }
+    const auto mapped_fault = FaultCodeFromValue(fault_code);
+    if (!mapped_fault.has_value()) {
+      return std::nullopt;
+    }
+    state.seq = seq;
+    state.timestamp_sec = timestamp_sec;
+    state.status = state.mode;
+    state.battery_voltage = battery;
+    state.fault_code = *mapped_fault;
+    state.emergency_stop = estop;
+    state.connected = connected;
+    state.temperature_c = temperature;
+    std::string trailing;
+    if (in >> trailing) {
+      return std::nullopt;
+    }
+    ChassisPacket packet;
+    packet.kind = ChassisPacketKind::kState;
+    packet.state = state;
+    return packet;
+  }
+
+  if (tag == "HEARTBEATV2") {
+    if (auto heartbeat = ParseHeartbeatFrameV2(line)) {
+      ChassisPacket packet;
+      packet.kind = ChassisPacketKind::kHeartbeat;
+      packet.heartbeat = *heartbeat;
+      return packet;
+    }
+    return std::nullopt;
   }
 
   return std::nullopt;

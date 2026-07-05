@@ -8,11 +8,13 @@ def generate_launch_description():
     bind_host = LaunchConfiguration("bind_host")
     port = LaunchConfiguration("port")
     battery_voltage = LaunchConfiguration("battery_voltage")
+    protocol = LaunchConfiguration("protocol")
     return LaunchDescription(
         [
             DeclareLaunchArgument("bind_host", default_value="0.0.0.0"),
             DeclareLaunchArgument("port", default_value="9000"),
             DeclareLaunchArgument("battery_voltage", default_value="24.0"),
+            DeclareLaunchArgument("protocol", default_value="text"),
             Node(
                 package="robot_hardware",
                 executable="chassis_simulator_node",
@@ -21,10 +23,10 @@ def generate_launch_description():
                         "bind_host": bind_host,
                         "port": port,
                         "battery_voltage": battery_voltage,
+                        "protocol": protocol,
                     }
                 ],
                 output="screen",
             ),
         ]
     )
-

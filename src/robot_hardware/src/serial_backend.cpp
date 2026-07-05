@@ -102,6 +102,11 @@ void SerialBackend::Close() {
 bool SerialBackend::IsOpen() const { return fd_ >= 0; }
 
 bool SerialBackend::WriteCommand(const ChassisCommand& command, std::string* error) {
+  if (config_.protocol == "text_v2") {
+    ChassisCommandFrameV2 frame;
+    frame.command = command;
+    return WriteCommandV2(frame, error);
+  }
   if (!IsOpen()) {
     if (error != nullptr) {
       *error = "serial backend is not open";
@@ -115,6 +120,33 @@ bool SerialBackend::WriteCommand(const ChassisCommand& command, std::string* err
                          : text_packet.data();
   const std::size_t size = config_.protocol == "mick_binary" ? binary_packet.size()
                                                              : text_packet.size();
+  return WriteBytes(data, size, error);
+}
+
+bool SerialBackend::WriteCommandV2(const ChassisCommandFrameV2& frame, std::string* error) {
+  if (config_.protocol != "text_v2") {
+    return WriteCommand(frame.command, error);
+  }
+  const std::string packet = EncodeCommandV2(frame);
+  return WriteBytes(packet.data(), packet.size(), error);
+}
+
+bool SerialBackend::WriteHeartbeatV2(
+    const ChassisHeartbeatPacket& heartbeat, std::string* error) {
+  if (config_.protocol != "text_v2") {
+    return ChassisBackend::WriteHeartbeatV2(heartbeat, error);
+  }
+  const std::string packet = EncodeHeartbeatV2(heartbeat);
+  return WriteBytes(packet.data(), packet.size(), error);
+}
+
+bool SerialBackend::WriteBytes(const char* data, const std::size_t size, std::string* error) {
+  if (!IsOpen()) {
+    if (error != nullptr) {
+      *error = "serial backend is not open";
+    }
+    return false;
+  }
   const ssize_t written = write(fd_, data, size);
   if (written < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
     if (error != nullptr) {

@@ -12,6 +12,9 @@ def generate_launch_description():
     ip = LaunchConfiguration("ip")
     port = LaunchConfiguration("port")
     io_timeout_ms = LaunchConfiguration("io_timeout_ms")
+    heartbeat_period_ms = LaunchConfiguration("heartbeat_period_ms")
+    heartbeat_timeout_ms = LaunchConfiguration("heartbeat_timeout_ms")
+    command_timeout_ms = LaunchConfiguration("command_timeout_ms")
     protocol = LaunchConfiguration("protocol")
     chassis_type = LaunchConfiguration("chassis_type")
     imu_source = LaunchConfiguration("imu_source")
@@ -25,6 +28,9 @@ def generate_launch_description():
             DeclareLaunchArgument("ip", default_value="192.168.1.10"),
             DeclareLaunchArgument("port", default_value="9000"),
             DeclareLaunchArgument("io_timeout_ms", default_value="500"),
+            DeclareLaunchArgument("heartbeat_period_ms", default_value="500"),
+            DeclareLaunchArgument("heartbeat_timeout_ms", default_value="1500"),
+            DeclareLaunchArgument("command_timeout_ms", default_value="500"),
             DeclareLaunchArgument("protocol", default_value="text"),
             DeclareLaunchArgument("chassis_type", default_value="diff_drive"),
             DeclareLaunchArgument("imu_source", default_value="auto"),
@@ -49,6 +55,9 @@ def generate_launch_description():
                         "udp_host": ip,
                         "udp_port": port,
                         "io_timeout_ms": io_timeout_ms,
+                        "heartbeat_period_ms": heartbeat_period_ms,
+                        "heartbeat_timeout_ms": heartbeat_timeout_ms,
+                        "command_timeout_ms": command_timeout_ms,
                         "protocol": protocol,
                         "chassis_type": chassis_type,
                     }

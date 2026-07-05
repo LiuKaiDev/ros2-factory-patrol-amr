@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include "robot_hardware/chassis_backend.hpp"
@@ -16,12 +17,14 @@ class SerialBackend final : public ChassisBackend {
   void Close() override;
   bool IsOpen() const override;
   bool WriteCommand(const ChassisCommand& command, std::string* error) override;
+  bool WriteCommandV2(const ChassisCommandFrameV2& frame, std::string* error) override;
+  bool WriteHeartbeatV2(const ChassisHeartbeatPacket& heartbeat, std::string* error) override;
   std::optional<std::string> Read(std::string* error) override;
 
  private:
+  bool WriteBytes(const char* data, std::size_t size, std::string* error);
   ChassisBackendConfig config_;
   int fd_ = -1;
 };
 
 }  // namespace robot_hardware
-
