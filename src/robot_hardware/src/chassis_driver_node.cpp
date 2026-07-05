@@ -30,6 +30,26 @@ geometry_msgs::msg::Quaternion QuaternionFromYaw(const double yaw) {
   return q;
 }
 
+void ApplyPlanarOdomCovariance(
+    nav_msgs::msg::Odometry* odom, const double pose_x, const double pose_y,
+    const double pose_yaw, const double twist_vx, const double twist_wz) {
+  constexpr double kUnobservedCovariance = 1e6;
+  odom->pose.covariance.fill(0.0);
+  odom->twist.covariance.fill(0.0);
+  odom->pose.covariance[0] = pose_x;
+  odom->pose.covariance[7] = pose_y;
+  odom->pose.covariance[14] = kUnobservedCovariance;
+  odom->pose.covariance[21] = kUnobservedCovariance;
+  odom->pose.covariance[28] = kUnobservedCovariance;
+  odom->pose.covariance[35] = pose_yaw;
+  odom->twist.covariance[0] = twist_vx;
+  odom->twist.covariance[7] = kUnobservedCovariance;
+  odom->twist.covariance[14] = kUnobservedCovariance;
+  odom->twist.covariance[21] = kUnobservedCovariance;
+  odom->twist.covariance[28] = kUnobservedCovariance;
+  odom->twist.covariance[35] = twist_wz;
+}
+
 }  // namespace
 
 class ChassisDriverNode final : public rclcpp::Node {
@@ -50,15 +70,18 @@ class ChassisDriverNode final : public rclcpp::Node {
         robot_hardware::NormalizeKinematicsModel(declare_parameter<std::string>("chassis_type", "diff_drive"));
     wheel_diameter_m_ = declare_parameter<double>("wheel_diameter_m", 0.15);
     wheel_base_m_ = declare_parameter<double>("wheel_base_m", 0.42);
-    track_width_m_ = declare_parameter<double>("track_width_m", 0.36);
+    track_width_m_ = declare_parameter<double>("track_width_m", 0.43);
+    max_linear_speed_mps_ = declare_parameter<double>("max_linear_speed_mps", 0.6);
+    max_angular_speed_radps_ = declare_parameter<double>("max_angular_speed_radps", 1.5);
+    odom_pose_covariance_x_ = declare_parameter<double>("odom_pose_covariance_x", 0.02);
+    odom_pose_covariance_y_ = declare_parameter<double>("odom_pose_covariance_y", 0.02);
+    odom_pose_covariance_yaw_ = declare_parameter<double>("odom_pose_covariance_yaw", 0.05);
+    odom_twist_covariance_vx_ = declare_parameter<double>("odom_twist_covariance_vx", 0.03);
+    odom_twist_covariance_wz_ = declare_parameter<double>("odom_twist_covariance_wz", 0.05);
     io_timeout_ms_ = declare_parameter<int>("io_timeout_ms", 500);
     heartbeat_period_ms_ = declare_parameter<int>("heartbeat_period_ms", 500);
     heartbeat_timeout_ms_ = declare_parameter<int>("heartbeat_timeout_ms", 1500);
     command_timeout_ms_ = declare_parameter<int>("command_timeout_ms", 500);
-    command_max_linear_velocity_mps_ =
-        declare_parameter<double>("command_max_linear_velocity_mps", 0.0);
-    command_max_angular_velocity_radps_ =
-        declare_parameter<double>("command_max_angular_velocity_radps", 0.0);
 
     robot_hardware::ChassisSystemAdapterConfig adapter_config;
     adapter_config.kinematics_model = kinematics_model_;
@@ -131,9 +154,9 @@ class ChassisDriverNode final : public rclcpp::Node {
   }
 
   void HandleCommand(const geometry_msgs::msg::Twist& twist) {
-    cmd_.linear_x_mps = twist.linear.x;
-    cmd_.linear_y_mps = twist.linear.y;
-    cmd_.angular_z_radps = twist.angular.z;
+    cmd_.linear_x_mps = ClampMagnitude(twist.linear.x, max_linear_speed_mps_);
+    cmd_.linear_y_mps = ClampMagnitude(twist.linear.y, max_linear_speed_mps_);
+    cmd_.angular_z_radps = ClampMagnitude(twist.angular.z, max_angular_speed_radps_);
     last_command_stamp_ = now();
     received_command_ = true;
     command_timeout_active_ = false;
@@ -247,10 +270,17 @@ class ChassisDriverNode final : public rclcpp::Node {
     frame.timestamp_sec = stamp.seconds();
     frame.mode = mode_;
     frame.command = command;
-    frame.max_linear_velocity_mps = command_max_linear_velocity_mps_;
-    frame.max_angular_velocity_radps = command_max_angular_velocity_radps_;
+    frame.max_linear_velocity_mps = max_linear_speed_mps_;
+    frame.max_angular_velocity_radps = max_angular_speed_radps_;
     frame.emergency_stop = emergency_stop;
     return frame;
+  }
+
+  double ClampMagnitude(const double value, const double limit) const {
+    if (limit <= 0.0) {
+      return value;
+    }
+    return std::clamp(value, -limit, limit);
   }
 
   void EnforceCommandTimeout(const rclcpp::Time& stamp) {
@@ -344,6 +374,9 @@ class ChassisDriverNode final : public rclcpp::Node {
     wheel_odom.twist.twist.linear.x = wheel_odom_command_.linear_x_mps;
     wheel_odom.twist.twist.linear.y = wheel_odom_command_.linear_y_mps;
     wheel_odom.twist.twist.angular.z = wheel_odom_command_.angular_z_radps;
+    ApplyPlanarOdomCovariance(
+        &wheel_odom, odom_pose_covariance_x_, odom_pose_covariance_y_,
+        odom_pose_covariance_yaw_, odom_twist_covariance_vx_, odom_twist_covariance_wz_);
     wheel_odom_pub_->publish(wheel_odom);
 
     nav_msgs::msg::Odometry odom;
@@ -356,6 +389,9 @@ class ChassisDriverNode final : public rclcpp::Node {
     odom.twist.twist.linear.x = system_state_.linear_x_mps;
     odom.twist.twist.linear.y = system_state_.linear_y_mps;
     odom.twist.twist.angular.z = system_state_.angular_z_radps;
+    ApplyPlanarOdomCovariance(
+        &odom, odom_pose_covariance_x_, odom_pose_covariance_y_,
+        odom_pose_covariance_yaw_, odom_twist_covariance_vx_, odom_twist_covariance_wz_);
     if (publish_odom_) {
       odom_pub_->publish(odom);
     }
@@ -459,9 +495,14 @@ class ChassisDriverNode final : public rclcpp::Node {
   double battery_voltage_ = 24.0;
   double wheel_diameter_m_ = 0.15;
   double wheel_base_m_ = 0.42;
-  double track_width_m_ = 0.36;
-  double command_max_linear_velocity_mps_ = 0.0;
-  double command_max_angular_velocity_radps_ = 0.0;
+  double track_width_m_ = 0.43;
+  double max_linear_speed_mps_ = 0.6;
+  double max_angular_speed_radps_ = 1.5;
+  double odom_pose_covariance_x_ = 0.02;
+  double odom_pose_covariance_y_ = 0.02;
+  double odom_pose_covariance_yaw_ = 0.05;
+  double odom_twist_covariance_vx_ = 0.03;
+  double odom_twist_covariance_wz_ = 0.05;
   uint64_t tx_sequence_ = 0;
   robot_hardware::ChassisCommand cmd_;
   robot_hardware::ChassisCommand wheel_odom_command_;

@@ -92,8 +92,8 @@ HEARTBEATV2 <seq> <timestamp_sec> <source>
 | `heartbeat_period_ms` | `500` | 周期发送 `HEARTBEATV2`，小于等于 0 时关闭 |
 | `heartbeat_timeout_ms` | `1500` | 非 Mock 后端反馈超时判定窗口 |
 | `command_timeout_ms` | `500` | `/cmd_vel` 超时后发送零速度命令 |
-| `command_max_linear_velocity_mps` | `0.0` | 写入 `CMDV2` 的上限字段，占位给真实底盘校验 |
-| `command_max_angular_velocity_radps` | `0.0` | 写入 `CMDV2` 的角速度上限字段，占位给真实底盘校验 |
+| `max_linear_speed_mps` | `0.6` | 限制 `/cmd_vel` 线速度，并写入 `CMDV2` 的上限字段 |
+| `max_angular_speed_radps` | `1.5` | 限制 `/cmd_vel` 角速度，并写入 `CMDV2` 的上限字段 |
 
 静态检查入口：
 
@@ -102,6 +102,41 @@ bash scripts/check_chassis_protocol_v2.sh
 ```
 
 该脚本只检查仓库中 v2 结构、驱动 hook 和单测锚点是否存在；它不是串口 / UDP 真实联通测试。
+
+## Odom / Kinematics Phase 3B
+
+Phase 3B 聚焦底盘里程计、运动学参数和标定文档工程化。它与 Phase 3A 的关系是：
+
+- Phase 3A 解决通信可靠性骨架：`text_v2`、seq、timestamp、heartbeat、fault_code 和 command timeout。
+- Phase 3B 解决 odom / TF / kinematics / calibration：轮径、轮距、速度上限、odom covariance 和标定流程。
+
+底盘参数默认值：
+
+| Parameter | Default | Used by | Notes |
+| --- | --- | --- | --- |
+| `wheel_diameter_m` | `0.15` | `chassis_driver_node` / `chassis_system_adapter` / ros2_control hardware interface | 影响轮速与线速度换算；URDF 中 `wheel_radius=0.075` 与其一致。 |
+| `wheel_base_m` | `0.42` | mecanum / four-wheel geometry estimate | 差速底盘主要依赖 `track_width_m`。 |
+| `track_width_m` | `0.43` | 差速角速度换算、轮速估计 | 与 URDF `wheel_separation=0.43` 和 diff_drive_controller `wheel_separation=0.43` 对齐。 |
+| `max_linear_speed_mps` | `0.6` | `chassis_driver_node` command clamp and `CMDV2` max field | 低速巡检默认上限，不代表实车极限。 |
+| `max_angular_speed_radps` | `1.5` | `chassis_driver_node` command clamp and `CMDV2` max field | 低速调试默认上限，不代表实车极限。 |
+
+`wheel_diameter_m` 影响直线 odom 距离：轮径偏大会让同样轮速推导出的线速度 / 位移偏大，轮径偏小则相反。`track_width_m` 影响差速 yaw：轮距偏大会降低同样左右轮速度差推导出的角速度，轮距偏小则会放大角速度。
+
+`chassis_driver_node` 现在为 `/odom` 和 `/wheel/odom` 填充平面里程计 covariance：
+
+| Field | Parameter | Default |
+| --- | --- | --- |
+| `pose.covariance[0]` | `odom_pose_covariance_x` | `0.02` |
+| `pose.covariance[7]` | `odom_pose_covariance_y` | `0.02` |
+| `pose.covariance[35]` | `odom_pose_covariance_yaw` | `0.05` |
+| `twist.covariance[0]` | `odom_twist_covariance_vx` | `0.03` |
+| `twist.covariance[35]` | `odom_twist_covariance_wz` | `0.05` |
+
+这些 covariance 是 mock / 仿真默认值，不来自真实底盘标定。未观测的 z、roll、pitch 相关自由度在发布时使用较大的 covariance，真实机器人应根据标定实验和传感器噪声估计修正。
+
+Frame 约定当前保持一致：`chassis_driver_node` 发布 `odom -> base_footprint`，Nav2 basic 使用 `robot_base_frame: base_footprint`，URDF 提供 `base_footprint -> base_link` 固定关节。Phase 3B 不重构 TF 树。
+
+标定流程见 `docs/calibration.md`，真实底盘标定结果仍为 TBD，不在本文档中伪造。
 
 ## Protocol v2 Remaining Plan
 
@@ -112,7 +147,7 @@ bash scripts/check_chassis_protocol_v2.sh
 | `heartbeat` | 通信存活检测 | Phase 3A current transmit / receive parsing |
 | `fault_code` | 标准化底盘故障码 | Phase 3A current minimal enum |
 | `timeout` | 命令超时停车策略 | Phase 3A current driver stop hook |
-| `odom covariance` | EKF / localization 使用里程计不确定性 | planned |
+| `odom covariance` | EKF / localization 使用里程计不确定性 | Phase 3B current mock / simulation defaults |
 | protocol version | 兼容多版本底盘控制器 | partial via `protocol:=text_v2` |
 
 真实底盘联调后，需要补充串口波特率、UDP 端口、坐标系约定、速度单位、故障码表和安全超时策略。

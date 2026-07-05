@@ -15,7 +15,7 @@ struct ChassisSystemAdapterConfig {
   std::string protocol = "text";
   double wheel_diameter_m = 0.15;
   double wheel_base_m = 0.42;
-  double track_width_m = 0.36;
+  double track_width_m = 0.43;
   double fallback_battery_voltage = 24.0;
 };
 
