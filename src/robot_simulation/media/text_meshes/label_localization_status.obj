@@ -1,0 +1,15 @@
+mtllib label_text_black.mtl
+o label_localization_status
+v -0.50 -0.12 0.00
+v 0.50 -0.12 0.00
+v 0.50 0.12 0.00
+v -0.50 0.12 0.00
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+vt 0.0 1.0
+vn 0.0 0.0 1.0
+usemtl label_text_black
+s off
+f 1/1/1 2/2/1 3/3/1
+f 1/1/1 3/3/1 4/4/1

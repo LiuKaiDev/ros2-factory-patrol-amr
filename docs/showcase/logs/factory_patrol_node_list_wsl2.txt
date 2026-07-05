@@ -1,0 +1,12 @@
+Factory Patrol WSL2 runtime node summary
+
+Environment: WSL2, Ubuntu 24.04 LTS, ROS2 Jazzy.
+RViz and Gazebo Sim launched successfully during validation.
+
+Exact `ros2 node list` output was not included in the provided validation facts.
+This file intentionally does not infer or fabricate node names.
+
+Suggested capture command for a future exact node-list artifact:
+ros2 node list
+
+This is a concise placeholder summary, not a raw ros2 node list log.

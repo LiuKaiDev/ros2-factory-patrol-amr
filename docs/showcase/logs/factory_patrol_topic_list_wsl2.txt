@@ -1,0 +1,23 @@
+Factory Patrol WSL2 runtime topic summary
+
+Environment: WSL2, Ubuntu 24.04 LTS, ROS2 Jazzy.
+RViz: launched successfully.
+Gazebo Sim: launched successfully after adding missing text label OBJ assets.
+World: Factory Patrol world visible in Gazebo.
+
+Observed topics:
+/map
+/scan
+/odom
+/cmd_vel
+/tf
+/joint_states
+/mission_runner/state
+/safety_state
+/localization/health
+/global_costmap/costmap
+/local_costmap/costmap
+/amr_simulation/markers
+/amr_simulation/demo_timeline
+
+This is a concise summary, not a raw ros2 topic list log.
