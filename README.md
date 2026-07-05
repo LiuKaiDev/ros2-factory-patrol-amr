@@ -1,332 +1,217 @@
-# 室内自主移动机器人系统（ROS2 AMR）
+# Low-Speed Patrol AMR Navigation Control System
 
-一套基于 ROS2 Jazzy + C++17 的室内差速自主移动机器人项目，覆盖从底盘通信、传感器处理、Nav2 导航、SLAM 建图、路径跟踪，到任务调度、站点搬运、设施联动（门 / 电梯 / 充电桩）、车队协同和运营控制的完整软件链路。既能在无真实硬件的情况下通过仿真与 mock 后端完整闭环验证，也提供 Serial / UDP 真实底盘接入和 ros2_control 标准控制链路。
+面向厂区 / 园区半封闭场景的低速巡检 AMR 导航控制系统，基于 ROS2 Jazzy + C++17 构建。项目重点展示移动机器人规控岗位相关能力：AMCL 定位、Nav2 全局规划、RPP / MPPI 局部控制、cmd_vel 速度仲裁、安全门控、底盘通信适配、里程计 / TF / 底盘状态反馈，以及 Gazebo / RViz 仿真验证。
 
-## 功能概览
+当前仓库已有较完整的 ROS2 AMR 工程骨架，包含 Nav2、AMCL、Gazebo、RViz、Mock / Serial / UDP 底盘后端、速度仲裁、安全门控、任务调度、站点 / 充电 / 车队、REST、VDA5050 mock 桥接等模块。本阶段文档将项目定位收敛到“低速巡检 AMR 导航控制系统”，并明确区分 current、mock、planned / TBD 内容。
 
-- **底盘与硬件抽象**：Mock / Serial / UDP 三种底盘后端统一抽象，自定义 `CMD/ODOM/STATE` 行文本协议，并提供 ros2_control `SystemInterface` 插件接入 `diff_drive_controller`。
-- **传感器标准化**：激光、IMU 经 filter 标准化为 `/scan`、`/imu/data`，统一坐标系与诊断。
-- **导航与定位**：Nav2（basic / advanced）、slam_toolbox、Cartographer、robot_localization EKF 配置齐全，headless 可自动验证 lifecycle。
-- **路径跟踪**：Pure Pursuit 与 Stanley 两种控制器，输出带符号横向误差和终点停止判定，可做对比 benchmark。
-- **任务调度中枢**：mission_runner 支持任务队列、优先级、抢占、暂停 / 恢复 / 取消、失败恢复策略、成本 / ETA / 电量估算。
-- **站点与搬运**：站点目录、站点路网、站点运输订单、坐标运输订单，统一经 `/v2/submit_order` 入口下发。
-- **设施联动**：门、电梯、充电桩作为可预约资源，支持预约 / 释放 / 超时回退，门控与电梯会话状态机。
-- **充电策略**：低电量自动回桩、任务间隙机会充电、充电桩占用锁。
-- **车队与互操作**：多机器人状态管理、车队站点任务分发、VDA 5050 桥接、REST 北向接口。
-- **安全控制**：`twist_mux + cmd_vel_safety_gate` 两层（急停 / 限速 / 人工接管），`system_monitor` + `diagnostic_aggregator` + `fault_supervisor` 形成诊断到急停的闭环。
-- **仿真与可视化**：Gazebo 室内仓储世界、RViz 标签可视化、一键自动演示编排器（auto demo director）。
-- **实验与报告**：场景化 benchmark，输出 CSV / JSON 指标（跟踪误差、吞吐、循环时间等）。
+## 应用场景：厂区 / 园区半封闭低速巡检
 
-## 技术栈
+目标场景是厂区、园区、仓储通道、实验室走廊等半封闭环境中的低速巡检任务：
 
-| 层面 | 技术 |
-| --- | --- |
-| 语言 | C++17（主体）、Python（launch / 工具 / REST gateway） |
-| 框架 | ROS2 Jazzy |
-| 构建 | CMake 3.20+ / colcon，GCC 12+ / Clang 15+ |
-| 导航 | Nav2（controller / planner / behavior / bt_navigator）、Waypoint Follower |
-| 建图定位 | slam_toolbox、Cartographer、robot_localization（EKF） |
-| 控制 | ros2_control、diff_drive_controller、Pure Pursuit、Stanley |
-| 仿真 | Gazebo（gz）、ros_gz bridge |
-| 测试 | GoogleTest（416+ 用例）、launch_testing、shell 验收脚本 |
-| 通信协议 | 自定义 Serial/UDP 行协议、VDA 5050（桥接）、REST/HTTP、MQTT（mock 桥接） |
+- 按巡检点或目标点序列运行；
+- 基于静态地图进行定位和全局路径规划；
+- 在局部控制层输出速度指令；
+- 通过速度仲裁和安全门控约束最终 `/cmd_vel`；
+- 经底盘适配层接入 Mock / Serial / UDP 后端；
+- 通过 `/odom`、`/wheel/odom`、`/chassis/state`、TF 和诊断链路形成反馈闭环。
+
+不把当前项目描述为量产级无人车、VCU 固件或真实工厂部署系统。真实硬件联调、性能指标和现场标定结果需要后续阶段补充。
 
 ## 系统架构
 
-系统按职责分层，数据自底向上流动：
+核心闭环：
 
 ```text
-        Gazebo 仿真 / 真实硬件 / rosbag
-                    │
-   robot_sensors ── /scan /imu/data /camera/*
-                    │
- robot_navigation │ robot_path_tracking │ robot_tasks
-   (Nav2 / SLAM)  │ (Pure Pursuit/Stanley)│ (mission 调度)
-                    │
-   /nav2_cmd_vel /tracking_cmd_vel /teleop_cmd_vel
-                    │
-   twist_mux ─► /muxed_cmd_vel ─► cmd_vel_safety_gate_node
-                    │            (急停 / 限速 / 人工接管)
-                  /cmd_vel
-                    │
-   ros2_control(diff_drive_controller) 或 robot_hardware backend
-                    │
-   /odom /wheel/odom /odometry/filtered /chassis/state
-                    │
-   robot_utils: system_monitor ─► /system_health /diagnostics
-                fault_supervisor ─► 急停闭环
-   robot_navigation: map_manager ─► 地图目录 / 语义区
-   robot_tasks: mission_runner ─► /navigate_sequence ─► Nav2 /navigate_to_pose
+巡检点 / 目标点
+  -> map_server 地图加载
+  -> AMCL 定位
+  -> Nav2 全局规划 Navfn / Smac
+  -> RPP / MPPI 局部控制
+  -> cmd_vel_mux 速度仲裁
+  -> cmd_vel_safety_gate 安全门控
+  -> chassis_driver 底盘驱动
+  -> Mock / Serial / UDP 后端
+  -> /odom、/wheel/odom、/chassis/state、TF
+  -> system_monitor、fault_supervisor、安全停车
 ```
 
+详细架构见 [docs/architecture.md](docs/architecture.md)。
 
+## 核心闭环链路
 
-- `/cmd_vel` 默认只能由 `cmd_vel_safety_gate_node` 发布（`use_twist_mux:=false` 时由 `cmd_vel_mux_node` 发布）。
-- TF 主链唯一：`map → odom → base_footprint → base_link → {lidar_link, imu_link, camera_link}`。无 EKF 时 driver 发布 `odom→base_footprint`；EKF 开启时由 EKF 独占发布。
-- 上层算法只订阅标准传感器 topic，不直接依赖仿真 topic。
-- 外部订单统一从 `/v2/submit_order` 进入，`order_type` 路由到 transport / station / fleet / business / scenario / VDA5050 / fulfillment 同一底层链路，不存在第二套提交入口。
+| 环节 | 当前实现 | 说明 |
+| --- | --- | --- |
+| 地图 | current | `robot_navigation/maps/indoor_room.yaml`，Nav2 map_server 通过 launch 加载 |
+| 定位 | current | Nav2 AMCL，订阅 `/scan`，发布 `map -> odom`，定位健康监控与重定位服务已有工程入口 |
+| 全局规划 | current | `nav2_basic.yaml` 使用 Navfn，`nav2_advanced.yaml` 使用 SmacPlanner2D |
+| 局部控制 | current | basic 使用 RPP，advanced 使用 MPPI |
+| 路径跟踪实验 | current | standalone Pure Pursuit / Stanley 控制器与参考路径发布 |
+| 速度仲裁 | current | `cmd_vel_mux_node` / `twist_mux` 相关链路 |
+| 安全门控 | current | `cmd_vel_safety_gate_node` 支持急停、watchdog、动态限速和人工接管状态 |
+| 底盘适配 | current | `chassis_driver_node` + Mock / Serial / UDP 后端，另有 ros2_control SystemInterface |
+| 反馈 | current | `/odom`、`/wheel/odom`、`/chassis/state`、TF、system health |
+| 安全状态机 | partial current / planned | 已有安全门控和 fault supervisor；完整安全状态机文档见 [docs/safety_state_machine.md](docs/safety_state_machine.md) |
 
-## 代码文件架构
-
-```text
-robot/
-├── src/
-│   ├── robot_bringup/        # 顶层启动与配置入口（display / bringup / tracking / amr_demo）
-│   ├── robot_description/    # URDF / Xacro 模型、RViz 资产
-│   ├── robot_hardware/       # 底盘抽象：协议编解码 + Mock/Serial/UDP 后端 + ros2_control 插件
-│   ├── robot_sensors/        # 激光/IMU 标准化、假传感器源、诊断
-│   ├── robot_navigation/     # Nav2 / SLAM / EKF 配置、map_manager、语义区 filter mask
-│   ├── robot_path_tracking/  # 参考路径发布 + Pure Pursuit / Stanley 控制器
-│   ├── robot_tasks/          # 任务中枢：mission 队列/调度/恢复 + 站点/设施/充电/车队/订单
-│   ├── robot_teleop/         # twist_mux 安全门、cmd_vel 仲裁、急停、键盘/虚拟遥控
-│   ├── robot_simulation/     # Gazebo 世界、仿真桥接、可视化、自动演示编排器
-│   ├── robot_utils/          # system_monitor、fault_supervisor 诊断与安全闭环
-│   ├── robot_experiments/    # 场景 benchmark runner、参考路径、指标输出
-│   └── robot_interfaces*/    # 共享 msg/srv/action，按业务域拆包（core/navigation/mission/
-│                             #   facility/fleet/business/site），robot_interfaces 留兼容窗口
-├── scripts/                  # 110+ 验收脚本（check_robot.sh 统一入口）、REST gateway、VDA 桥接
-├── tools/                    # operator_console.html 单文件运营控制台
-├── docker/                   # Dockerfile（ROS2 Jazzy 环境复现）
-└── README.md
-```
-
-各包代码规模（源文件 / 测试文件）：
-
-| 包 | 职责 | 源 | 测试 |
-| --- | --- | --- | --- |
-| robot_tasks | 任务调度中枢（含 workflow / behavior tree 拆分） | 46 | 39 |
-| robot_hardware | 底盘抽象与协议 | 11 | 2 |
-| robot_simulation | Gazebo 仿真桥接与演示 | 6 | — |
-| robot_navigation | Nav2 / SLAM / 地图 / 语义区 | 5 | 3 |
-| robot_sensors | 传感器标准化 | 4 | — |
-| robot_teleop | 安全门与 cmd_vel 仲裁 | 4 | 1 |
-| robot_path_tracking | 路径跟踪控制器 | 3 | 1 |
-| robot_utils | 诊断与故障监督 | 2 | — |
-| robot_experiments | 场景 benchmark | 1 | — |
-
-
-## 编译
+## 快速启动
 
 依赖 ROS2 Jazzy（Ubuntu 24.04）。首次构建：
 
 ```bash
-# 1. 安装系统依赖（rosdep）
-cd /home/ubuntu/robot
 source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
-
-# 2. 编译
 colcon build --symlink-install
-
-# 3. 加载工作空间
 source install/setup.bash
 ```
 
-只编译指定包 / 调试构建：
-
-```bash
-colcon build --symlink-install --packages-select robot_tasks robot_navigation
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Debug
-```
-
-用 Docker 复现环境（无需本机装 ROS2）：
+Docker 复现环境：
 
 ```bash
 docker build -t robot-amr -f docker/Dockerfile .
-docker run -it --rm robot-amr bash      # 进入后已编译好，source install/setup.bash 即可
+docker run -it --rm robot-amr bash
 ```
 
-## 一键自动仿真（推荐先跑这个）
-
-`amr_demo.launch.py` 是完整的一键自动演示入口：拉起 Gazebo 室内仓储世界、机器人模型、Nav2 序列导航、RViz 可视化，并启动**自动演示编排器**（`amr_sim_demo_director_node`）自动下发一连串任务——巡航、站点搬运、过门 / 电梯、对桩充电、避障停车与恢复，全程无需人工干预。
+低速巡检相关启动入口：
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-
-# 带图形界面 + RViz + 自动演示（默认全开）
+# Gazebo + RViz + 自动演示编排
 ros2 launch robot_bringup amr_demo.launch.py gui:=true use_rviz:=true
 
-# 只看自动流程、不弹 RViz
-ros2 launch robot_bringup amr_demo.launch.py gui:=true use_rviz:=false
-
-# headless 无图形（CI / 远程服务器）：自动演示仍会跑完整任务链
-ros2 launch robot_bringup amr_demo.launch.py gui:=false use_rviz:=false
-
-# 关闭自动演示，自己手动下发任务
-ros2 launch robot_bringup amr_demo.launch.py auto_demo:=false
-```
-
-可用参数：
-
-| 参数 | 默认 | 说明 |
-| --- | --- | --- |
-| `gui` | `true` | 是否启动 Gazebo 图形界面 |
-| `use_rviz` | `true` | 是否启动 RViz 可视化 |
-| `use_map` | `true` | 是否加载静态地图 |
-| `auto_demo` | `true` | 是否启动自动演示编排器自动跑全流程 |
-| `labels_enabled` | `false` | 是否启用 Gazebo 内 3D 文字标签（默认关，文字交给 RViz 正对相机显示） |
-
-> 文字标签默认由 RViz 的 `TEXT_VIEW_FACING` marker 显示（永远正对相机、不重叠）；需要纯 Gazebo 演示时可传 `labels_enabled:=true`。
-
-## 运行操作
-
-### 模型显示与基础启动
-
-```bash
-# 仅在 RViz 中显示机器人模型与 TF
-ros2 launch robot_bringup display.launch.py
-
-# mock 底盘一键起底盘 + 传感器 + 安全链路
+# Mock 底盘 + 传感器 + 安全链路
 ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=mock
-```
 
-### 真实 / 仿真底盘
-
-```bash
-# 串口底盘
-ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=serial dev:=/dev/ttyUSB0 baud:=115200
-
-# UDP 底盘
-ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=udp ip:=192.168.1.10 port:=9000
-
-# 无真实底盘时，本机起一个 UDP 底盘模拟器
-ros2 launch robot_hardware chassis_simulator.launch.py bind_host:=127.0.0.1 port:=19000
-
-# ros2_control 标准控制链路（diff_drive_controller）
-ros2 launch robot_hardware ros2_control_hardware.launch.py backend:=mock
-ros2 control list_controllers
-
-# 接 EKF（robot_localization 独占发布 odom→base_footprint）
-ros2 launch robot_hardware hardware_ekf.launch.py backend:=mock
-```
-
-### 导航与建图
-
-```bash
-# Nav2 导航（可调延迟启动核心导航）
+# Nav2 导航
 ros2 launch robot_navigation nav.launch.py navigation_start_delay:=5.0
 
-# SLAM 建图
-ros2 launch robot_navigation slam.launch.py
+# 任务 / 巡检点调度入口
+ros2 launch robot_tasks mission_runner.launch.py autostart:=true
 
-# 地图管理（多地图目录扫描、active map 选择、语义区）
-ros2 launch robot_navigation map_manager.launch.py
-
-# 语义区 → Nav2 keepout / speed filter mask
-ros2 launch robot_navigation zone_filters.launch.py
-
-# 保存与校验地图
-scripts/save_map.sh indoor_room src/robot_navigation/maps
-scripts/validate_map.sh src/robot_navigation/maps/indoor_room.yaml
-```
-
-### 路径跟踪对比实验
-
-```bash
-# Pure Pursuit
+# Pure Pursuit / Stanley standalone 路径跟踪实验
 ros2 launch robot_bringup tracking.launch.py controller:=pure_pursuit
-# Stanley
 ros2 launch robot_bringup tracking.launch.py controller:=stanley
 ```
 
-### 任务调度与订单下发
+真实 Serial / UDP 底盘接入入口存在，但真实硬件参数、协议版本和标定数据需要按设备补齐：
 
 ```bash
-# 启动任务中枢
-ros2 launch robot_tasks mission_runner.launch.py autostart:=true
-ros2 launch robot_tasks mission_runner.launch.py return_to_dock_after_mission:=true
-
-# 统一订单入口：坐标运输订单
-ros2 service call /v2/submit_order robot_interfaces_business/srv/SubmitOrder \
-  "{order_type: 'transport', payload_json: 'dropoff_x=1.5;dropoff_y=0.8;dropoff_yaw=0'}"
-
-# 站点运输订单
-ros2 service call /v2/submit_order robot_interfaces_business/srv/SubmitOrder \
-  "{order_type: 'station_transport', payload_json: 'pickup_station=receiving;dropoff_station=storage_a'}"
-
-# 任务控制
-ros2 service call /pause_mission std_srvs/srv/Trigger
-ros2 service call /resume_mission std_srvs/srv/Trigger
-ros2 service call /return_to_dock std_srvs/srv/Trigger
-
-# 站点 / 设施 / 充电查询
-ros2 service call /v2/list_stations robot_interfaces_mission/srv/ListStations
-ros2 service call /v2/list_facility_resources robot_interfaces_facility/srv/ListFacilityResources
+ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=serial dev:=/dev/ttyUSB0 baud:=115200
+ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=udp ip:=192.168.1.10 port:=9000
 ```
 
-### 安全与诊断
+## 核心模块
 
-```bash
-ros2 service call /enable_emergency_stop std_srvs/srv/SetBool "{data: true}"
-ros2 service call /clear_emergency_stop std_srvs/srv/SetBool "{data: true}"
-ros2 topic echo /emergency_stop/state
-ros2 topic echo /system_health
-ros2 topic echo /diagnostics_agg
-```
+### Navigation
 
-### REST 北向接口与运营控制台
+- `robot_navigation` 提供 Nav2、AMCL、SLAM、地图管理、语义区和 costmap 相关配置。
+- `nav2_basic.yaml` 当前使用 NavfnPlanner + Regulated Pure Pursuit。
+- `nav2_advanced.yaml` 当前使用 SmacPlanner2D + MPPI，并包含 voxel / inflation / footprint 配置。
+- 详情见 [docs/navigation.md](docs/navigation.md)。
 
-```bash
-# 启动 REST gateway（默认绑定 127.0.0.1，仅本机；对外暴露需开 --enforce-roles）
-python3 scripts/rest_api_gateway.py --host 127.0.0.1 --port 18080
+### Localization
 
-# 提交业务订单
-curl -X POST http://127.0.0.1:18080/api/business_orders \
-  -H 'Content-Type: application/json' \
-  -d '{"business_type":"transport","pickup_station":"receiving","dropoff_station":"storage_a"}'
+- 当前导航定位以 AMCL 为主，围绕 `/amcl_pose`、`map -> odom`、`odom -> base_footprint` 建立定位链路。
+- `mission_runner` 中已有 localization health、LOST / RECOVERED、重定位服务相关逻辑。
+- 详情见 [docs/localization.md](docs/localization.md)。
 
-# 浏览器打开运营控制台（读 /api/operator/snapshot）
-xdg-open tools/operator_console.html
-```
+### Control
 
-## 测试与验收
+- Nav2 controller：RPP / MPPI 负责导航闭环下的局部速度输出。
+- standalone tracking：Pure Pursuit / Stanley 用于路径跟踪实验和控制器对比。
+- 后续实验指标不在 README 中伪造，统一用 TBD 模板记录。
+- 详情见 [docs/control.md](docs/control.md) 和 [docs/experiment_report.md](docs/experiment_report.md)。
 
-```bash
-# 全量构建 + 单元 / 集成测试（GoogleTest + launch_testing）
-colcon build --symlink-install
-colcon test
-colcon test-result --verbose
+### Chassis Adapter
 
-# 只测某个包
-colcon test --packages-select robot_navigation --event-handlers console_direct+
+- `robot_hardware` 提供底盘协议编解码、Mock / Serial / UDP 后端、`chassis_driver_node`、`chassis_simulator_node` 和 ros2_control 插件。
+- 当前协议包含 `CMD`、`ODOM`、`STATE` 行文本协议，以及部分 Mick binary frame 支持。
+- 这是 ROS2 上位机到底盘控制器的通信适配，不是 VCU 固件开发。
+- 详情见 [docs/chassis_protocol.md](docs/chassis_protocol.md)。
 
-# 统一验收入口（聚合 110+ check 脚本，按 suite/case 调度）
-scripts/check_robot.sh                       # 查看可用 suite
-scripts/check_robot.sh mission queue         # mission 队列验收
-scripts/check_robot.sh facility charging     # 充电 / 设施验收
-scripts/check_robot.sh amr_sim assets        # 仿真演示资产验收
+### Safety
 
-# 常用独立验收脚本
-scripts/hardware_acceptance.sh mock 10
-scripts/udp_sim_acceptance.sh 5
-scripts/check_fault_supervisor.sh
-scripts/check_mission_runner.sh
-```
+- `robot_teleop` 中的 `cmd_vel_safety_gate_node` 统一发布最终 `/cmd_vel`，支持 emergency stop、watchdog、manual takeover、dynamic speed limit。
+- `robot_utils` 中的 `system_monitor_node` 和 `fault_supervisor_node` 构成诊断到急停的闭环。
+- 详情见 [docs/safety_state_machine.md](docs/safety_state_machine.md)。
 
-## 接口
+### Simulation
 
-**Topics**：`/scan`、`/imu/data`、`/wheel/odom`、`/odom`、`/odometry/filtered`、`/cmd_vel`（唯一发布者为 safety gate）、`/emergency_stop/state`、`/tracking_error`、`/chassis/state`、`/mission_runner/state`、`/system_health`、`/diagnostics_agg`。
+- `robot_simulation` 包含 Gazebo world、仿真桥接、RViz marker 可视化和自动演示编排。
+- 当前场景为 `indoor_room.sdf` / `indoor_room` map；厂区巡检场景 `factory_patrol.sdf`、factory map、stations、zones 是 planned。
+- 详情见 [docs/simulation_scenarios.md](docs/simulation_scenarios.md)。
 
-**Action**：`/navigate_sequence`（`robot_interfaces/action/NavigateSequence`，Nav2 可用时调度 `/navigate_to_pose`，否则 mock fallback）。
+## Demo 场景
 
-**Services**：统一订单 `/v2/submit_order`；mission 控制 `/pause_mission`、`/resume_mission`、`/v2/enqueue_mission_profile`、`/v2/preempt_mission_profile`；站点/车队 `/v2/list_stations`、`/v2/submit_fleet_station_task`；设施/充电 `/v2/reserve_facility_resource`、`/v2/request_charging`；安全 `/enable_emergency_stop`、`/v2/set_cmd_source`。接口按业务域拆包 `robot_interfaces_{core,navigation,mission,facility,fleet,business,site}`。
+| Demo | 状态 | 说明 |
+| --- | --- | --- |
+| Gazebo / RViz AMR showcase | current | `robot_bringup amr_demo.launch.py`，基于现有 indoor_room 场景 |
+| Mock 底盘闭环 | current | `bringup.launch.py backend:=mock` |
+| Nav2 basic / advanced 对比 | current config / planned report | 配置存在，系统化指标报告待补充 |
+| Pure Pursuit / Stanley 路径跟踪 | current code / planned report | 控制器和 benchmark runner 存在，实验报告模板为 TBD |
+| 多点巡检 | partial current / planned factory demo | 当前可通过任务 / 站点链路表达，厂区巡检地图与脚本待 Phase 5 补齐 |
+| 临时障碍避障 | planned factory demo | 后续结合 costmap 与场景脚本补强 |
+| 定位丢失恢复 | current logic / planned scenario | localization health 与重定位流程已有代码入口，厂区演示脚本待补齐 |
 
-**底盘协议**（Serial/UDP 行文本，每帧 `\n` 结尾）：
+## 实验与评估规划
 
-```text
-ROS → 底盘:  CMD <linear_x_mps> <angular_z_radps>
-底盘 → ROS:  ODOM <x_m> <y_m> <yaw_rad> <linear_x_mps> <angular_z_radps> [battery_v]
-             STATE <status> <battery_v>
-```
+本仓库已有 `robot_experiments`、`scripts/run_*benchmark.sh` 和部分历史 CSV / JSON 结果文件，但 Phase 0 不新增、不美化、不伪造实验结果。后续实验报告统一采用 [docs/experiment_report.md](docs/experiment_report.md) 模板，指标包括：
 
-运动学当前支持 `diff_drive` 与 `mecanum`；`ackermann` / `four_ws4wd` 等在实现真实转向模型前降级为 `diff_drive`。
+- `success_rate`
+- `arrival_time`
+- `final_error`
+- `rms_lateral_error`
+- `max_lateral_error`
+- `mean_heading_error`
+- `max_angular_velocity`
+- `stop_count`
 
-## 许可与说明
+标定思路见 [docs/calibration.md](docs/calibration.md)。
 
-本项目为室内 AMR 移动机器人，默认提供 headless 仿真与 mock 后端，可在无真实硬件环境下完整验证；真实硬件接入时须保持 `/cmd_vel`、`/odom`、`/imu/data`、`/chassis/state` 外部契约不变。REST gateway 默认仅绑定本机，对外部署前请开启鉴权、限制请求体大小。
+## 测试与 CI
 
-知识星球： “奔跑中cpp / c++” 所有
-加入星球即可获得全部资源
-星球项目都申请了专利，商业使用前请联系我方授权
-一旦发现侵权行为，将依法追究法律责任（对于公司法律事务已有对接律师，敬请告知）
+当前测试形态：
+
+- GoogleTest：底盘协议、控制数学、导航地图 / zone、任务调度 workflow / behavior tree 等；
+- launch_testing：bringup、Nav2 / SLAM mock runtime、fault supervisor 等；
+- shell 验收脚本：`scripts/check_*.sh` 覆盖导航、仿真、任务、安全、REST、VDA5050 mock 等链路；
+- GitHub Actions：`.github` 目录存在，具体 CI 能力以后续 workflow 为准。
+
+Phase 0 仅调整文档，不修改测试、launch、参数、源码或 CI 配置。
+
+## Roadmap
+
+完整路线图见 [docs/roadmap.md](docs/roadmap.md)。
+
+| Phase | 优先级 | 目标 | 状态 |
+| --- | --- | --- | --- |
+| Phase 0 | P0 | 项目定位统一与文档重构 | current |
+| Phase 1 | P0 | Nav2 与 costmap 能力补强 | planned |
+| Phase 2 | P0 | 控制算法实验体系 | planned |
+| Phase 3 | P1 | 底盘通信与 odom / TF 工程化 | planned |
+| Phase 4 | P1 | 定位、重定位与安全状态机 | planned |
+| Phase 5 | P1 | 厂区巡检仿真场景 | planned |
+| Phase 6 | P2 | 实验报告、CI、最终展示 | planned |
+
+## 面试可讲亮点
+
+面试讲解口径见 [docs/interview_notes.md](docs/interview_notes.md)。建议主线：
+
+1. 应用场景：半封闭厂区 / 园区低速巡检；
+2. 系统闭环：目标点到 `/cmd_vel` 再到底盘反馈；
+3. 算法选型：AMCL、Navfn / Smac、RPP / MPPI、Pure Pursuit / Stanley；
+4. 工程落地：ROS2 package 拆分、launch、接口、Mock / Serial / UDP 后端；
+5. 安全保护：速度仲裁、安全门控、故障监督、异常停车；
+6. 实验指标：只讲模板和后续计划，不伪造数据；
+7. 项目边界：当前是导航控制工程展示系统，不声称真实量产部署。
+
+## 文档索引
+
+- [System Architecture](docs/architecture.md)
+- [Navigation](docs/navigation.md)
+- [Localization](docs/localization.md)
+- [Control](docs/control.md)
+- [Chassis Protocol](docs/chassis_protocol.md)
+- [Safety State Machine](docs/safety_state_machine.md)
+- [Simulation Scenarios](docs/simulation_scenarios.md)
+- [Experiment Report Template](docs/experiment_report.md)
+- [Calibration](docs/calibration.md)
+- [Interview Notes](docs/interview_notes.md)
+- [Roadmap](docs/roadmap.md)
