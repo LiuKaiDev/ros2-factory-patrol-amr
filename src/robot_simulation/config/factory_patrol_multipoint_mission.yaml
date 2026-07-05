@@ -1,0 +1,22 @@
+# Phase 5B mission_runner-compatible profile derived from
+# factory_patrol_route.yaml and factory_patrol_stations.yaml.
+# This is a demo input asset, not a record of a completed run.
+mission_id: factory_patrol_multipoint_demo
+frame_id: map
+loop: false
+goals:
+  - x: -3.85
+    y: -3.65
+    yaw: 1.57
+  - x: -3.55
+    y: 0.0
+    yaw: 0.0
+  - x: -2.20
+    y: 3.20
+    yaw: 1.57
+  - x: 2.70
+    y: -2.25
+    yaw: -1.57
+  - x: -3.85
+    y: -3.65
+    yaw: 3.14

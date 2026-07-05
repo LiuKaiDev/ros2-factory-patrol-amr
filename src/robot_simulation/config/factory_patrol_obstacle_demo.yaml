@@ -1,0 +1,20 @@
+# Phase 5B temporary obstacle demo configuration.
+# This is a placement and observation guide; it does not claim avoidance has
+# been validated in Gazebo/Nav2.
+obstacle_name: temporary_box_obstacle
+frame_id: map
+pose:
+  x: -2.35
+  y: 1.85
+  yaw: 0.0
+size:
+  x: 0.55
+  y: 0.55
+  z: 0.70
+suggested_segment: station_A_to_station_B
+expected_observation:
+  - /scan should see the obstacle when the robot approaches the corridor.
+  - /local_costmap/costmap should mark the obstacle after Nav2 is running.
+  - Regulated Pure Pursuit may slow, stop, or replan depending on runtime Nav2 state.
+  - /safety/state should remain NORMAL unless blocked, stale, localization lost, or a fault occurs.
+  - /cmd_vel should reflect Nav2/controller behavior; no result is claimed without runtime logs.

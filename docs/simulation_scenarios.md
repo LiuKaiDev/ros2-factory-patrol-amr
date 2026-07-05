@@ -171,3 +171,142 @@ Current / planned boundary:
   and any experiment result report.
 
 No Gazebo, RViz, Nav2, or real robot runtime result is claimed by this document.
+
+## Phase 5B Factory Patrol Demo Workflows
+
+Phase 5B turns the Phase 5A factory patrol assets into three demo workflow
+entries. These are launch/script/config entry points and acceptance steps, not
+claimed runtime results.
+
+### Demo 1: Multipoint Patrol
+
+Goal:
+
+```text
+start -> station_A -> station_B -> station_C -> dock
+```
+
+Entry points:
+
+```bash
+bash scripts/run_factory_patrol_multipoint_demo.sh
+python3 scripts/print_factory_patrol_goals.py
+```
+
+Config assets:
+
+- `src/robot_simulation/config/factory_patrol_route.yaml`
+- `src/robot_simulation/config/factory_patrol_stations.yaml`
+- `src/robot_simulation/config/factory_patrol_multipoint_mission.yaml`
+
+Observed topics during a real run:
+
+- `/navigate_sequence/current_goal`
+- `/navigate_sequence/current_path`
+- `/mission_runner/state`
+- `/cmd_vel`
+- `/odom`
+- `/safety/state`
+- `/safety/reason`
+
+Expected behavior to verify in runtime logs: each waypoint is issued in order,
+the robot approaches each station, and the mission returns to `dock`. Current
+boundary: scripts and mission profile are present; no success rate or travel
+time is filled until a real run is captured.
+
+### Demo 2: Temporary Obstacle
+
+Goal: place a simple temporary box obstacle near the `station_A` to `station_B`
+segment and observe perception/planning/safety topics.
+
+Entry point:
+
+```bash
+bash scripts/run_factory_patrol_obstacle_demo.sh
+```
+
+Config/model assets:
+
+- `src/robot_simulation/config/factory_patrol_obstacle_demo.yaml`
+- `src/robot_simulation/models/temporary_box_obstacle/model.sdf`
+- `src/robot_simulation/models/temporary_box_obstacle/model.config`
+
+Suggested runtime observations:
+
+- `/scan`
+- `/local_costmap/costmap`
+- `/cmd_vel`
+- `/safety/state`
+- `/safety/reason`
+
+Expected behavior to verify in runtime logs: the obstacle appears in scan data
+and local costmap, and the controller response is visible in `/cmd_vel`. Whether
+the robot slows, stops, or replans depends on the actual Nav2 runtime state.
+This document does not claim the avoidance behavior has passed.
+
+### Demo 3: Localization Lost And Recovery
+
+Goal: inject a bad `/initialpose`, then inject a recovery `/initialpose`, and
+observe localization health and safety-state linkage.
+
+Entry point:
+
+```bash
+bash scripts/run_factory_patrol_localization_recovery_demo.sh
+```
+
+Config asset:
+
+- `src/robot_simulation/config/factory_patrol_localization_recovery.yaml`
+
+Expected state labels to observe if the runtime conditions trigger them:
+
+```text
+LOCALIZATION_LOST -> LOCALIZATION_RECOVERING -> LOCALIZATION_RECOVERED -> LOCALIZATION_OK
+```
+
+Observed topics:
+
+- `/localization/health`
+- `/safety/state`
+- `/safety/reason`
+- `/amcl_pose`
+- `/tf`
+
+Expected safety linkage: `LOCALIZATION_LOST` should be visible through
+`/safety/state` and should force zero command according to Phase 4B policy. This
+must be verified from a real ROS2/Nav2 run; no result is filled here.
+
+### Checks
+
+Static workflow check:
+
+```bash
+bash scripts/check_factory_patrol_demo_workflows.sh
+```
+
+Runtime topic check after the demo and Nav2 are running:
+
+```bash
+bash scripts/check_factory_patrol_demo_runtime.sh
+```
+
+Current in Phase 5B:
+
+- demo workflow scripts
+- multipoint mission/profile asset
+- temporary obstacle config and simple SDF model
+- localization recovery pose config
+- runtime and static check scripts
+- acceptance documentation
+
+Planned after Phase 5B:
+
+- real Gazebo/RViz screenshots
+- navigation success-rate statistics
+- dynamic pedestrians or moving obstacles
+- Nav2 keepout/speed filter integration for factory zones
+- automatic mission pause/resume full closed loop
+
+No Gazebo, RViz, Nav2, localization recovery, or obstacle-avoidance runtime
+success is claimed by this phase.

@@ -169,3 +169,21 @@ bash scripts/check_safety_runtime_topics.sh
 The runtime script only checks topic presence. It does not prove real hardware
 safety performance, real localization recovery, or field-tested emergency-stop
 latency.
+
+## Phase 5B Factory Patrol Demo Observation
+
+Factory patrol demo workflows should observe the unified safety state through:
+
+```bash
+ros2 topic echo /safety/state
+ros2 topic echo /safety/reason
+```
+
+For the temporary obstacle demo, watch `SENSOR_STALE` only if `/scan`, `/odom`,
+or other monitored inputs become stale; a normal obstacle in `/scan` is expected
+to be handled by Nav2/local costmap first. For the localization recovery demo,
+watch `LOCALIZATION_LOST` after the bad pose or localization timeout condition
+and confirm whether `/cmd_vel` is zeroed by the Phase 4B policy.
+
+No Phase 5B document claims the safety-state transitions have passed in Gazebo
+until runtime topic logs are collected.

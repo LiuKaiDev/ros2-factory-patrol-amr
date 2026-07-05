@@ -271,3 +271,19 @@ bash scripts/check_factory_patrol_assets.sh
 ```
 
 Details: [docs/simulation_scenarios.md](docs/simulation_scenarios.md).
+
+## Phase 5B Factory Patrol Workflows
+
+Factory Patrol demo workflow entries:
+
+- Multipoint Patrol: `bash scripts/run_factory_patrol_multipoint_demo.sh`
+- Print route goals: `python3 scripts/print_factory_patrol_goals.py`
+- Temporary Obstacle: `bash scripts/run_factory_patrol_obstacle_demo.sh`
+- Localization Recovery: `bash scripts/run_factory_patrol_localization_recovery_demo.sh`
+- Static workflow check: `bash scripts/check_factory_patrol_demo_workflows.sh`
+- Runtime topic check: `bash scripts/check_factory_patrol_demo_runtime.sh`
+
+Docs:
+
+- [Simulation Scenarios](docs/simulation_scenarios.md)
+- [Experiment Report Template](docs/experiment_report.md)

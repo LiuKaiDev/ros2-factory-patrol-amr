@@ -172,3 +172,24 @@ bash scripts/check_safety_runtime_topics.sh
 
 The runtime check requires ROS2 nodes to be running and only verifies topic
 presence. It does not claim a real localization recovery test.
+
+## Phase 5B Factory Patrol Recovery Demo
+
+Factory patrol localization recovery demo entry:
+
+```bash
+bash scripts/run_factory_patrol_localization_recovery_demo.sh
+```
+
+The script prints bad and recovery `/initialpose` examples from
+`src/robot_simulation/config/factory_patrol_localization_recovery.yaml` and lists
+topics to observe:
+
+- `/localization/health`
+- `/safety/state`
+- `/safety/reason`
+- `/amcl_pose`
+- `/tf`
+
+It does not claim the LOST/RECOVERED transitions have been observed until a real
+ROS2/Nav2 run is captured.

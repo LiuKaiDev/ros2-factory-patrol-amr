@@ -1,0 +1,23 @@
+# Phase 5B localization recovery demo poses.
+# These are scripted injection examples for /initialpose, not measured results.
+bad_initial_pose:
+  frame_id: map
+  x: 3.80
+  y: 3.55
+  yaw: 3.14
+recovery_initial_pose:
+  frame_id: map
+  x: -3.85
+  y: -3.65
+  yaw: 1.57
+expected_states:
+  - LOCALIZATION_LOST
+  - LOCALIZATION_RECOVERING
+  - LOCALIZATION_RECOVERED
+  - LOCALIZATION_OK
+observe_topics:
+  - /localization/health
+  - /safety/state
+  - /safety/reason
+  - /amcl_pose
+  - /tf

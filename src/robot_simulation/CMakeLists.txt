@@ -84,7 +84,7 @@ install(TARGETS
   gazebo_unpause_node
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY config launch media rviz worlds
+install(DIRECTORY config launch media models rviz worlds
   DESTINATION share/${PROJECT_NAME})
 
 ament_package()

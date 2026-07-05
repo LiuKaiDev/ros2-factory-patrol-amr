@@ -15,6 +15,7 @@ def generate_launch_description():
     use_mission_runner = LaunchConfiguration("use_mission_runner")
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
+    mission_file = LaunchConfiguration("mission_file")
 
     sim_launch = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "launch", "sim.launch.py"]
@@ -47,6 +48,13 @@ def generate_launch_description():
     zones_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "config", "factory_patrol_zones.yaml"]
     )
+    default_mission_file = PathJoinSubstitution(
+        [
+            FindPackageShare("robot_simulation"),
+            "config",
+            "factory_patrol_multipoint_mission.yaml",
+        ]
+    )
 
     return LaunchDescription(
         [
@@ -57,6 +65,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_mission_runner", default_value="true"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
+            DeclareLaunchArgument("mission_file", default_value=default_mission_file),
             DeclareLaunchArgument("nav2_map", default_value=default_nav2_map),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(sim_launch),
@@ -88,6 +97,7 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(mission_runner_launch),
                 condition=IfCondition(use_mission_runner),
                 launch_arguments={
+                    "mission_file": mission_file,
                     "autostart": autostart_mission,
                     "station_file": station_file,
                     "preflight_zones_file": zones_file,
