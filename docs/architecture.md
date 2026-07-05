@@ -54,3 +54,22 @@ flowchart LR
 | Chassis adapter | Mock / Serial / UDP 后端和行文本协议存在；Phase 3A 已补充 `text_v2` 的 seq、timestamp、heartbeat、fault_code 和命令超时停车 hook；Phase 3B 已补充运动学参数统一、odom covariance 和标定流程文档。 | 真实底盘联调、完整故障码表、实车 covariance 估计和接口字段化。 |
 | Safety | safety gate、watchdog、dynamic speed limit、manual takeover、fault supervisor 存在。 | 统一安全状态机、状态事件记录、任务暂停 / 恢复策略完整化。 |
 | Experiment report | benchmark 基础设施和部分历史结果文件存在。 | 不复用为正式结论；后续按模板重新跑实验并记录。 |
+
+## Phase 4B Safety Integration
+
+The final `/cmd_vel` gate now resolves a unified safety state before publishing
+commands to the chassis adapter:
+
+```text
+/localization/health + /scan + /odom + /chassis/state
+  + /manual_takeover/state + legacy /safety_state
+  -> cmd_vel_safety_gate_node
+  -> /safety/state + /safety/reason
+  -> gated /cmd_vel
+```
+
+High-risk states (`SENSOR_STALE`, `LOCALIZATION_LOST`, `CHASSIS_FAULT`,
+`COMMUNICATION_LOST`, `EMERGENCY_STOP`) publish zero speed. `SPEED_LIMITED`
+keeps the command path alive but clamps it to the low-speed policy. This phase
+does not change mission-runner recovery behavior or add new factory-patrol
+scenarios.

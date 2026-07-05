@@ -1,5 +1,7 @@
 #include "robot_teleop/cmd_vel_safety.hpp"
 
+#include <initializer_list>
+
 #include <gtest/gtest.h>
 
 namespace {
@@ -112,6 +114,108 @@ TEST(CmdVelSafetyTest, DescribeCommandState_ReportsHighestPriorityState) {
   EXPECT_EQ(robot_teleop::DescribeCommandState(false, false, true, "nav2"),
             "manual_takeover:teleop");
   EXPECT_EQ(robot_teleop::DescribeCommandState(false, false, false, "nav2"), "nav2");
+}
+
+TEST(CmdVelSafetyTest, SafetyState_ToStringAndPriority_AreStable) {
+  EXPECT_EQ(robot_teleop::ToString(robot_teleop::SafetyState::kEmergencyStop),
+            "EMERGENCY_STOP");
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kEmergencyStop),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kCommunicationLost));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kCommunicationLost),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kChassisFault));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kChassisFault),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kLocalizationLost));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kLocalizationLost),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kSensorStale));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kSensorStale),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kManualTakeover));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kManualTakeover),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kSpeedLimited));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kSpeedLimited),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kRecovery));
+  EXPECT_GT(robot_teleop::SafetyPriority(robot_teleop::SafetyState::kRecovery),
+            robot_teleop::SafetyPriority(robot_teleop::SafetyState::kNormal));
+}
+
+TEST(CmdVelSafetyTest, ResolveHighestPriority_PicksMostCriticalState) {
+  const auto resolved = robot_teleop::ResolveHighestPriority(
+      {robot_teleop::SafetyState::kSpeedLimited,
+       robot_teleop::SafetyState::kLocalizationLost,
+       robot_teleop::SafetyState::kSensorStale});
+
+  EXPECT_EQ(resolved, robot_teleop::SafetyState::kLocalizationLost);
+}
+
+TEST(CmdVelSafetyTest, ApplySafetyPolicy_NormalPassesThrough) {
+  geometry_msgs::msg::Twist twist;
+  twist.linear.x = 0.3;
+  twist.angular.z = 0.2;
+
+  const auto output = robot_teleop::ApplySafetyPolicy(
+      twist, robot_teleop::SafetyState::kNormal, 0.15, 0.4);
+
+  EXPECT_NEAR(output.linear.x, 0.3, 1e-9);
+  EXPECT_NEAR(output.angular.z, 0.2, 1e-9);
+}
+
+TEST(CmdVelSafetyTest, ApplySafetyPolicy_SpeedLimitedClampsCommand) {
+  geometry_msgs::msg::Twist twist;
+  twist.linear.x = 0.5;
+  twist.angular.z = 1.2;
+
+  const auto output = robot_teleop::ApplySafetyPolicy(
+      twist, robot_teleop::SafetyState::kSpeedLimited, 0.15, 0.4);
+
+  EXPECT_NEAR(output.linear.x, 0.15, 1e-9);
+  EXPECT_NEAR(output.angular.z, 0.36, 1e-9);
+}
+
+TEST(CmdVelSafetyTest, ApplySafetyPolicy_HighRiskStatesPublishZero) {
+  geometry_msgs::msg::Twist twist;
+  twist.linear.x = 0.5;
+  twist.angular.z = 1.2;
+
+  for (const auto state : {robot_teleop::SafetyState::kSensorStale,
+                           robot_teleop::SafetyState::kLocalizationLost,
+                           robot_teleop::SafetyState::kChassisFault,
+                           robot_teleop::SafetyState::kCommunicationLost,
+                           robot_teleop::SafetyState::kEmergencyStop}) {
+    const auto output = robot_teleop::ApplySafetyPolicy(twist, state, 0.15, 0.4);
+    EXPECT_NEAR(output.linear.x, 0.0, 1e-9);
+    EXPECT_NEAR(output.angular.z, 0.0, 1e-9);
+  }
+}
+
+TEST(CmdVelSafetyTest, SafetyStateFromLocalizationHealth_MapsHealthStrings) {
+  EXPECT_EQ(robot_teleop::SafetyStateFromLocalizationHealth("LOCALIZATION_OK localized=true"),
+            robot_teleop::SafetyState::kNormal);
+  EXPECT_EQ(robot_teleop::SafetyStateFromLocalizationHealth("LOCALIZATION_UNSTABLE covariance"),
+            robot_teleop::SafetyState::kSpeedLimited);
+  EXPECT_EQ(robot_teleop::SafetyStateFromLocalizationHealth("LOCALIZATION_LOST timeout"),
+            robot_teleop::SafetyState::kLocalizationLost);
+  EXPECT_EQ(robot_teleop::SafetyStateFromLocalizationHealth("LOCALIZATION_RECOVERING"),
+            robot_teleop::SafetyState::kRecovery);
+}
+
+TEST(CmdVelSafetyTest, SafetyStateFromChassisStatus_MapsFaultCodes) {
+  EXPECT_EQ(robot_teleop::ExtractFaultCodeName("fault_code=NONE(0):estop=0"), "NONE");
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(true, "fault_code=NONE(0):estop=0"),
+            robot_teleop::SafetyState::kNormal);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(true, "fault_code=CMD_TIMEOUT(1):estop=0"),
+            robot_teleop::SafetyState::kSensorStale);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(
+                true, "fault_code=HEARTBEAT_TIMEOUT(2):estop=0"),
+            robot_teleop::SafetyState::kCommunicationLost);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(
+                true, "fault_code=BACKEND_DISCONNECTED(3):estop=0"),
+            robot_teleop::SafetyState::kCommunicationLost);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(
+                true, "fault_code=MALFORMED_PACKET(4):estop=0"),
+            robot_teleop::SafetyState::kChassisFault);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(true, "fault_code=ESTOP_ACTIVE(5):estop=1"),
+            robot_teleop::SafetyState::kEmergencyStop);
+  EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(false, "fault_code=NONE(0):estop=0"),
+            robot_teleop::SafetyState::kCommunicationLost);
 }
 
 }  // namespace

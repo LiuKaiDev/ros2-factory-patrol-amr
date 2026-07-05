@@ -151,3 +151,32 @@ Frame 约定当前保持一致：`chassis_driver_node` 发布 `odom -> base_foot
 | protocol version | 兼容多版本底盘控制器 | partial via `protocol:=text_v2` |
 
 真实底盘联调后，需要补充串口波特率、UDP 端口、坐标系约定、速度单位、故障码表和安全超时策略。
+
+## Phase 4B Safety Mapping
+
+Phase 4B reads `/chassis/state` in `cmd_vel_safety_gate_node`. The message still
+uses the existing `connected` field and the Phase 3A `status` string, so no
+interface migration is required in this phase.
+
+Mapping used by the safety gate:
+
+| Chassis input | Safety state |
+| --- | --- |
+| `connected=false` | `COMMUNICATION_LOST` |
+| `fault_code=NONE(...)` | `NORMAL` |
+| `fault_code=CMD_TIMEOUT(...)` | `SENSOR_STALE` |
+| `fault_code=HEARTBEAT_TIMEOUT(...)` | `COMMUNICATION_LOST` |
+| `fault_code=BACKEND_DISCONNECTED(...)` | `COMMUNICATION_LOST` |
+| `fault_code=MALFORMED_PACKET(...)` | `CHASSIS_FAULT` |
+| `fault_code=ESTOP_ACTIVE(...)` or `estop=1` | `EMERGENCY_STOP` |
+
+`CMD_TIMEOUT` is treated as `SENSOR_STALE` because the driver has already
+detected a stale command stream and sent zero speed. Backend heartbeat and
+disconnect faults are communication failures; malformed packets are treated as
+chassis faults.
+
+Static validation:
+
+```bash
+bash scripts/check_safety_state_machine.sh
+```

@@ -68,3 +68,104 @@ stateDiagram-v2
 - 为每次安全停车记录原因、时间、输入速度和输出速度；
 - 将 localization lost、communication lost、chassis fault 接入统一状态机；
 - 补充 launch / shell 验收脚本和 RViz 可视化。
+
+## Phase 4B Current Integration
+
+Phase 4B adds a minimal unified safety state integration in `robot_teleop` without
+creating a new package or changing the package layout.
+
+Implemented entry points:
+
+- Helper and policy code: `src/robot_teleop/include/robot_teleop/cmd_vel_safety.hpp`
+- Final command gate: `src/robot_teleop/src/cmd_vel_safety_gate_node.cpp`
+- Launch parameters: `src/robot_teleop/launch/cmd_vel_stack.launch.py`
+- Static check: `scripts/check_safety_state_machine.sh`
+- Runtime topic check: `scripts/check_safety_runtime_topics.sh`
+
+The unified state names are:
+
+| State | Priority | Output policy |
+| --- | ---: | --- |
+| `EMERGENCY_STOP` | 90 | Publish zero `/cmd_vel`; manual reset required when configured. |
+| `COMMUNICATION_LOST` | 80 | Publish zero `/cmd_vel`. |
+| `CHASSIS_FAULT` | 70 | Publish zero `/cmd_vel`. |
+| `LOCALIZATION_LOST` | 60 | Publish zero `/cmd_vel`. |
+| `SENSOR_STALE` | 50 | Publish zero `/cmd_vel`. |
+| `MANUAL_TAKEOVER` | 40 | Keep the command selected by the mux/twist_mux chain. |
+| `SPEED_LIMITED` | 30 | Clamp command to the configured low-speed limit. |
+| `RECOVERY` | 20 | Publish zero `/cmd_vel` until the higher-level chain reports stable recovery. |
+| `NORMAL` | 10 | Pass through the existing command after the original watchdog check. |
+
+The safety gate publishes:
+
+| Topic | Type | Purpose |
+| --- | --- | --- |
+| `/safety/state` | `std_msgs/msg/String` | Current resolved safety state. |
+| `/safety/reason` | `std_msgs/msg/String` | Human-readable reason list for the resolved state. |
+
+The gate subscribes to:
+
+| Topic | Type | Default role |
+| --- | --- | --- |
+| `/localization/health` | `std_msgs/msg/String` | Maps `LOCALIZATION_LOST` to `LOCALIZATION_LOST`, `LOCALIZATION_UNSTABLE` to `SPEED_LIMITED`, and recovery states to `RECOVERY`. |
+| `/scan` | `sensor_msgs/msg/LaserScan` | Freshness input for `SENSOR_STALE`. |
+| `/odom` | `nav_msgs/msg/Odometry` | Freshness input for `SENSOR_STALE`. |
+| `/chassis/state` | `robot_interfaces/msg/ChassisState` | Chassis connectivity and fault-code input. |
+| `/manual_takeover/state` | `std_msgs/msg/Bool` | Manual takeover input. |
+| `/safety_state` | `robot_interfaces/msg/SafetyState` | Existing dynamic speed-limit / safety-stop input kept for compatibility. |
+
+Default Phase 4B parameters:
+
+```text
+localization_health_topic="/localization/health"
+scan_topic="/scan"
+odom_topic="/odom"
+chassis_state_topic="/chassis/state"
+safety_state_topic="/safety/state"
+safety_reason_topic="/safety/reason"
+scan_timeout_sec=1.0
+odom_timeout_sec=1.0
+localization_lost_stop=true
+sensor_stale_stop=true
+chassis_fault_stop=true
+communication_lost_stop=true
+emergency_stop_requires_reset=true
+speed_limited_max_linear_mps=0.15
+speed_limited_max_angular_radps=0.4
+```
+
+Additional implementation parameters are `localization_timeout_sec`,
+`chassis_state_timeout_sec`, and `safety_startup_grace_sec`; these prevent the
+gate from reporting missing runtime inputs during the first short startup window.
+
+Chassis fault-code mapping from the Phase 3A `status` string:
+
+| `fault_code` / state | Safety state |
+| --- | --- |
+| `NONE` | `NORMAL` |
+| `CMD_TIMEOUT` | `SENSOR_STALE` |
+| `HEARTBEAT_TIMEOUT` | `COMMUNICATION_LOST` |
+| `BACKEND_DISCONNECTED` | `COMMUNICATION_LOST` |
+| `MALFORMED_PACKET` | `CHASSIS_FAULT` |
+| `ESTOP_ACTIVE` or `estop=1` | `EMERGENCY_STOP` |
+| `connected=false` | `COMMUNICATION_LOST` |
+
+`CMD_TIMEOUT` is mapped to `SENSOR_STALE` because it means the command stream into
+the chassis adapter went stale and the driver has already sent zero speed. More
+severe IO and malformed-frame conditions map to communication or chassis faults.
+
+Static validation:
+
+```bash
+bash scripts/check_safety_state_machine.sh
+```
+
+Runtime topic validation, after bringup/Nav2/localization are running:
+
+```bash
+bash scripts/check_safety_runtime_topics.sh
+```
+
+The runtime script only checks topic presence. It does not prove real hardware
+safety performance, real localization recovery, or field-tested emergency-stop
+latency.

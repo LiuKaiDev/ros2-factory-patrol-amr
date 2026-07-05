@@ -143,3 +143,32 @@ bash scripts/check_localization_runtime_topics.sh
 - `scripts/check_relocalization_resume.sh`
 
 Phase 4A 新 monitor 与这些入口并行存在，不重构 mission runner 的任务暂停 / 恢复逻辑。
+
+## Phase 4B Safety Hook
+
+Phase 4B connects the Phase 4A `/localization/health` string topic to the final
+`cmd_vel_safety_gate_node`.
+
+Safety mapping:
+
+| Localization health | Safety state |
+| --- | --- |
+| `LOCALIZATION_OK` | `NORMAL` |
+| `LOCALIZATION_UNSTABLE` | `SPEED_LIMITED` |
+| `LOCALIZATION_LOST` | `LOCALIZATION_LOST` |
+| `LOCALIZATION_RECOVERING` / `LOCALIZATION_RECOVERED` | `RECOVERY` |
+
+`LOCALIZATION_LOST` publishes zero `/cmd_vel` through the safety gate when
+`localization_lost_stop=true`. `LOCALIZATION_UNSTABLE` uses the low-speed policy
+with `speed_limited_max_linear_mps=0.15` and
+`speed_limited_max_angular_radps=0.4`.
+
+Checks:
+
+```bash
+bash scripts/check_safety_state_machine.sh
+bash scripts/check_safety_runtime_topics.sh
+```
+
+The runtime check requires ROS2 nodes to be running and only verifies topic
+presence. It does not claim a real localization recovery test.
