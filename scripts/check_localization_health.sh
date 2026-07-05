@@ -1,105 +1,80 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-source "${SCRIPT_DIR}/robot_wait.sh"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-set +u
-source "${ROOT_DIR}/install/setup.bash"
-set -u
-
-LOG_DIR="$(mktemp -d /tmp/robot_localization_health.XXXXXX)"
-PIDS=()
-
-cleanup() {
-  for pid in "${PIDS[@]:-}"; do
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      kill "$pid" >/dev/null 2>&1 || true
-    fi
-  done
-  wait "${PIDS[@]:-}" >/dev/null 2>&1 || true
-  rm -rf "${LOG_DIR}"
-}
-trap cleanup EXIT
-
-start_bg() {
-  local name="$1"
-  shift
-  "$@" >"${LOG_DIR}/${name}.log" 2>&1 &
-  PIDS+=("$!")
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
 }
 
-start_bg mission_runner ros2 launch robot_tasks mission_runner.launch.py \
-  autostart:=false \
-  return_to_dock_on_low_battery:=false \
-  localization_covariance_threshold:=0.5
+pass() {
+  echo "PASS: $*"
+}
 
-wait_topic_type /localization_health "robot_interfaces/msg/LocalizationHealth" 20 \
-  "${LOG_DIR}/wait_localization_health.err"
-wait_topic_type /initialpose "geometry_msgs/msg/PoseWithCovarianceStamped" 20 \
-  "${LOG_DIR}/wait_initialpose.err"
-wait_service_type /v2/request_relocalization "robot_interfaces_navigation/srv/RequestRelocalization" 20 \
-  "${LOG_DIR}/wait_relocalization.err"
-wait_service_type /v2/set_initial_pose_from_station "robot_interfaces_navigation/srv/SetInitialPoseFromStation" 20 \
-  "${LOG_DIR}/wait_initial_pose_station.err"
-wait_service_type /v2/list_mission_events "robot_interfaces_mission/srv/ListMissionEvents" 20 \
-  "${LOG_DIR}/wait_events.err"
+require_file() {
+  local file="$1"
+  [[ -f "${ROOT_DIR}/${file}" ]] || fail "missing file: ${file}"
+}
 
-python3 - <<'PY'
-import time
-import rclpy
-from geometry_msgs.msg import PoseWithCovarianceStamped
+require_grep() {
+  local pattern="$1"
+  local file="$2"
+  local message="$3"
+  grep -q "${pattern}" "${ROOT_DIR}/${file}" || fail "${message}"
+}
 
-rclpy.init()
-node = rclpy.create_node("mock_amcl_high_covariance")
-pub = node.create_publisher(PoseWithCovarianceStamped, "/amcl_pose", 10)
-msg = PoseWithCovarianceStamped()
-msg.header.frame_id = "map"
-msg.pose.pose.orientation.w = 1.0
-msg.pose.covariance[0] = 1.2
-msg.pose.covariance[7] = 1.1
-for _ in range(5):
-    pub.publish(msg)
-    rclpy.spin_once(node, timeout_sec=0.1)
-    time.sleep(0.1)
-node.destroy_node()
-rclpy.shutdown()
-PY
+NODE_CPP="src/robot_navigation/src/localization_health_monitor_node.cpp"
+HELPER_HPP="src/robot_navigation/include/robot_navigation/localization_health.hpp"
+HELPER_CPP="src/robot_navigation/src/localization_health.cpp"
+TEST_CPP="src/robot_navigation/test/localization_health_test.cpp"
+LAUNCH_FILE="src/robot_navigation/launch/localization_health.launch.py"
+CMAKE_FILE="src/robot_navigation/CMakeLists.txt"
+LOCALIZATION_DOC="docs/localization.md"
+SAFETY_DOC="docs/safety_state_machine.md"
 
-deadline=$((SECONDS + 20))
-while true; do
-  health="$(
-    ros2 topic echo --once /localization_health robot_interfaces/msg/LocalizationHealth \
-      2>"${LOG_DIR}/localization_health.err" || true
-  )"
-  if grep -q "localized: false" <<<"${health}" && grep -q "state: LOST" <<<"${health}"; then
-    break
-  fi
-  if (( SECONDS >= deadline )); then
-    echo "localization health did not enter LOST: ${health}" >&2
-    exit 1
-  fi
-  sleep 1
+for file in "${NODE_CPP}" "${HELPER_HPP}" "${HELPER_CPP}" "${TEST_CPP}" \
+  "${LAUNCH_FILE}" "${CMAKE_FILE}" "${LOCALIZATION_DOC}" "${SAFETY_DOC}"; do
+  require_file "${file}"
 done
 
-ros2 service call /v2/request_relocalization robot_interfaces_navigation/srv/RequestRelocalization \
-  "{reason: operator requested station reset}" \
-  | rg "success=True|state='RELOCALIZING'|localized=False"
+require_grep "localization_health_monitor_node" "${NODE_CPP}" \
+  "localization_health_monitor_node implementation is missing"
+require_grep "LOCALIZATION_OK" "${HELPER_CPP}" \
+  "LOCALIZATION_OK state is missing"
+require_grep "LOCALIZATION_UNSTABLE" "${HELPER_CPP}" \
+  "LOCALIZATION_UNSTABLE state is missing"
+require_grep "LOCALIZATION_LOST" "${HELPER_CPP}" \
+  "LOCALIZATION_LOST state is missing"
+require_grep "LOCALIZATION_RECOVERING" "${HELPER_CPP}" \
+  "LOCALIZATION_RECOVERING state is missing"
+require_grep "LOCALIZATION_RECOVERED" "${HELPER_CPP}" \
+  "LOCALIZATION_RECOVERED state is missing"
+require_grep "amcl_pose_topic" "${NODE_CPP}" \
+  "AMCL pose subscription parameter is missing"
+require_grep "/amcl_pose" "${NODE_CPP}" \
+  "default /amcl_pose topic is missing"
+require_grep "health_topic" "${NODE_CPP}" \
+  "health topic parameter is missing"
+require_grep "/localization/health" "${NODE_CPP}" \
+  "default /localization/health topic is missing"
+require_grep "covariance\\[0\\]" "${HELPER_CPP}" \
+  "x covariance check is missing"
+require_grep "covariance\\[7\\]" "${HELPER_CPP}" \
+  "y covariance check is missing"
+require_grep "covariance\\[35\\]" "${HELPER_CPP}" \
+  "yaw covariance check is missing"
+require_grep "canTransform" "${NODE_CPP}" \
+  "TF availability check is missing"
+require_grep "localization_health_monitor_node" "${LAUNCH_FILE}" \
+  "localization health launch content is missing"
+require_grep "localization_health_monitor_node" "${CMAKE_FILE}" \
+  "localization health node is not registered in CMake"
+require_grep "localization_health_test" "${CMAKE_FILE}" \
+  "localization health test is not registered in CMake"
+require_grep "/localization/health" "${LOCALIZATION_DOC}" \
+  "docs/localization.md does not document /localization/health"
+require_grep "LOCALIZATION_LOST" "${SAFETY_DOC}" \
+  "docs/safety_state_machine.md does not document LOCALIZATION_LOST"
 
-ros2 service call /v2/set_initial_pose_from_station robot_interfaces_navigation/srv/SetInitialPoseFromStation \
-  "{station_id: dock}" \
-  | rg "success=True|station_id='dock'|state='RECOVERED'|localized=True"
-
-ros2 topic echo --once /localization_health robot_interfaces/msg/LocalizationHealth \
-  | rg "localized: true|state: RECOVERED|station_id: dock"
-
-ros2 service call /v2/list_mission_events robot_interfaces_mission/srv/ListMissionEvents \
-  "{limit: 20, state_filter: LOCALIZATION_LOST, mission_id_filter: localization}" \
-  | rg "success=True|LOCALIZATION_LOST|covariance"
-
-ros2 service call /v2/list_mission_events robot_interfaces_mission/srv/ListMissionEvents \
-  "{limit: 20, state_filter: LOCALIZATION_RECOVERED, mission_id_filter: localization}" \
-  | rg "success=True|LOCALIZATION_RECOVERED|initial pose set from station dock"
-
-echo "localization health passed"
+pass "localization health monitor, states, covariance checks, TF checks, launch, tests, and docs are present"

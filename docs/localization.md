@@ -1,59 +1,145 @@
 # Localization
 
-当前定位链路以 AMCL 为主，适用于半封闭室内 / 园区低速巡检场景中的 2D 激光定位演示。
+当前定位链路以 AMCL 为主，适用于半封闭室内 / 园区低速巡检场景中的 2D 激光定位演示。Phase 4A 新增 `localization_health_monitor_node`，用于把 AMCL pose、covariance、TF 可用性和 timeout 转换为可展示的定位健康状态。该阶段只发布 health，不直接控制 safety gate 或任务暂停。
 
-## Current AMCL Chain
+## AMCL Chain
 
 ```text
-/scan + static map -> AMCL -> /amcl_pose + map->odom
-odom source -> odom->base_footprint/base_link
+/scan + static map -> AMCL -> /amcl_pose + map -> odom
+odom source -> odom -> base_footprint -> base_link
+/amcl_pose + TF checks -> localization_health_monitor_node -> /localization/health
 ```
 
 - `/scan`：来自 `robot_sensors` 标准化后的激光数据。
-- `/amcl_pose`：AMCL 输出的机器人在 map frame 下位姿估计。
+- `/amcl_pose`：AMCL 输出的机器人在 `map` frame 下位姿估计。
+- `/initialpose`：RViz 2D Pose Estimate 或外部重定位流程发布的初始位姿。
 - `map -> odom`：AMCL 维护的全局定位修正。
 - `odom -> base_footprint`：由底盘里程计或 EKF 链路提供。
 - `base_footprint -> base_link`：机器人模型 TF 链路的一部分。
 
-当前 Nav2 配置中 AMCL 参数位于：
+AMCL / Nav2 配置位于：
 
 - `src/robot_navigation/config/nav2_basic.yaml`
 - `src/robot_navigation/config/nav2_advanced.yaml`
+- `src/robot_navigation/launch/nav.launch.py`
 
-## Localization Health
+当前 frame 命名保持一致：AMCL、Nav2 basic、EKF 和底盘 odom 主链均使用 `map`、`odom`、`base_footprint`；URDF 中 `base_footprint -> base_link` 是固定关节。
 
-仓库中已有定位健康相关接口和逻辑：
+## Health Monitor
 
-- `robot_interfaces_navigation/srv/RequestRelocalization.srv`
-- `robot_interfaces_navigation/msg/LocalizationHealth.msg`
-- `robot_tasks` 中 `mission_localization_workflow` 和 `mission_runner_node` 相关逻辑；
-- `scripts/check_localization_health.sh`
-- `scripts/check_localization_auto_recovery.sh`
-- `scripts/check_relocalization_resume.sh`
+节点路径：
 
-这些内容说明当前已有 LOST / RECOVERED / RELOCALIZING 相关工程入口。文档中仍将厂区巡检完整重定位演示场景标为 planned，因为 `factory_patrol` 场景和面向最终展示的脚本尚未建立。
+```text
+src/robot_navigation/src/localization_health_monitor_node.cpp
+```
 
-## State Plan
+启动入口：
 
-| State | Current / planned | Meaning |
+```bash
+ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
+```
+
+订阅：
+
+| Topic | Type | Purpose |
 | --- | --- | --- |
-| `UNKNOWN` | current | 等待定位输入或健康状态尚未建立。 |
-| `OK` | current | 协方差等健康指标在阈值内。 |
-| `LOST` | current | 定位协方差超过阈值，可触发任务暂停。 |
-| `RELOCALIZING` | current | 收到重定位请求，等待初始位姿或恢复动作。 |
-| `RECOVERED` | current | 定位恢复，可请求任务恢复。 |
-| 巡检场景级自动恢复策略 | planned | 结合站点、巡检点、RViz/Gazebo 演示脚本进行最终展示。 |
+| `/amcl_pose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | 读取 AMCL pose 和 covariance。 |
+| `/initialpose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | LOST 后收到初始位姿时进入 `LOCALIZATION_RECOVERING`。 |
+
+发布：
+
+| Topic | Type | Purpose |
+| --- | --- | --- |
+| `/localization/health` | `std_msgs/msg/String` | Phase 4A 主 health topic，包含状态、covariance、timeout 和 TF 摘要。 |
+| `/localization_health` | `robot_interfaces/msg/LocalizationHealth` | 兼容现有可视化 / mission topic 的旧路径。 |
+
+## States
+
+| State | Meaning |
+| --- | --- |
+| `LOCALIZATION_UNKNOWN` | 启动后尚未收到 `/amcl_pose`，或 AMCL 尚未发布。 |
+| `LOCALIZATION_OK` | `/amcl_pose` 新鲜，covariance 低于 warn 阈值，`map -> odom` 和 `odom -> base_footprint` TF 可用。 |
+| `LOCALIZATION_UNSTABLE` | covariance 超过 warn 阈值但尚未持续到 lost hold time，或 TF 短暂不可用。 |
+| `LOCALIZATION_LOST` | `/amcl_pose` 超时，或 covariance 持续超过 lost 阈值，或必要 TF 长时间不可用。 |
+| `LOCALIZATION_RECOVERING` | LOST 后收到 `/initialpose`，正在等待 AMCL covariance 和 TF 收敛。 |
+| `LOCALIZATION_RECOVERED` | 从 LOST / RECOVERING 回到稳定 OK，短暂发布后转为 `LOCALIZATION_OK`。 |
+
+## Covariance Rules
+
+从 `/amcl_pose.pose.covariance` 读取：
+
+- x covariance：`covariance[0]`
+- y covariance：`covariance[7]`
+- yaw covariance：`covariance[35]`
+- xy covariance：`max(covariance[0], covariance[7])`
+
+默认阈值：
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `covariance_warn_xy` | `0.25` | xy 超过后进入 `LOCALIZATION_UNSTABLE`。 |
+| `covariance_lost_xy` | `0.8` | xy 持续超过后进入 `LOCALIZATION_LOST`。 |
+| `covariance_warn_yaw` | `0.25` | yaw 超过后进入 `LOCALIZATION_UNSTABLE`。 |
+| `covariance_lost_yaw` | `0.8` | yaw 持续超过后进入 `LOCALIZATION_LOST`。 |
+| `lost_hold_time_sec` | `2.0` | covariance lost 条件需要持续的时间。 |
+
+这些阈值是仿真 / mock 默认值，不来自真实机器人标定。真实机器人应结合场地、传感器噪声和重定位实验重新估计。
+
+## Timeout And TF Rules
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `amcl_timeout_sec` | `1.0` | 超过该时间没有新的 `/amcl_pose` 后进入 `LOCALIZATION_LOST`。 |
+| `tf_timeout_sec` | `0.5` | 必要 TF 不可用持续超过该时间后进入 `LOCALIZATION_LOST`。 |
+| `recovered_hold_time_sec` | `1.0` | 从 LOST / RECOVERING 稳定后短暂发布 `LOCALIZATION_RECOVERED`。 |
+| `publish_period_ms` | `200` | health 发布周期。 |
+
+TF 检查使用 `tf2_ros::Buffer::canTransform`：
+
+- `map -> odom`
+- `odom -> base_footprint`
+
+单次 TF 查询失败先进入 `LOCALIZATION_UNSTABLE`；持续超过 `tf_timeout_sec` 才进入 `LOCALIZATION_LOST`。
 
 ## Relocalization Flow
 
 ```text
-AMCL covariance abnormal
-  -> localization health enters LOST
-  -> mission may pause
-  -> /v2/request_relocalization
-  -> set initial pose from known station / operator input
-  -> localization health enters RECOVERED
-  -> mission resume requested
+AMCL covariance high / AMCL timeout / TF unavailable
+  -> localization_health_monitor_node publishes LOCALIZATION_LOST
+  -> Phase 4A stops here for safety integration
+  -> operator or higher-level flow publishes /initialpose
+  -> monitor publishes LOCALIZATION_RECOVERING
+  -> AMCL pose covariance falls below warn threshold and TF is available
+  -> monitor publishes LOCALIZATION_RECOVERED briefly
+  -> monitor returns to LOCALIZATION_OK
 ```
 
-边界说明：当前项目已有上述流程的代码和检查脚本入口，但真实场景下的鲁棒性、恢复成功率和人工操作 SOP 需要后续实验验证后再写结论。
+任务暂停、停车和恢复策略留到 Phase 4B 接入 `cmd_vel_safety_gate` / mission pause。本阶段不声明完成完整安全闭环，也不声明完成真实机器人重定位验证。
+
+## Checks
+
+静态检查：
+
+```bash
+bash scripts/check_localization_health.sh
+```
+
+运行时 topic 检查，需要 Nav2 / AMCL / localization health monitor 已运行：
+
+```bash
+bash scripts/check_localization_runtime_topics.sh
+```
+
+该 runtime 脚本只检查 `/amcl_pose`、`/initialpose`、`/localization/health`、`/tf`、`/tf_static`、`/map`、`/odom` 是否存在，不伪造任何定位恢复结果。
+
+## Existing Task-Layer Hooks
+
+仓库中仍保留 mission 层已有的重定位接口和演示链路：
+
+- `robot_interfaces_navigation/srv/RequestRelocalization.srv`
+- `robot_interfaces/msg/LocalizationHealth.msg`
+- `robot_tasks` 中 `mission_localization_workflow` 和 `mission_runner_node` 相关逻辑
+- `scripts/check_localization_auto_recovery.sh`
+- `scripts/check_relocalization_resume.sh`
+
+Phase 4A 新 monitor 与这些入口并行存在，不重构 mission runner 的任务暂停 / 恢复逻辑。

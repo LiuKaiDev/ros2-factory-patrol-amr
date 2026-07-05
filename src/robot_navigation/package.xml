@@ -10,10 +10,13 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>ament_index_cpp</depend>
+  <depend>geometry_msgs</depend>
   <depend>rclcpp</depend>
   <depend>robot_interfaces</depend>
   <depend>robot_interfaces_navigation</depend>
   <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
 
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>nav2_amcl</exec_depend>
@@ -44,7 +47,6 @@
   <test_depend>robot_teleop</test_depend>
   <test_depend>robot_state_publisher</test_depend>
   <test_depend>sensor_msgs</test_depend>
-  <test_depend>tf2_ros</test_depend>
   <test_depend>xacro</test_depend>
 
   <export>

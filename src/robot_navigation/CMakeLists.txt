@@ -5,10 +5,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robot_interfaces REQUIRED)
 find_package(robot_interfaces_navigation REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(robot_navigation_map_catalog
   src/map_catalog.cpp)
@@ -30,6 +33,12 @@ target_include_directories(robot_navigation_zone_filter_masks PUBLIC
 target_link_libraries(robot_navigation_zone_filter_masks
   robot_navigation_zone_catalog)
 
+add_library(robot_navigation_localization_health
+  src/localization_health.cpp)
+target_include_directories(robot_navigation_localization_health PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
 add_executable(map_manager_node src/map_manager_node.cpp)
 target_link_libraries(map_manager_node
   robot_navigation_map_catalog
@@ -42,6 +51,12 @@ target_link_libraries(export_zone_filter_masks
   robot_navigation_zone_catalog
   robot_navigation_zone_filter_masks)
 
+add_executable(localization_health_monitor_node src/localization_health_monitor_node.cpp)
+target_link_libraries(localization_health_monitor_node
+  robot_navigation_localization_health)
+ament_target_dependencies(localization_health_monitor_node
+  geometry_msgs rclcpp robot_interfaces std_msgs tf2 tf2_ros)
+
 install(DIRECTORY launch config maps
   DESTINATION share/${PROJECT_NAME})
 
@@ -50,6 +65,7 @@ install(DIRECTORY include/
 
 install(TARGETS
     robot_navigation_map_catalog
+    robot_navigation_localization_health
     robot_navigation_zone_catalog
     robot_navigation_zone_filter_masks
   EXPORT export_robot_navigation_map_catalog
@@ -57,7 +73,7 @@ install(TARGETS
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 
-install(TARGETS map_manager_node export_zone_filter_masks
+install(TARGETS map_manager_node export_zone_filter_masks localization_health_monitor_node
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
@@ -69,6 +85,8 @@ if(BUILD_TESTING)
   target_link_libraries(zone_catalog_test robot_navigation_zone_catalog)
   ament_add_gtest(zone_filter_masks_test test/zone_filter_masks_test.cpp)
   target_link_libraries(zone_filter_masks_test robot_navigation_zone_filter_masks)
+  ament_add_gtest(localization_health_test test/localization_health_test.cpp)
+  target_link_libraries(localization_health_test robot_navigation_localization_health)
   add_launch_test(test/test_slam_mock_runtime.launch.py TIMEOUT 45)
   add_launch_test(test/test_nav2_mock_runtime.launch.py TIMEOUT 150)
 endif()
