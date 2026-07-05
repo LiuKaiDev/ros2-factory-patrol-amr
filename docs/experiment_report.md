@@ -104,6 +104,27 @@ real runs.
 | Tracking comparison figure | TBD | TBD | TBD |
 | Demo video | TBD | TBD | TBD |
 
+## WSL2 Full Validation
+
+This section records real local ROS2 Jazzy validation on WSL2, not physical
+robot deployment or real factory operation.
+
+| Item | Result |
+| --- | --- |
+| Platform | WSL2 |
+| OS | Ubuntu 24.04 LTS |
+| ROS distribution | Jazzy |
+| ROS package set | `ros-jazzy-desktop` with project dependencies installed through `rosdep` |
+| Build result | Full workspace build completed locally |
+| Final test result | 514 tests, 0 errors, 0 failures, 0 skipped |
+| robot_navigation retry | 100% tests passed, 0 tests failed out of 6 |
+
+An earlier full test run had one transient `/map` message timeout in
+`robot_navigation/test_nav2_mock_runtime.launch.py`. Re-running
+`robot_navigation` independently passed, and the final aggregated
+`colcon test-result` reported all tests passing. The likely cause was WSL2/Nav2
+runtime timing or DDS topic timing, not a syntax-level build issue.
+
 ## Result Policy
 
 - Keep `TBD` until the run is real and repeatable.

@@ -1,0 +1,7 @@
+robot_navigation package retry summary
+
+100% tests passed, 0 tests failed out of 6.
+Summary: 1 package finished.
+
+The retry followed an earlier transient /map timeout in the full test run.
+This is a concise summary, not a raw test log.

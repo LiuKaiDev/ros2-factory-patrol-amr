@@ -1,0 +1,6 @@
+WSL2 full validation summary
+
+Environment: WSL2, Ubuntu 24.04 LTS, ROS2 Jazzy desktop.
+Summary: 514 tests, 0 errors, 0 failures, 0 skipped.
+
+This is a concise summary, not a raw test log.

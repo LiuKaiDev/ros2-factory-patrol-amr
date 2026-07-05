@@ -1,0 +1,8 @@
+Server Docker partial validation summary
+
+Environment: Alibaba Cloud Linux 3, ros:jazzy-ros-base, ROS2 Jazzy.
+17 packages finished.
+104 tests, 0 errors, 0 failures, 0 skipped.
+robot_tasks skipped due to low-memory cc1plus OOM.
+
+This is a concise summary, not a raw test log.

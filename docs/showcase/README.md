@@ -17,6 +17,20 @@ path.
 | Tracking comparison figures | `figures/` | TBD | To be filled after real tracking CSV review. |
 | Demo video link | external / TBD | TBD | To be filled after real runtime validation. |
 
+## Validation Summaries
+
+These concise summaries record build, test, and static-check evidence. They do
+not claim physical robot deployment or real factory operation.
+
+- [WSL2 full validation summary](wsl2_full_validation_summary.md): local WSL2
+  Ubuntu 24.04 + ROS2 Jazzy desktop validation with 514 tests, 0 errors,
+  0 failures, and 0 skipped after a package-level retry for one transient Nav2
+  `/map` timeout.
+- [Server Docker validation summary](server_docker_validation_summary.md):
+  Alibaba Cloud Linux 3 + `ros:jazzy-ros-base` partial validation with 17
+  packages finished and 104 tests passing while excluding `robot_tasks` because
+  the low-memory server killed `cc1plus` during compilation.
+
 ## Future Artifact Checklist
 
 For every future artifact, record:
@@ -27,5 +41,5 @@ For every future artifact, record:
 - relevant logs or rosbag path
 - whether the run was simulation, mock backend, or real hardware
 
-Runtime evidence is not yet validated by the presence of this placeholder
-directory.
+Showcase screenshots and videos are not yet validated by the presence of this
+placeholder directory.

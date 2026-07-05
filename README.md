@@ -108,6 +108,23 @@ bash scripts/check_factory_patrol_demo_runtime.sh
 
 Script index: [scripts/README.md](scripts/README.md).
 
+## Validation Status
+
+- Static checks pass in the documented validation environment.
+- Server Docker validation on Alibaba Cloud Linux 3 with `ros:jazzy-ros-base`
+  passed for the main workspace subset excluding `robot_tasks`: 17 packages
+  finished, and `colcon test` reported 104 tests, 0 errors, 0 failures, and
+  0 skipped. `robot_tasks` was excluded on that low-resource server because
+  `mission_runner_node.cpp` triggered a `cc1plus` out-of-memory kill on about
+  1.8 GB RAM.
+- Local WSL2 Ubuntu 24.04 + ROS2 Jazzy desktop full validation passed after a
+  package-level retry for one transient Nav2 runtime timing issue: final
+  aggregated `colcon test-result` reported 514 tests, 0 errors, 0 failures, and
+  0 skipped.
+
+These validation notes cover build, tests, and static checks. They do not claim
+real robot deployment or real factory operation.
+
 ## Experiments And Reports
 
 Experiment tables are intentionally templates until real runs are executed and
@@ -115,6 +132,10 @@ reviewed. Do not fill `TBD` fields with generated-looking numbers.
 
 - Report template: [docs/experiment_report.md](docs/experiment_report.md)
 - Showcase placeholder index: [docs/showcase/README.md](docs/showcase/README.md)
+- WSL2 full validation summary:
+  [docs/showcase/wsl2_full_validation_summary.md](docs/showcase/wsl2_full_validation_summary.md)
+- Server Docker validation summary:
+  [docs/showcase/server_docker_validation_summary.md](docs/showcase/server_docker_validation_summary.md)
 - Generated CSV files and figures should stay out of git unless a later phase
   explicitly chooses a reviewed artifact.
 
