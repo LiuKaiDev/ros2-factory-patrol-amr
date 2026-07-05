@@ -1,22 +1,23 @@
 # Showcase
 
-This directory is reserved for reviewed showcase materials from real runs.
-Current Phase 6 work creates placeholders and documentation only.
+This directory is reserved for future reviewed showcase materials after real
+ROS2/Gazebo/RViz validation. Current Phase 6 work only provides placeholders
+and documentation.
 
-Do not add generated screenshots, videos, CSV-derived figures, or demo claims
-unless they are tied to a real command, commit, parameter set, map/world, and
-log or rosbag path.
+Do not add screenshots, videos, CSV-derived figures, or demo claims unless they
+are tied to a real command, commit, parameter set, map/world, and log or rosbag
+path.
 
 ## Planned Artifact Index
 
 | Artifact | Directory | Status | Notes |
 | --- | --- | --- | --- |
-| RViz Nav2 debug screenshot | `screenshots/` | TBD | Capture after Nav2 basic demo is running. |
-| Gazebo factory patrol screenshot | `screenshots/` | TBD | Capture after factory patrol demo is running. |
-| Tracking comparison figures | `figures/` | TBD | Generate from real tracking CSV files. |
-| Demo video link | external / TBD | TBD | Store link and run metadata here, not a fake local result. |
+| RViz Nav2 debug screenshot | `screenshots/` | TBD | To be filled after real Nav2 basic validation. |
+| Gazebo factory patrol screenshot | `screenshots/` | TBD | To be filled after real factory patrol validation. |
+| Tracking comparison figures | `figures/` | TBD | To be filled after real tracking CSV review. |
+| Demo video link | external / TBD | TBD | To be filled after real runtime validation. |
 
-## Capture Checklist
+## Future Artifact Checklist
 
 For every future artifact, record:
 
@@ -26,4 +27,5 @@ For every future artifact, record:
 - relevant logs or rosbag path
 - whether the run was simulation, mock backend, or real hardware
 
-Runtime success is not claimed by the presence of this directory.
+Runtime evidence is not yet validated by the presence of this placeholder
+directory.

@@ -71,7 +71,7 @@ check_grep "Validation Scripts" "README.md" "README contains validation script s
 check_grep "Phase 6" "docs/roadmap.md" "roadmap contains Phase 6"
 check_grep "TBD" "docs/experiment_report.md" "experiment report keeps TBD placeholders"
 check_grep "Do not invent metrics" "docs/experiment_report.md" "experiment report states result policy"
-check_grep "runtime success" "docs/showcase/README.md" "showcase README avoids fake runtime claims"
+check_grep "not yet validated" "docs/showcase/README.md" "showcase README avoids fake runtime claims"
 check_grep "static-checks" ".github/workflows/ci.yml" "CI is configured for static checks"
 
 if [ "$failures" -eq 0 ]; then
