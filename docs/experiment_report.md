@@ -44,9 +44,38 @@ Analysis command:
 python3 scripts/analyze_tracking_result.py <csv_file>
 ```
 
+Plot command:
+
+```bash
+python3 scripts/plot_tracking_result.py <csv_file> --output-dir src/robot_experiments/results/figures
+```
+
+Comparison command:
+
+```bash
+python3 scripts/compare_tracking_results.py --format markdown <pure_pursuit.csv> <stanley.csv>
+```
+
+Controller comparison table:
+
+| controller | path_name | goal_success | sample_count | rms_lateral_error | max_lateral_error | mean_abs_heading_error | max_abs_heading_error | mean_linear_velocity | max_abs_angular_velocity | final_distance_to_goal | result_csv | figures |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| pure_pursuit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| stanley | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+Figure references:
+
+| Figure | Status |
+| --- | --- |
+| `figures/trajectory.png` | TBD |
+| `figures/lateral_error.png` | TBD |
+| `figures/heading_error.png` | TBD |
+| `figures/cmd_vel.png` | TBD |
+
 Required artifacts:
 
 - tracking CSV: TBD
+- generated figures directory: TBD
 - launch command and parameters: TBD
 - map / path file version: TBD
 - commit: TBD
@@ -69,7 +98,7 @@ Required plots:
 - heading error curve: TBD
 - cmd_vel curve: TBD
 
-Plots are planned for Phase 2B and should not be filled with generated-looking placeholders.
+Do not fill plots or tables with generated-looking placeholders. Only paste metrics produced from real CSV files and keep the corresponding CSV / figure paths in the report.
 
 ## 4. Safety Experiment
 
