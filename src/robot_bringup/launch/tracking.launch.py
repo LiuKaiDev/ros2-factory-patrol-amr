@@ -14,6 +14,9 @@ def generate_launch_description():
     output_csv = LaunchConfiguration("output_csv")
     output_json = LaunchConfiguration("output_json")
     scenario_name = LaunchConfiguration("scenario_name")
+    enable_csv_logging = LaunchConfiguration("enable_csv_logging")
+    csv_output_path = LaunchConfiguration("csv_output_path")
+    path_name = LaunchConfiguration("path_name")
     default_path = PathJoinSubstitution(
         [FindPackageShare("robot_experiments"), "paths", "demo_path.txt"]
     )
@@ -30,6 +33,9 @@ def generate_launch_description():
             DeclareLaunchArgument("scenario_name", default_value="tracking_benchmark"),
             DeclareLaunchArgument("output_csv", default_value="experiment_results.csv"),
             DeclareLaunchArgument("output_json", default_value="experiment_results.json"),
+            DeclareLaunchArgument("enable_csv_logging", default_value="false"),
+            DeclareLaunchArgument("csv_output_path", default_value=""),
+            DeclareLaunchArgument("path_name", default_value="demo_path"),
             DeclareLaunchArgument("use_twist_mux", default_value="true"),
             Node(
                 package="robot_path_tracking",
@@ -41,12 +47,26 @@ def generate_launch_description():
                 package="robot_path_tracking",
                 executable="pure_pursuit_controller_node",
                 condition=IfCondition(pure_pursuit_selected),
+                parameters=[
+                    {
+                        "enable_csv_logging": enable_csv_logging,
+                        "csv_output_path": csv_output_path,
+                        "path_name": path_name,
+                    }
+                ],
                 output="screen",
             ),
             Node(
                 package="robot_path_tracking",
                 executable="stanley_controller_node",
                 condition=IfCondition(stanley_selected),
+                parameters=[
+                    {
+                        "enable_csv_logging": enable_csv_logging,
+                        "csv_output_path": csv_output_path,
+                        "path_name": path_name,
+                    }
+                ],
                 output="screen",
             ),
             IncludeLaunchDescription(

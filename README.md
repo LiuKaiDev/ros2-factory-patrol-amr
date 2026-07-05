@@ -117,7 +117,8 @@ ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=udp ip:=192.
 ### Control
 
 - Nav2 controller：RPP / MPPI 负责导航闭环下的局部速度输出。
-- standalone tracking：Pure Pursuit / Stanley 用于路径跟踪实验和控制器对比。
+- standalone tracking：Pure Pursuit / Stanley 用于路径跟踪实验和控制器对比，已支持可选 CSV 指标输出。
+- CSV 分析脚本：`scripts/analyze_tracking_result.py`；tracking demo 提示脚本：`scripts/run_tracking_experiment_demo.sh`。
 - 后续实验指标不在 README 中伪造，统一用 TBD 模板记录。
 - 详情见 [docs/control.md](docs/control.md) 和 [docs/experiment_report.md](docs/experiment_report.md)。
 

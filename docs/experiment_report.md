@@ -29,7 +29,29 @@ Required artifacts:
 - RViz / Gazebo screenshot: TBD
 - map and params version: TBD
 
-## 2. Controller Comparison Experiment
+## 2. Standalone Tracking Experiment
+
+Purpose: 记录 Pure Pursuit / Stanley standalone 路径跟踪基础指标。Phase 2A 只提供 CSV logging 和分析脚本，表格结果必须由真实运行后的 CSV 填写。
+
+| Run | controller | path_name | goal_success | sample_count | rms_lateral_error | max_lateral_error | mean_abs_heading_error | max_abs_heading_error | mean_linear_velocity | max_abs_angular_velocity | final_distance_to_goal | result_csv |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TBD | pure_pursuit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| TBD | stanley | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+Analysis command:
+
+```bash
+python3 scripts/analyze_tracking_result.py <csv_file>
+```
+
+Required artifacts:
+
+- tracking CSV: TBD
+- launch command and parameters: TBD
+- map / path file version: TBD
+- commit: TBD
+
+## 3. Controller Comparison Experiment
 
 Purpose: 对比 standalone Pure Pursuit / Stanley 或 Nav2 RPP / MPPI 的轨迹跟踪表现。
 
@@ -47,7 +69,9 @@ Required plots:
 - heading error curve: TBD
 - cmd_vel curve: TBD
 
-## 3. Safety Experiment
+Plots are planned for Phase 2B and should not be filled with generated-looking placeholders.
+
+## 4. Safety Experiment
 
 Purpose: 验证安全门控、急停、通信超时、定位丢失和故障监督。
 

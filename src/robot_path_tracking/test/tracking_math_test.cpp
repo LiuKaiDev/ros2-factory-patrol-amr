@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -29,6 +31,25 @@ TEST(TrackingMathTest, ForwardProjectionSeparatesForwardAndBehindTargets) {
   EXPECT_LT(robot_path_tracking::ForwardProjection(0.0, -1.0, 0.0), 0.0);
   EXPECT_GT(robot_path_tracking::ForwardProjection(M_PI_2, 0.0, 1.0), 0.0);
   EXPECT_LT(robot_path_tracking::ForwardProjection(M_PI_2, 0.0, -1.0), 0.0);
+}
+
+TEST(TrackingMathTest, HeadingErrorNormalizesToPiRange) {
+  EXPECT_NEAR(robot_path_tracking::HeadingError(M_PI + 0.2, 0.0), -M_PI + 0.2, 1e-9);
+  EXPECT_NEAR(robot_path_tracking::HeadingError(-M_PI - 0.2, 0.0), M_PI - 0.2, 1e-9);
+  EXPECT_NEAR(robot_path_tracking::HeadingError(M_PI_2, M_PI), -M_PI_2, 1e-9);
+}
+
+TEST(TrackingMathTest, NearestPointIndexFindsClosestReferencePoint) {
+  const std::vector<std::pair<double, double>> points{{0.0, 0.0}, {1.0, 0.0}, {3.0, 0.0}};
+
+  EXPECT_EQ(robot_path_tracking::NearestPointIndex(points, 0.8, 0.2), 1);
+  EXPECT_EQ(robot_path_tracking::NearestPointIndex(points, 2.8, -0.1), 2);
+}
+
+TEST(TrackingMathTest, NearestPointIndexReturnsNegativeOneForEmptyPath) {
+  const std::vector<std::pair<double, double>> points;
+
+  EXPECT_EQ(robot_path_tracking::NearestPointIndex(points, 0.0, 0.0), -1);
 }
 
 TEST(TrackingMathTest, IsFinalWaypointReachedRequiresFinalIndexAndTolerance) {
