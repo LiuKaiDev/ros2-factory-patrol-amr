@@ -187,3 +187,11 @@ and confirm whether `/cmd_vel` is zeroed by the Phase 4B policy.
 
 No Phase 5B document claims the safety-state transitions have passed in Gazebo
 until runtime topic logs are collected.
+
+## Phase 6 Final Safety Notes
+
+Phase 6 keeps the safety behavior unchanged and documents the validation
+boundary. Static checks confirm that the expected files, topics, and policy
+strings are present. Runtime checks only confirm topic presence after bringup;
+they do not prove emergency-stop latency, real chassis fault handling, or field
+safety performance.

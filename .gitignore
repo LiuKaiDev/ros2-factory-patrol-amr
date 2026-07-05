@@ -2,6 +2,7 @@ build/
 install/
 log/
 .cache/
+.pytest_cache/
 *.bag
 *.db3
 *.mcap
@@ -10,3 +11,12 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+src/robot_experiments/results/tracking_*.csv
+src/robot_experiments/results/figures/
+src/robot_experiments/results/*.png
+src/robot_experiments/results/*.svg
+src/robot_experiments/results/*.pdf
+docs/showcase/figures/*
+!docs/showcase/figures/.gitkeep
+docs/showcase/screenshots/*
+!docs/showcase/screenshots/.gitkeep

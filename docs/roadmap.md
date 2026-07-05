@@ -1,34 +1,55 @@
 # Roadmap
 
-路线图按 Phase 0 到 Phase 6 整理，并区分 P0、P1、P2。当前阶段完成的是 Phase 0 文档重构与项目定位统一。
+This roadmap records the staged engineering cleanup from Phase 0 to Phase 6.
+The repository uses `main` as the active development branch.
 
 ## Priority Definition
 
 | Priority | Meaning |
 | --- | --- |
-| P0 | 直接影响项目定位和规控岗位展示主线。 |
-| P1 | 强化工程完整度和演示可信度。 |
-| P2 | 提升最终展示、CI 和报告质量。 |
+| P0 | Core project positioning and navigation-control demo credibility |
+| P1 | Engineering completeness for chassis, safety, localization, and scenarios |
+| P2 | Final presentation, CI, report templates, and showcase readiness |
 
-## Phases
+## Phase Summary
 
-| Phase | Priority | Goal | Status | Deliverables |
+| Phase | Priority | Status | Goal | Key deliverables |
 | --- | --- | --- | --- | --- |
-| Phase 0 | P0 | 项目定位统一与文档重构 | current | README、docs 架构、导航、定位、控制、安全、底盘、仿真、实验模板、面试口径。 |
-| Phase 1 | P0 | Nav2 与 costmap 能力补强 | planned | costmap 参数审查、obstacle / voxel / inflation 验证、RPP 参数调优、basic / advanced 启动说明。 |
-| Phase 2 | P0 | 控制算法实验体系 | planned | Pure Pursuit / Stanley / RPP / MPPI 指标采集，轨迹对比，cmd_vel 曲线，实验脚本。 |
-| Phase 3 | P1 | 底盘通信与 odom / TF 工程化 | planned | 协议 v2、heartbeat、timeout、fault_code、odom covariance、TF 检查脚本。 |
-| Phase 4 | P1 | 定位、重定位与安全状态机 | planned | localization health 接入统一 safety state，LOST / RECOVERED 演示，任务暂停 / 恢复策略。 |
-| Phase 5 | P1 | 厂区巡检仿真场景 | planned | `factory_patrol.sdf`、factory map、stations、zones、多点巡检、临时障碍、定位恢复 demo。 |
-| Phase 6 | P2 | 实验报告、CI、最终展示 | planned | 正式实验报告、GitHub 首页 polish、CI 验收、演示视频 / 截图索引。 |
+| Phase 0 | P0 | complete | Documentation structure and project positioning | README/docs cleanup, current/planned/TBD boundaries |
+| Phase 1A | P0 | complete | Nav2 basic costmap and controller hardening | local obstacle layer, `/scan`, footprint, inflation, RPP collision checks |
+| Phase 1B | P0 | complete | Nav2 RViz and minimum validation | `nav2_basic_debug.rviz`, Nav2 demo helper, runtime topic check |
+| Phase 2A | P0 | complete | Standalone tracking experiment logging | Pure Pursuit / Stanley CSV metrics and analysis scripts |
+| Phase 2B | P0 | complete | Tracking comparison workflow | comparison and plotting helpers, report placeholders |
+| Phase 3A | P1 | complete | Chassis protocol v2 baseline | heartbeat, fault code, sequence/timestamp, UDP simulator compatibility |
+| Phase 3B | P1 | complete | Odometry and calibration readiness | wheel/track parameters, covariance, calibration docs/checks |
+| Phase 4A | P1 | complete | Localization health monitoring | `/localization/health`, AMCL/TF checks, runtime topic validation |
+| Phase 4B | P1 | complete | Unified safety state integration | `/safety/state`, `/safety/reason`, safety gate monitoring |
+| Phase 5A | P1 | complete | Factory patrol simulation assets | factory world, route, stations, zones, launch/helper scripts |
+| Phase 5B | P1 | complete | Factory patrol demo workflow entries | multipoint, temporary obstacle, localization recovery helpers |
+| Phase 6 | P2 | current | Final docs, CI, experiment report, and showcase readiness | README, CI static checks, showcase placeholders, readiness script |
 
-## Phase 1 Detail
+## Final Project Shape
 
-Phase 1 建议优先做：
+The project is now organized around a closed-loop AMR navigation story:
 
-1. 梳理 `nav2_basic.yaml` 和 `nav2_advanced.yaml` 的参数边界；
-2. 验证 map_server、AMCL、planner、controller、costmap topic 是否稳定；
-3. 针对低速巡检设置 RPP 的 lookahead、速度上限、goal tolerance；
-4. 检查 obstacle / voxel layer 的 scan 输入、marking、clearing；
-5. 建立最小导航验收脚本和 RViz 截图说明；
-6. 不写性能结论，先写可复现实验步骤。
+```text
+goal / route -> localization -> planning -> control -> safety gate
+-> chassis adapter -> odom / TF / state feedback -> health and recovery checks
+```
+
+The repository contains enough static validation and documentation to explain
+the system clearly, while keeping all runtime performance claims tied to future
+real ROS2/Gazebo/Nav2 runs.
+
+## Remaining Work
+
+The following items are intentionally left as future work because they require
+real runtime execution or hardware access:
+
+- Fill `docs/experiment_report.md` with measured metrics from recorded runs.
+- Add reviewed screenshots and videos under `docs/showcase/`.
+- Run full ROS2 Jazzy `colcon build --symlink-install` in a supported Ubuntu
+  environment and record the result.
+- Tune Nav2 and chassis parameters on the actual target robot.
+- Promote selected static checks to a richer ROS2 integration CI when the runner
+  image and dependency set are stable.

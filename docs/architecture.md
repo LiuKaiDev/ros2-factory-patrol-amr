@@ -91,3 +91,14 @@ The Phase 5A assets add a main patrol road, equipment area, narrow corridor,
 turning area, static obstacles, `station_A/B/C`, and `dock` markers. The route
 config is a multi-point patrol asset, but it is not claimed as a closed-loop
 mission execution result yet.
+
+## Phase 6 Final Architecture Boundary
+
+The final project story is a navigation-control engineering loop: patrol goals
+enter localization and Nav2, candidate velocity commands are filtered by muxing
+and safety gating, chassis adapters publish odometry/state feedback, and health
+monitors close the diagnostic loop.
+
+Phase 6 does not add new runtime behavior. It aligns README, CI, showcase
+placeholders, scripts, and report templates so the architecture can be reviewed
+without confusing static readiness with real ROS2/Gazebo runtime success.

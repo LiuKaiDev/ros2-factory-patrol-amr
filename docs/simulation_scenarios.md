@@ -310,3 +310,10 @@ Planned after Phase 5B:
 
 No Gazebo, RViz, Nav2, localization recovery, or obstacle-avoidance runtime
 success is claimed by this phase.
+
+## Phase 6 Showcase Boundary
+
+Factory patrol assets are ready to support screenshots, videos, and report
+figures, but Phase 6 only adds the placeholder index under `docs/showcase/`.
+Future artifacts should record the exact launch command, commit, map/world,
+parameters, and log or rosbag path before being cited in the README or report.

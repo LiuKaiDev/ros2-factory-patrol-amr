@@ -1,151 +1,113 @@
-# Experiment Report Template
+# Experiment Report
 
-本文件是实验报告模板。Phase 0 不新增、不伪造任何实验数据。所有表格中的 TBD 必须在真实运行、保存日志和复核后替换。
+This file is the project report template. It intentionally contains `TBD`
+placeholders until a real ROS2/Gazebo/Nav2 or hardware run has been executed,
+logged, and reviewed. Do not invent metrics, screenshots, or pass/fail results.
 
 ## Environment
 
 | Item | Value |
 | --- | --- |
 | ROS distro | Jazzy |
+| OS | Ubuntu 24.04 / WSL / other: TBD |
+| Commit | TBD |
 | Build command | `colcon build --symlink-install` |
 | Map / world | TBD |
 | Robot model | TBD |
-| Controller config | TBD |
+| Nav2 parameter file | TBD |
 | Date | TBD |
-| Commit | TBD |
+| Operator | TBD |
 
-## 1. Navigation Experiment
+## 1. Nav2 Navigation Acceptance
 
-Purpose: 验证 AMCL + Nav2 在巡检点任务中的导航能力。
+Purpose: verify AMCL + Nav2 behavior for patrol goals.
 
-| Run | Planner | Controller | success_rate | arrival_time | final_error | stop_count | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | Navfn | RPP | TBD | TBD | TBD | TBD | TBD |
-| TBD | SmacPlanner2D | MPPI | TBD | TBD | TBD | TBD | TBD |
+| Run | Map/world | Planner | Controller | success_rate | arrival_time | final_error | stop_count | result_log |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TBD | TBD | Navfn | RPP | TBD | TBD | TBD | TBD | TBD |
+| TBD | TBD | SmacPlanner2D | MPPI | TBD | TBD | TBD | TBD | TBD |
 
-Required artifacts:
+Required evidence:
 
-- rosbag or topic logs: TBD
-- RViz / Gazebo screenshot: TBD
-- map and params version: TBD
+- Launch command and parameter files.
+- RViz/Gazebo screenshot or video path.
+- Topic logs or rosbag path.
+- Commit hash and map version.
 
 ## 2. Standalone Tracking Experiment
 
-Purpose: 记录 Pure Pursuit / Stanley standalone 路径跟踪基础指标。Phase 2A 只提供 CSV logging 和分析脚本，表格结果必须由真实运行后的 CSV 填写。
+Purpose: compare standalone Pure Pursuit and Stanley tracking outputs using
+recorded CSV files.
+
+Run helper:
+
+```bash
+bash scripts/run_tracking_experiment_demo.sh
+```
+
+Analysis commands:
+
+```bash
+python3 scripts/analyze_tracking_result.py <csv_file>
+python3 scripts/compare_tracking_results.py --format markdown <pure_pursuit.csv> <stanley.csv>
+python3 scripts/plot_tracking_result.py <csv_file> --output-dir src/robot_experiments/results/figures
+```
 
 | Run | controller | path_name | goal_success | sample_count | rms_lateral_error | max_lateral_error | mean_abs_heading_error | max_abs_heading_error | mean_linear_velocity | max_abs_angular_velocity | final_distance_to_goal | result_csv |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | TBD | pure_pursuit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
 | TBD | stanley | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
 
-Analysis command:
-
-```bash
-python3 scripts/analyze_tracking_result.py <csv_file>
-```
-
-Plot command:
-
-```bash
-python3 scripts/plot_tracking_result.py <csv_file> --output-dir src/robot_experiments/results/figures
-```
-
-Comparison command:
-
-```bash
-python3 scripts/compare_tracking_results.py --format markdown <pure_pursuit.csv> <stanley.csv>
-```
-
-Controller comparison table:
-
-| controller | path_name | goal_success | sample_count | rms_lateral_error | max_lateral_error | mean_abs_heading_error | max_abs_heading_error | mean_linear_velocity | max_abs_angular_velocity | final_distance_to_goal | result_csv | figures |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pure_pursuit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| stanley | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-
-Figure references:
+Generated figures:
 
 | Figure | Status |
 | --- | --- |
-| `figures/trajectory.png` | TBD |
-| `figures/lateral_error.png` | TBD |
-| `figures/heading_error.png` | TBD |
-| `figures/cmd_vel.png` | TBD |
+| trajectory | TBD |
+| lateral error | TBD |
+| heading error | TBD |
+| cmd_vel | TBD |
 
-Required artifacts:
+## 3. Safety Acceptance
 
-- tracking CSV: TBD
-- generated figures directory: TBD
-- launch command and parameters: TBD
-- map / path file version: TBD
-- commit: TBD
+Purpose: verify that safety inputs affect final `/cmd_vel` and safety state
+topics as expected.
 
-## 3. Controller Comparison Experiment
+| Case | Trigger | Expected behavior | Observed behavior | result_log | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Emergency stop | `/enable_emergency_stop` | final `/cmd_vel` becomes zero | TBD | TBD | TBD |
+| Cmd watchdog | mux input timeout | final `/cmd_vel` becomes zero | TBD | TBD | TBD |
+| Dynamic speed limit | safety speed limit | velocity is clipped | TBD | TBD | TBD |
+| Localization lost | high AMCL covariance / TF timeout | safety state changes and command is gated | TBD | TBD | TBD |
+| Chassis fault | heartbeat/fault code issue | command is gated or fault is reported | TBD | TBD | TBD |
 
-Purpose: 对比 standalone Pure Pursuit / Stanley 或 Nav2 RPP / MPPI 的轨迹跟踪表现。
+## 4. Factory Patrol Demo Acceptance
 
-| Run | Controller | rms_lateral_error | max_lateral_error | mean_heading_error | max_angular_velocity | stop_count | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | Pure Pursuit | TBD | TBD | TBD | TBD | TBD | TBD |
-| TBD | Stanley | TBD | TBD | TBD | TBD | TBD | TBD |
-| TBD | RPP | TBD | TBD | TBD | TBD | TBD | TBD |
-| TBD | MPPI | TBD | TBD | TBD | TBD | TBD | TBD |
-
-Required plots:
-
-- trajectory compare: TBD
-- lateral error curve: TBD
-- heading error curve: TBD
-- cmd_vel curve: TBD
-
-Do not fill plots or tables with generated-looking placeholders. Only paste metrics produced from real CSV files and keep the corresponding CSV / figure paths in the report.
-
-## 4. Safety Experiment
-
-Purpose: 验证安全门控、急停、通信超时、定位丢失和故障监督。
-
-| Case | Trigger | Expected behavior | Observed behavior | success_rate | stop_count | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| Emergency stop | `/enable_emergency_stop` | `/cmd_vel` becomes zero | TBD | TBD | TBD | TBD |
-| Cmd watchdog | mux input timeout | `/cmd_vel` becomes zero | TBD | TBD | TBD | TBD |
-| Dynamic speed limit | `/safety_state` speed limit | output velocity clipped | TBD | TBD | TBD | TBD |
-| Localization lost | high AMCL covariance | mission pauses / recovery requested | TBD | TBD | TBD | TBD |
-| Chassis communication lost | heartbeat timeout | zero velocity / fault state | TBD | TBD | TBD | planned |
-
-## Result Policy
-
-- 不填写未运行的数据。
-- 不用单次成功截图替代完整实验记录。
-- 所有数值指标需标明 commit、地图、参数文件、启动命令和日志路径。
-- 对失败实验也保留记录，注明失败原因和下一步处理。
-
-## 5. Factory Patrol Demo Acceptance
-
-All fields stay `TBD` until a real ROS2/Gazebo/Nav2 run is executed, logged, and
-reviewed.
-
-Demo acceptance table:
+The factory patrol assets provide entry points for demos, but runtime results
+remain `TBD` until recorded in a real environment.
 
 | demo_name | scenario | launch_or_script | expected_topics | success_criteria | runtime_result | notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Factory Patrol Multipoint | start -> station_A -> station_B -> station_C -> dock | `bash scripts/run_factory_patrol_multipoint_demo.sh` | `/navigate_sequence/current_goal`, `/mission_runner/state`, `/cmd_vel`, `/safety/state` | All waypoints reached in order without unhandled safety faults | TBD | TBD |
-| Temporary Obstacle | obstacle near station_A_to_station_B | `bash scripts/run_factory_patrol_obstacle_demo.sh` | `/scan`, `/local_costmap/costmap`, `/cmd_vel`, `/safety/state` | Obstacle visible in scan/costmap and robot response recorded | TBD | TBD |
-| Localization Recovery | bad pose then recovery pose | `bash scripts/run_factory_patrol_localization_recovery_demo.sh` | `/localization/health`, `/safety/state`, `/amcl_pose`, `/tf` | LOST and recovery transitions observed with command safety behavior | TBD | TBD |
+| Factory Patrol Multipoint | start -> station_A -> station_B -> station_C -> dock | `bash scripts/run_factory_patrol_multipoint_demo.sh` | `/navigate_sequence/current_goal`, `/mission_runner/state`, `/cmd_vel`, `/safety/state` | waypoints reached in order without unhandled safety faults | TBD | TBD |
+| Temporary Obstacle | obstacle on patrol route | `bash scripts/run_factory_patrol_obstacle_demo.sh` | `/scan`, `/local_costmap/costmap`, `/cmd_vel`, `/safety/state` | obstacle visible and robot response recorded | TBD | TBD |
+| Localization Recovery | bad pose followed by recovery pose | `bash scripts/run_factory_patrol_localization_recovery_demo.sh` | `/localization/health`, `/safety/state`, `/amcl_pose`, `/tf` | LOST and RECOVERED transitions observed | TBD | TBD |
 
-Multipoint patrol metrics:
+## 5. Showcase Evidence
 
-| route_name | waypoints | goal_success_rate | total_time | final_error_mean | safety_events | result_log |
-| --- | --- | --- | --- | --- | --- | --- |
-| factory_patrol_loop | start, station_A, station_B, station_C, dock | TBD | TBD | TBD | TBD | TBD |
+Showcase screenshots, videos, and generated figures should be listed in
+[docs/showcase/README.md](showcase/README.md) only after they are produced from
+real runs.
 
-Temporary obstacle metrics:
+| Artifact | Path | Source command | Status |
+| --- | --- | --- | --- |
+| RViz Nav2 debug screenshot | TBD | TBD | TBD |
+| Gazebo factory patrol screenshot | TBD | TBD | TBD |
+| Tracking comparison figure | TBD | TBD | TBD |
+| Demo video | TBD | TBD | TBD |
 
-| obstacle_position | scan_detected | local_costmap_marked | robot_slowed_or_stopped | recovery_after_clear | result |
-| --- | --- | --- | --- | --- | --- |
-| `x=-2.35, y=1.85` | TBD | TBD | TBD | TBD | TBD |
+## Result Policy
 
-Localization recovery metrics:
-
-| bad_pose_injected | health_lost_detected | safety_zero_cmd | recovery_pose_injected | health_recovered | mission_resume | result |
-| --- | --- | --- | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+- Keep `TBD` until the run is real and repeatable.
+- Record the exact commit, command, map, params, and logs for every table row.
+- Failed runs are valid data if the trigger, observed behavior, and next action
+  are documented.
+- Generated CSV, PNG, SVG, PDF, and video artifacts are not committed by default.

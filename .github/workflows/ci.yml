@@ -1,18 +1,38 @@
-name: ros2-ci
+name: static-checks
 
 on:
   push:
   pull_request:
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04
+  static-checks:
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: ros-tooling/setup-ros@v0.7
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          required-ros-distributions: jazzy
-      - uses: ros-tooling/action-ros-ci@v0.4
-        with:
-          package-name: robot_interfaces robot_interfaces_core robot_interfaces_navigation robot_interfaces_mission robot_interfaces_facility robot_interfaces_fleet robot_interfaces_business robot_interfaces_site robot_description robot_bringup robot_simulation robot_navigation robot_utils robot_tasks robot_path_tracking robot_hardware robot_sensors robot_teleop robot_experiments
-          target-ros2-distro: jazzy
+          python-version: "3.x"
+
+      - name: Python syntax check
+        run: python -m py_compile scripts/*.py
+
+      - name: Project showcase readiness
+        run: bash scripts/check_project_showcase_readiness.sh
+
+      - name: Static acceptance checks
+        run: |
+          bash scripts/check_nav2_costmap_obstacle_layer.sh
+          bash scripts/check_chassis_protocol_v2.sh
+          bash scripts/check_chassis_odom_calibration.sh
+          bash scripts/check_localization_health.sh
+          bash scripts/check_safety_state_machine.sh
+          bash scripts/check_factory_patrol_assets.sh
+          bash scripts/check_factory_patrol_demo_workflows.sh
+
+# Future CI expansion:
+# Add a ROS2 Jazzy colcon build job after the runner image, rosdep dependency
+# set, and package build matrix are verified in the same environment.
