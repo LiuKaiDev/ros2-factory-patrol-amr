@@ -11,9 +11,9 @@ Visualization Manager:
       Name: Factory Floor Grid
       Cell Size: 0.5
       Plane: XY
-      Plane Cell Count: 24
+      Plane Cell Count: 32
       Reference Frame: <Fixed Frame>
-      Color: 82; 86; 86
+      Color: 66; 70; 70
     - Class: rviz_default_plugins/RobotModel
       Enabled: true
       Name: Robot Model
@@ -47,8 +47,8 @@ Visualization Manager:
         History Policy: Keep Last
         Depth: 10
       Style: Points
-      Size (m): 0.03
-      Color: 255; 86; 72
+      Size (m): 0.018
+      Color: 210; 112; 82
     - Class: rviz_default_plugins/Odometry
       Enabled: true
       Name: Odometry
@@ -59,7 +59,7 @@ Visualization Manager:
         History Policy: Keep Last
         Depth: 10
       Shape: Arrow
-      Color: 244; 204; 72
+      Color: 198; 172; 92
       Position Tolerance: 0.1
       Angle Tolerance: 0.1
     - Class: rviz_default_plugins/Path
@@ -71,11 +71,11 @@ Visualization Manager:
         Reliability Policy: Reliable
         History Policy: Keep Last
         Depth: 10
-      Color: 70; 190; 230
+      Color: 92; 164; 190
       Line Style: Lines
-      Line Width: 0.035
+      Line Width: 0.028
     - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
+      Enabled: false
       Name: Factory Semantics
       Marker Topic:
         Value: /amr_simulation/markers
@@ -97,7 +97,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Fixed Frame: odom
-    Background Color: 30; 32; 34
+    Background Color: 42; 44; 44
     Frame Rate: 30
   Name: root
   Tools:
@@ -109,15 +109,15 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 7.2
+      Distance: 9.8
       Focal Point:
-        X: -0.2
-        Y: -0.2
-        Z: 0.35
+        X: -0.35
+        Y: -0.30
+        Z: 0.32
       Name: Factory Patrol Showcase
-      Pitch: 0.92
+      Pitch: 0.88
       Target Frame: odom
-      Yaw: 0.82
+      Yaw: 0.70
     Saved: ~
 Window Geometry:
   Height: 900

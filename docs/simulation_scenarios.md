@@ -100,6 +100,8 @@ New Phase 5A assets:
 
 `factory_patrol.sdf` contains:
 
+- 16 m x 12 m factory floor with widened AMR aisles
+- orthogonal dock -> receiving -> storage -> packing -> dock inspection route
 - main patrol road
 - equipment inspection area
 - narrow corridor marker
@@ -162,14 +164,19 @@ The Factory Patrol demo launch uses
 `src/robot_simulation/rviz/factory_patrol_showcase.rviz` by default when
 `use_rviz:=true`. This is the non-Nav2 showcase view with `odom` fixed frame,
 RobotModel, Lidar Scan, Odometry, Odom Path, and Factory Semantics markers.
+Factory Semantics is included but disabled by default for cleaner screenshots;
+enable it when inspecting runtime marker state.
 
 Use `src/robot_simulation/rviz/factory_patrol_debug.rviz` for a more verbose
 factory debug view, or `src/robot_simulation/rviz/nav2_basic_debug.rviz` when
 running Nav2 map/costmap debugging separately.
 
 The Gazebo world uses lightweight procedural SDF primitives for receiving,
-storage, packing, dock, safety, and landmark details. These visual assets do
-not claim runtime mission success by themselves.
+storage, packing, dock, safety, muted station signage, floor finish seams, scuff
+marks, landmark details, a larger factory layout layer, and route markings that
+keep the AMR inspection loop visually separated from racks, rails, walls, and
+workcell props. These visual assets do not claim runtime mission success by
+themselves.
 
 Current / planned boundary:
 

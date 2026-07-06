@@ -139,10 +139,19 @@ Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
 `/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
 
-The Factory Patrol world uses lightweight procedural SDF primitives for racks,
-receiving buffers, workcell equipment, dock guidance, safety landmarks, floor
-markings, and station signs. The default RViz view is a non-Nav2 showcase
-layout; Nav2 map and costmap debugging remains in `nav2_basic_debug.rviz`.
+The Factory Patrol world uses lightweight procedural SDF primitives for a
+16 m x 12 m factory floor, widened AMR aisles, receiving buffers, back storage
+rack rows, a right-side packing workcell, dock guidance, safety landmarks,
+orthogonal inspection-route floor markings, muted station signs, and subtle
+floor finish detail.
+The default RViz view is a non-Nav2 showcase layout; Nav2 map and costmap
+debugging remains in `nav2_basic_debug.rviz`. The Factory Semantics marker layer
+is present in RViz but disabled by default for cleaner screenshots.
+
+The Gazebo GUI world config avoids explicitly opening the Scene Manager and
+Camera Tracking side panels for the showcase view. If a local Gazebo version
+still opens extra panels, fold them manually before screenshots; this does not
+affect the runtime graph.
 
 After Windows-side edits, final visual acceptance should be performed in WSL2
 Ubuntu 24.04 with ROS2 Jazzy:

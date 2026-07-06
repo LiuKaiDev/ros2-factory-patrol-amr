@@ -58,10 +58,21 @@ fixed frame and focuses on robot model, laser scan, odometry, odom path, and
 `src/robot_simulation/rviz/factory_patrol_debug.rviz` remains available when a
 more verbose TF-oriented view is useful.
 
-The Gazebo world is procedural and lightweight: factory racks, receiving buffer
-details, packing workcell props, dock guidance, safety rails, landmark plates,
-and floor markings are modeled with SDF primitives rather than downloaded
-third-party assets.
+For the showcase layout, the Factory Semantics marker layer is included but
+disabled by default to avoid a debug-looking red marker overlay. Enable it from
+the Displays panel when semantic zones, reservations, or state markers need to
+be inspected.
+
+The Gazebo world is procedural and lightweight: a 16 m x 12 m factory floor,
+widened AMR aisles, receiving buffer details, back storage rack rows, packing
+workcell props, dock guidance, safety rails, landmark plates, muted station
+signs, floor finish seams, scuff marks, and orthogonal inspection-route floor
+markings are modeled with SDF primitives rather than downloaded third-party
+assets.
+
+The world config does not explicitly open the Scene Manager or Camera Tracking
+side panels. If a local Gazebo installation restores those panels anyway, fold
+the right-side panels manually before capturing screenshots.
 
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
