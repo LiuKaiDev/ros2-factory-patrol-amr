@@ -1,51 +1,94 @@
-# Low-Speed Patrol AMR Navigation Control System
+# ROS2 工厂巡检 AMR
 
-This repository is a ROS2 Jazzy + C++17 engineering showcase for a low-speed
-patrol AMR in semi-closed environments such as labs, corridors, parks, and
-factory aisles. The project focuses on the navigation-control loop rather than
-claiming production deployment.
+这是一个基于 ROS 2 Jazzy 的工厂巡检 AMR 仿真项目，面向低速移动机器人在厂区通道、收货区、货架区和包装工位之间的巡检场景。项目集成了 Gazebo Sim 场景、RViz 可视化、Nav2 / AMCL 基础导航、速度仲裁、安全状态反馈、odom / TF 运行状态检查和脚本化启动流程，用于展示一套可运行、可检查的 ROS2 AMR 软件链路。
 
-The current codebase includes Nav2, AMCL, Gazebo/RViz simulation, task and
-station orchestration, mock/serial/UDP chassis adapters, velocity muxing, safety
-gating, localization health monitoring, standalone tracking experiments, and
-Factory Patrol demo assets. Factory Patrol scenarios are provided as simulation
-assets and demo workflows for low-speed AMR patrol validation. Real hardware
-tuning, long-duration field results,
-and production certification remain out of scope until they are measured and
-documented with real logs.
+当前项目主要在 **WSL2 Ubuntu 24.04 + ROS 2 Jazzy** 环境下完成构建、测试和仿真验证。
 
-## Current Scope
+## 项目亮点
 
-| Area | Status | Main assets |
-| --- | --- | --- |
-| Navigation | current | `src/robot_navigation`, Nav2 basic/advanced params, RViz debug config |
-| Localization | current | AMCL plus `/localization/health` monitoring |
-| Control | current | Nav2 RPP/MPPI configs and standalone Pure Pursuit / Stanley tracking |
-| Chassis adapter | current | mock, serial, UDP, text v1/v2 protocol helpers |
-| Safety | current | final `/cmd_vel` safety gate, fault supervision, safety state topics |
-| Simulation | current | indoor room and factory patrol Gazebo/RViz assets |
-| Experiments | template/current tooling | scripts and report templates; metrics are `TBD` until real runs |
-| CI | static current | repository readiness, shell checks, and Python syntax checks |
+- 基于 Gazebo Sim 的工厂巡检仿真场景，包含 dock、receiving、storage、packing、slow zone 和 inspection loop 等区域。
+- 提供 RViz 可视化和调试配置，便于观察 robot model、laser scan、odom、TF 和 path。
+- 接入 Nav2 / AMCL 基础导航配置，包含 costmap、footprint、inflation、RPP 等常用导航调试项。
+- 提供 `/virtual_rc/cmd_vel` 手动控制入口，速度指令会经过 mux 和 safety gate 后再进入 `/cmd_vel`。
+- 实现 `cmd_vel` mux、安全门控和 `/safety_state` 状态反馈。
+- 提供 odom、TF、scan、safety state 等运行时 topic 检查脚本。
+- 提供多点巡检、临时障碍物和定位恢复等 demo / validation 入口，便于验证巡检流程和运行时状态。
+<!-- Phase 5B demo workflows -->
 
-## Closed-Loop Pipeline
+## 当前状态
+
+| 内容                 | 状态   | 说明                                                        |
+| -------------------- | ------ | ----------------------------------------------------------- |
+| Gazebo / RViz 仿真   | 已验证 | 可启动 Factory Patrol 场景并观察机器人状态                  |
+| Nav2 / AMCL 基础导航 | 已接入 | 提供基础导航参数和调试配置                                  |
+| 手动控制链路         | 已验证 | `/virtual_rc/cmd_vel` 经 mux / safety gate 后驱动仿真机器人 |
+| 运行时检查脚本       | 已提供 | 覆盖 topic、TF、odom、safety state 等检查                   |
+| 真实机器人接入       | 未验证 | 当前项目不声明真实底盘或现场部署结果                        |
+
+## 项目概览
+
+Factory Patrol 是当前主要仿真场景。它模拟一台低速 AMR 在工厂区域内执行巡检任务，场景中包含充电停靠区、收货入库区、仓储货架区、包装工位区和中央巡检通道。
+
+当前主要展示 world：
 
 ```text
-Patrol goal / waypoint
-  -> map_server and AMCL
-  -> Nav2 global planner
-  -> Nav2 local controller
-  -> cmd_vel mux
-  -> cmd_vel safety gate
-  -> chassis driver
-  -> mock / serial / UDP backend
-  -> odom, TF, chassis state, health feedback
+src/robot_simulation/worlds/factory_patrol_industrial.sdf
 ```
 
-Detailed architecture: [docs/architecture.md](docs/architecture.md).
+默认基线 world：
 
-## Quick Start
+```text
+src/robot_simulation/worlds/factory_patrol.sdf
+```
 
-The intended runtime environment is Ubuntu 24.04 with ROS2 Jazzy.
+两个 world 使用相同的 ROS2 demo 启动入口。工业展示场景主要用于更清楚地展示厂区布局和巡检路线；默认基线场景用于保留稳定的回退版本。
+
+## 工程能力展示
+
+这个项目主要展示以下 ROS2 / 移动机器人软件工程能力：
+
+- ROS2 workspace、package、launch、参数文件和脚本化 bringup 组织；
+- Gazebo Sim 场景建模与 RViz 调试视图配置；
+- Nav2 / AMCL 基础导航链路接入；
+- 多来源速度输入的 mux 仲裁和 safety gate 设计；
+- odom、TF、scan、safety state 等运行时状态检查；
+- 面向 demo / validation 的脚本化验证流程。
+
+## 系统链路（Closed-Loop Pipeline）
+
+整体闭环链路如下：
+
+```text
+任务入口 / 手动控制
+  -> Nav2 或 virtual RC
+  -> cmd_vel_mux_node
+  -> safety gate
+  -> /cmd_vel
+  -> Gazebo bridge / 仿真机器人
+  -> /odom / TF / safety state 反馈
+```
+
+手动控制推荐链路如下：
+
+```text
+/virtual_rc/cmd_vel
+  -> virtual_rc_node
+  -> /teleop_cmd_vel
+  -> cmd_vel_mux_node
+  -> /cmd_vel
+  -> Gazebo mobile_robot
+```
+
+## 快速开始
+
+推荐环境：
+
+- Ubuntu 24.04 / WSL2
+- ROS 2 Jazzy
+- Gazebo Sim
+- colcon
+
+安装依赖并构建：
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -54,216 +97,108 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-Common launch entry points:
-
-```bash
-# Gazebo + RViz AMR demo
-ros2 launch robot_bringup amr_demo.launch.py gui:=true use_rviz:=true
-
-# Mock chassis, sensors, and safety chain
-ros2 launch robot_bringup bringup.launch.py mode:=hardware backend:=mock
-
-# Nav2 basic navigation
-ros2 launch robot_navigation nav.launch.py navigation_start_delay:=5.0
-
-# Factory patrol demo helper
-bash scripts/run_factory_patrol_demo.sh
-```
-
-Factory Patrol Demo includes Phase 5B demo workflows for multipoint patrol,
-temporary obstacle validation entries, and localization recovery entries. These
-workflows are demo and validation entry points, not measured runtime results.
-
-Factory Patrol default RViz config:
-
-```text
-src/robot_simulation/rviz/factory_patrol_showcase.rviz
-```
-
-Nav2 basic debug RViz config:
-
-```text
-src/robot_simulation/rviz/nav2_basic_debug.rviz
-```
-
-Navigation details: [docs/navigation.md](docs/navigation.md).
-
-## Validation Scripts
-
-Static checks do not require a live ROS2 graph unless explicitly stated.
-
-```bash
-bash scripts/check_nav2_costmap_obstacle_layer.sh
-bash scripts/check_chassis_protocol_v2.sh
-bash scripts/check_chassis_odom_calibration.sh
-bash scripts/check_localization_health.sh
-bash scripts/check_safety_state_machine.sh
-bash scripts/check_factory_patrol_assets.sh
-bash scripts/check_factory_patrol_demo_workflows.sh
-bash scripts/check_project_showcase_readiness.sh
-```
-
-Runtime topic checks require a running ROS2/Gazebo/Nav2 environment:
-
-```bash
-bash scripts/check_nav2_runtime_topics.sh
-bash scripts/check_localization_runtime_topics.sh
-bash scripts/check_safety_runtime_topics.sh
-bash scripts/check_factory_patrol_runtime_topics.sh
-bash scripts/check_factory_patrol_demo_runtime.sh
-```
-
-Script index: [scripts/README.md](scripts/README.md).
-
-## Gazebo + RViz Simulation Debugging
-
-Launch the Factory Patrol showcase simulation with Gazebo and RViz:
+默认启动：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
 ```
 
-Preview the independent Factory Patrol Scene V2 industrial layout:
+## 启动 Factory Patrol Demo
+
+默认基线场景：
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+```
+
+工业展示场景：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py \
   world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
-  gui:=true use_rviz:=true
+  gui:=true \
+  use_rviz:=true
 ```
 
-Headless mode:
+无 GUI 启动：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
 ```
 
-After launch, check the expected runtime graph:
+## 手动控制
+
+推荐手动控制入口是 `/virtual_rc/cmd_vel`。
+
+前进：
+
+```bash
+ros2 topic pub --times 100 --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.2, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+停止：
+
+```bash
+ros2 topic pub --times 20 --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+`/virtual_rc/cmd_vel` 会经过 `virtual_rc_node`、`cmd_vel_mux_node` 和 Gazebo bridge，最终驱动 Gazebo 中的 `mobile_robot`。手动测试建议从这个入口发布速度，不建议长期直接向 `/cmd_vel` 发布，避免和 mux / bridge 节点竞争。
+
+## 运行时检查
+
+Factory Patrol runtime topic 检查：
 
 ```bash
 bash scripts/check_factory_patrol_runtime_topics.sh
 ```
 
-Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
-`/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
-`/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
-
-The Factory Patrol world uses lightweight procedural SDF primitives for a
-16 m x 12 m factory floor, widened AMR aisles, receiving buffers, back storage
-rack rows, a right-side packing workcell, dock guidance, safety landmarks,
-orthogonal inspection-route floor markings, muted station signs, and subtle
-floor finish detail.
-`factory_patrol_industrial.sdf` is an optional Scene V2 preview world with a
-24 m x 16 m industrial floor, clearer receiving / storage / packing / dock
-zones, and a wider closed inspection loop. The original `factory_patrol.sdf`
-remains the default stable baseline until the V2 scene is reviewed in WSL2.
-The default RViz view is a non-Nav2 showcase layout; Nav2 map and costmap
-debugging remains in `nav2_basic_debug.rviz`. The Factory Semantics marker layer
-is present in RViz but disabled by default for cleaner screenshots.
-
-The Gazebo GUI world config keeps the standard Scene Manager, Camera Tracking,
-and Interactive view control plugins enabled so the 3D view and camera services
-are available. For clean screenshots, fold the right-side panels manually; this
-does not affect the runtime graph.
-
-After Windows-side edits, final visual acceptance should be performed in WSL2
-Ubuntu 24.04 with ROS2 Jazzy:
+Factory Patrol 静态资产检查：
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install
-source install/setup.bash
-ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
-bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/check_factory_patrol_assets.sh
 ```
 
-This is WSL2 / ROS2 Jazzy simulation validation. It does not claim physical
-robot deployment or real factory operation.
+更多脚本说明见 [scripts/README.md](scripts/README.md)。Validation Scripts 的完整列表也放在该文档中。
 
-AMR motion smoke test with the virtual RC input:
+## 验证结果
 
-```bash
-ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
-ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+在 WSL2 Ubuntu 24.04 + ROS 2 Jazzy 环境下完成过一次完整验证：
+
+```text
+colcon test-result --verbose
+Summary: 514 tests, 0 errors, 0 failures, 0 skipped
 ```
 
-Use `/virtual_rc/cmd_vel` for manual smoke tests. `/teleop_cmd_vel` is the
-intermediate output from `virtual_rc_node` into `cmd_vel_mux_node`; `/cmd_vel`
-is the mux / safety output consumed by the Gazebo bridge, so users should avoid
-directly competing with that final topic during manual tests. Other mux inputs
-include `/nav2_cmd_vel` and `/tracking_cmd_vel`.
+同时验证过：
 
-Robot-not-moving checks:
+- 工业展示场景可以在 Gazebo / RViz 中启动；
+- `scripts/check_factory_patrol_runtime_topics.sh` 通过；
+- `/safety_state` 为 `OK`；
+- 通过 `/virtual_rc/cmd_vel` 发布前进命令后，Gazebo 中 `mobile_robot` 的 pose 发生明显变化，仿真运动链路已打通。
 
-```bash
-ros2 topic echo /cmd_vel
-ros2 topic echo /odom
-ros2 topic echo /safety_state
-ros2 topic echo /cmd_vel_mux/active_source
-ros2 topic info -v /cmd_vel
-gz model --model mobile_robot --pose
+以上结果来自当前开发环境。更换系统、ROS 2 版本或 Gazebo 版本后，建议重新构建并运行测试。
+
+## 项目结构
+
+```text
+src/
+  robot_bringup/        # 启动入口
+  robot_navigation/     # Nav2、AMCL 和导航参数
+  robot_simulation/     # Gazebo world、RViz 和仿真节点
+  robot_teleop/         # virtual RC、cmd_vel mux 和 safety gate
+  robot_tasks/          # 巡检任务入口
+  robot_interfaces*/    # 自定义消息和接口
+
+docs/                   # 项目文档
+scripts/                # 启动、检查和实验脚本
 ```
 
-## Validation Status
+## 更多文档
 
-- Static checks pass in the documented validation environment.
-- Server Docker validation on Alibaba Cloud Linux 3 with `ros:jazzy-ros-base`
-  passed for the main workspace subset excluding `robot_tasks`: 17 packages
-  finished, and `colcon test` reported 104 tests, 0 errors, 0 failures, and
-  0 skipped. `robot_tasks` was excluded on that low-resource server because
-  `mission_runner_node.cpp` triggered a `cc1plus` out-of-memory kill on about
-  1.8 GB RAM.
-- Local WSL2 Ubuntu 24.04 + ROS2 Jazzy desktop full validation passed after a
-  package-level retry for one transient Nav2 runtime timing issue: final
-  aggregated `colcon test-result` reported 514 tests, 0 errors, 0 failures, and
-  0 skipped.
-- RViz and Gazebo Sim launched in WSL2, and the Factory Patrol world loaded
-  after replacing temporary label placeholders with lightweight text mesh
-  assets.
-
-These validation notes cover build, tests, and static checks. They do not claim
-real robot deployment or real factory operation.
-
-## Experiments And Reports
-
-Experiment tables are intentionally templates until real runs are executed and
-reviewed. Do not fill `TBD` fields with generated-looking numbers.
-
-- Report template: [docs/experiment_report.md](docs/experiment_report.md)
-- Showcase placeholder index: [docs/showcase/README.md](docs/showcase/README.md)
-- WSL2 full validation summary:
-  [docs/showcase/wsl2_full_validation_summary.md](docs/showcase/wsl2_full_validation_summary.md)
-- Server Docker validation summary:
-  [docs/showcase/server_docker_validation_summary.md](docs/showcase/server_docker_validation_summary.md)
-- Generated CSV files and figures should stay out of git unless a later phase
-  explicitly chooses a reviewed artifact.
-
-## Documentation Index
-
-- [Architecture](docs/architecture.md)
-- [Navigation](docs/navigation.md)
-- [Localization](docs/localization.md)
-- [Control](docs/control.md)
-- [Chassis Protocol](docs/chassis_protocol.md)
-- [Calibration](docs/calibration.md)
-- [Safety State Machine](docs/safety_state_machine.md)
-- [Simulation Scenarios](docs/simulation_scenarios.md)
-- [Experiment Report](docs/experiment_report.md)
-- [Interview Notes](docs/interview_notes.md)
-- [Roadmap](docs/roadmap.md)
-- [Showcase](docs/showcase/README.md)
-
-## Roadmap
-
-Phase 0 through Phase 6 now cover documentation cleanup, Nav2 debug readiness,
-tracking experiment tooling, chassis protocol and odometry checks, localization
-and safety integration, factory patrol demo assets, and final docs/CI/showcase
-readiness. See [docs/roadmap.md](docs/roadmap.md) for the detailed status.
-
-## Project Boundaries
-
-- This is an AMR navigation-control engineering showcase, not production vehicle
-  firmware or a certified autonomous vehicle stack.
-- Mock, simulation, and static checks are clearly separated from real runtime
-  validation.
-- Real metrics require commit IDs, parameters, maps, commands, logs, and result
-  files before they are written into reports.
+- [docs/architecture.md](https://chatgpt.com/c/docs/architecture.md)
+- [docs/navigation.md](https://chatgpt.com/c/docs/navigation.md)
+- [docs/simulation_scenarios.md](https://chatgpt.com/c/docs/simulation_scenarios.md)
+- [docs/showcase/README.md](https://chatgpt.com/c/docs/showcase/README.md)
+- [scripts/README.md](https://chatgpt.com/c/scripts/README.md)
