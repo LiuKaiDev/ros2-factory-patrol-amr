@@ -23,7 +23,6 @@
 | Nav2 / AMCL 基础导航 | 已接入 | 提供基础导航参数和调试配置                                  |
 | 手动控制链路         | 已验证 | `/virtual_rc/cmd_vel` 经 mux / safety gate 后驱动仿真机器人 |
 | 运行时检查脚本       | 已提供 | 覆盖 topic、TF、odom、safety state 等检查                   |
-| 真实机器人接入       | 未验证 | 当前项目不声明真实底盘或现场部署结果                        |
 
 ## 项目概览
 
