@@ -179,17 +179,18 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 This is WSL2 / ROS2 Jazzy simulation validation. It does not claim physical
 robot deployment or real factory operation.
 
-AMR motion smoke test with direct velocity command:
+AMR motion smoke test with the virtual RC input:
 
 ```bash
-ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
+ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-Command multiplexer inputs are `/teleop_cmd_vel`, `/nav2_cmd_vel`,
-`/tracking_cmd_vel`, and `/virtual_rc/cmd_vel`. Useful observations:
-`/cmd_vel_mux/active_source`, `/safety_state`, `/cmd_vel`, `/odom`, and
-`/mission_runner/state`.
+Use `/virtual_rc/cmd_vel` for manual smoke tests. `/teleop_cmd_vel` is the
+intermediate output from `virtual_rc_node` into `cmd_vel_mux_node`; `/cmd_vel`
+is the mux / safety output consumed by the Gazebo bridge, so users should avoid
+directly competing with that final topic during manual tests. Other mux inputs
+include `/nav2_cmd_vel` and `/tracking_cmd_vel`.
 
 Robot-not-moving checks:
 
@@ -197,8 +198,9 @@ Robot-not-moving checks:
 ros2 topic echo /cmd_vel
 ros2 topic echo /odom
 ros2 topic echo /safety_state
-ros2 topic echo /mission_runner/state
+ros2 topic echo /cmd_vel_mux/active_source
 ros2 topic info -v /cmd_vel
+gz model --model mobile_robot --pose
 ```
 
 ## Validation Status

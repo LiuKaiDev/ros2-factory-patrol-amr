@@ -226,24 +226,27 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=false use_rviz:=false
 ```
 
-Basic AMR motion smoke test:
+Basic AMR motion smoke test through the virtual RC input:
 
 ```bash
-ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
+ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-Command mux inputs are `/teleop_cmd_vel`, `/nav2_cmd_vel`,
-`/tracking_cmd_vel`, and `/virtual_rc/cmd_vel`. Observe
-`/cmd_vel_mux/active_source`, `/safety_state`, `/cmd_vel`, `/odom`, and
-`/mission_runner/state` when the robot does not move:
+Use `/virtual_rc/cmd_vel` for manual tests. `/teleop_cmd_vel` is the
+`virtual_rc_node` output into `cmd_vel_mux_node`; `/cmd_vel` is the final
+mux / safety output used by the Gazebo bridge and should not be the normal
+manual input. Other mux inputs are `/nav2_cmd_vel` and `/tracking_cmd_vel`.
+Observe `/cmd_vel_mux/active_source`, `/safety_state`, `/cmd_vel`, `/odom`, and
+the Gazebo entity pose when the robot does not move:
 
 ```bash
 ros2 topic echo /cmd_vel
 ros2 topic echo /odom
 ros2 topic echo /safety_state
-ros2 topic echo /mission_runner/state
+ros2 topic echo /cmd_vel_mux/active_source
 ros2 topic info -v /cmd_vel
+gz model --model mobile_robot --pose
 ```
 
 ## Phase 5B Factory Patrol Demo Workflows

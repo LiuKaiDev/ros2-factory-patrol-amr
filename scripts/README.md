@@ -65,6 +65,19 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=true use_rviz:=true
 ```
 
+Manual motion smoke tests should publish to `/virtual_rc/cmd_vel`, not directly
+to `/cmd_vel`:
+
+```bash
+ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
+ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+```
+
+`/teleop_cmd_vel` is the `virtual_rc_node` output into the mux. `/cmd_vel` is
+the final mux / safety output consumed by the Gazebo bridge. Useful checks are
+`/cmd_vel`, `/odom`, `/safety_state`, `/cmd_vel_mux/active_source`, and
+`gz model --model mobile_robot --pose`.
+
 ## Final Readiness
 
 ```bash

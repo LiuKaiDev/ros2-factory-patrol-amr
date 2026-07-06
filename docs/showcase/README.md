@@ -91,13 +91,19 @@ capturing screenshots when a cleaner frame is needed.
 Motion smoke-test commands for a live simulation:
 
 ```bash
-ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
+ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
+Use `/virtual_rc/cmd_vel` as the recommended manual input. `/teleop_cmd_vel` is
+the `virtual_rc_node` output into `cmd_vel_mux_node`, while `/cmd_vel` is the
+final mux / safety output bridged into Gazebo. Avoid directly publishing to
+`/cmd_vel` during manual tests unless intentionally debugging the final bridge.
+
 If the AMR does not move, inspect `/cmd_vel`, `/odom`, `/safety_state`,
-`/mission_runner/state`, and `ros2 topic info -v /cmd_vel` before changing any
-navigation, safety, chassis, or task code.
+`/cmd_vel_mux/active_source`, `ros2 topic info -v /cmd_vel`, and
+`gz model --model mobile_robot --pose` before changing any navigation, safety,
+chassis, or task code.
 
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
