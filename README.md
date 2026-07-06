@@ -145,18 +145,19 @@ ros2 topic pub --times 20 --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist 
 
 `/virtual_rc/cmd_vel` 会经过 `virtual_rc_node`、`cmd_vel_mux_node` 和 Gazebo bridge，最终驱动 Gazebo 中的 `mobile_robot`。手动测试建议从这个入口发布速度，不建议长期直接向 `/cmd_vel` 发布，避免和 mux / bridge 节点竞争。
 
-## 运行时检查
+## 检查脚本
 
-Factory Patrol runtime topic 检查：
+静态检查脚本不需要运行中的 ROS2 / Gazebo 环境，适合先确认配置和文档入口是否齐全：
+
+```bash
+bash scripts/check_safety_state_machine.sh
+bash scripts/check_factory_patrol_assets.sh
+```
+
+运行时检查脚本需要先启动仿真环境，用于确认 topic、TF、odom、safety state 等运行状态：
 
 ```bash
 bash scripts/check_factory_patrol_runtime_topics.sh
-```
-
-Factory Patrol 静态资产检查：
-
-```bash
-bash scripts/check_factory_patrol_assets.sh
 ```
 
 更多脚本说明见 [scripts/README.md](scripts/README.md)。Validation Scripts 的完整列表也放在该文档中。
