@@ -49,7 +49,9 @@ label placeholders with lightweight text mesh assets under
 `src/robot_simulation/media/text_meshes/`. The `factory_patrol.sdf` world is now
 visible in Gazebo with the label visuals kept in place.
 
-The default RViz configuration for this demo is
+The current default RViz configuration for this demo is
+`src/robot_simulation/rviz/factory_patrol_showcase.rviz`. The previous
+debug-oriented config remains available at
 `src/robot_simulation/rviz/factory_patrol_debug.rviz`.
 
 ## Runtime Topics Observed

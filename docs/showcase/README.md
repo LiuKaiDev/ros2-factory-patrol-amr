@@ -52,13 +52,24 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 ```
 
 The default RViz config is
-`src/robot_simulation/rviz/factory_patrol_debug.rviz`. It uses `odom` as the
-fixed frame and focuses on TF, robot model, laser scan, odometry, and
+`src/robot_simulation/rviz/factory_patrol_showcase.rviz`. It uses `odom` as the
+fixed frame and focuses on robot model, laser scan, odometry, odom path, and
 `/amr_simulation/markers` so the default non-Nav2 demo is screenshot-friendly.
+`src/robot_simulation/rviz/factory_patrol_debug.rviz` remains available when a
+more verbose TF-oriented view is useful.
+
+The Gazebo world is procedural and lightweight: factory racks, receiving buffer
+details, packing workcell props, dock guidance, safety rails, landmark plates,
+and floor markings are modeled with SDF primitives rather than downloaded
+third-party assets.
 
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
 `/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
+
+After Windows-side edits, final visual review should be done in WSL2 Ubuntu
+24.04 with ROS2 Jazzy by launching the demo, checking runtime topics, and
+capturing screenshots only after the scene is visually reviewed.
 
 ## Future Artifact Checklist
 

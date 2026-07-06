@@ -51,6 +51,12 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
+`run_factory_patrol_demo.sh` reports the default
+`src/robot_simulation/rviz/factory_patrol_showcase.rviz` layout for the
+non-Nav2 Gazebo/RViz showcase. `check_factory_patrol_runtime_topics.sh` requires
+a running ROS2 graph and prints topic counts, `/scan` QoS hints, sampled frame
+IDs, and odom TF connectivity diagnostics.
+
 ## Final Readiness
 
 ```bash

@@ -10,7 +10,7 @@ WORLD_FILE="src/robot_simulation/worlds/factory_patrol.sdf"
 STATIONS_FILE="src/robot_simulation/config/factory_patrol_stations.yaml"
 ZONES_FILE="src/robot_simulation/config/factory_patrol_zones.yaml"
 ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
-RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_debug.rviz"
+RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true"
 
 safe_source_setup() {
@@ -69,6 +69,7 @@ echo "  stations:    ${STATIONS_FILE}"
 echo "  zones:       ${ZONES_FILE}"
 echo "  route:       ${ROUTE_FILE}"
 echo "  RViz config: ${RVIZ_FILE}"
+echo "  debug RViz:   src/robot_simulation/rviz/factory_patrol_debug.rviz"
 echo
 echo "[factory-patrol-demo] Launch command:"
 echo "  ${LAUNCH_CMD}"

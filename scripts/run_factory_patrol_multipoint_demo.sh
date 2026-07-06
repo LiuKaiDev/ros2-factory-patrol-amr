@@ -10,7 +10,7 @@ STATIONS_FILE="src/robot_simulation/config/factory_patrol_stations.yaml"
 ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
 MISSION_FILE="src/robot_simulation/config/factory_patrol_multipoint_mission.yaml"
 GOAL_PRINTER="scripts/print_factory_patrol_goals.py"
-RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_debug.rviz"
+RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py use_rviz:=true use_mission_runner:=true mission_file:=${REPO_ROOT}/${MISSION_FILE}"
 
 safe_source_setup() {
@@ -47,6 +47,7 @@ fi
 echo "[factory-multipoint] Repository: ${REPO_ROOT}"
 echo "[factory-multipoint] Route: start -> station_A -> station_B -> station_C -> dock"
 echo "[factory-multipoint] RViz config: ${RVIZ_FILE}"
+echo "[factory-multipoint] Debug RViz: src/robot_simulation/rviz/factory_patrol_debug.rviz"
 echo
 python3 "${GOAL_PRINTER}"
 

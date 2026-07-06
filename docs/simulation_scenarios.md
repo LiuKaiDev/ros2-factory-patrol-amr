@@ -156,11 +156,20 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   use_nav2:=true nav2_map:=/absolute/path/to/factory_patrol.yaml
 ```
 
-RViz debug:
+RViz views:
 
-Use `src/robot_simulation/rviz/nav2_basic_debug.rviz` to observe RobotModel, TF,
-LaserScan, odom, map, costmaps, global path, and command/debug topics. The demo
-launch starts this config when `use_rviz:=true`.
+The Factory Patrol demo launch uses
+`src/robot_simulation/rviz/factory_patrol_showcase.rviz` by default when
+`use_rviz:=true`. This is the non-Nav2 showcase view with `odom` fixed frame,
+RobotModel, Lidar Scan, Odometry, Odom Path, and Factory Semantics markers.
+
+Use `src/robot_simulation/rviz/factory_patrol_debug.rviz` for a more verbose
+factory debug view, or `src/robot_simulation/rviz/nav2_basic_debug.rviz` when
+running Nav2 map/costmap debugging separately.
+
+The Gazebo world uses lightweight procedural SDF primitives for receiving,
+storage, packing, dock, safety, and landmark details. These visual assets do
+not claim runtime mission success by themselves.
 
 Current / planned boundary:
 

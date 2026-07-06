@@ -34,7 +34,7 @@ def generate_launch_description():
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
     )
     default_rviz_config = PathJoinSubstitution(
-        [FindPackageShare("robot_simulation"), "rviz", "factory_patrol_debug.rviz"]
+        [FindPackageShare("robot_simulation"), "rviz", "factory_patrol_showcase.rviz"]
     )
     nav2_params = PathJoinSubstitution(
         [FindPackageShare("robot_navigation"), "config", "nav2_basic.yaml"]

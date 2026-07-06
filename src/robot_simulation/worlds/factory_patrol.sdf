@@ -268,6 +268,80 @@
         <visual name="dock_bollard_2"><pose>-3.25 -4.35 0.28 0 0 0</pose><geometry><cylinder><radius>0.06</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.98 0.76 0.12 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
       </link>
     </model>
+
+    <model name="showcase_receiving_inbound_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="receiving_rollup_header"><pose>-4.54 0.00 1.22 0 0 0</pose><geometry><box><size>0.10 1.72 0.12</size></box></geometry><material><diffuse>0.18 0.20 0.22 1</diffuse></material></visual>
+        <visual name="receiving_rollup_left_post"><pose>-4.54 -0.92 0.62 0 0 0</pose><geometry><box><size>0.12 0.10 1.18</size></box></geometry><material><diffuse>0.16 0.17 0.18 1</diffuse></material></visual>
+        <visual name="receiving_rollup_right_post"><pose>-4.54 0.92 0.62 0 0 0</pose><geometry><box><size>0.12 0.10 1.18</size></box></geometry><material><diffuse>0.16 0.17 0.18 1</diffuse></material></visual>
+        <visual name="receiving_door_slat_1"><pose>-4.60 -0.46 0.90 0 0 0</pose><geometry><box><size>0.035 0.62 0.045</size></box></geometry><material><diffuse>0.48 0.50 0.50 1</diffuse></material></visual>
+        <visual name="receiving_door_slat_2"><pose>-4.60 0.18 0.90 0 0 0</pose><geometry><box><size>0.035 0.62 0.045</size></box></geometry><material><diffuse>0.48 0.50 0.50 1</diffuse></material></visual>
+        <visual name="receiving_buffer_floor_lane"><pose>-3.62 -0.58 0.030 0 0 0</pose><geometry><box><size>1.22 0.09 0.018</size></box></geometry><material><diffuse>0.78 0.72 0.52 0.58</diffuse><emissive>0.08 0.06 0.00 1</emissive></material></visual>
+        <visual name="receiving_buffer_floor_stop"><pose>-3.05 0.52 0.031 0 0 1.5708</pose><geometry><box><size>0.86 0.07 0.018</size></box></geometry><material><diffuse>0.80 0.72 0.44 0.62</diffuse><emissive>0.08 0.06 0.00 1</emissive></material></visual>
+        <visual name="receiving_floor_id_panel"><pose>-4.47 0.62 0.96 0 0 0</pose><geometry><box><size>0.045 0.38 0.24</size></box></geometry><material><diffuse>0.10 0.32 0.24 0.96</diffuse><emissive>0.00 0.08 0.04 1</emissive></material></visual>
+        <visual name="receiving_floor_id_bar_1"><pose>-4.49 0.52 0.99 0 0 0</pose><geometry><box><size>0.052 0.14 0.035</size></box></geometry><material><diffuse>0.88 0.92 0.82 1</diffuse></material></visual>
+        <visual name="receiving_floor_id_bar_2"><pose>-4.49 0.71 0.92 0 0 0</pose><geometry><box><size>0.052 0.16 0.035</size></box></geometry><material><diffuse>0.88 0.92 0.82 1</diffuse></material></visual>
+        <visual name="inbound_pallet_stack_1"><pose>-3.18 -0.96 0.36 0 0 0.10</pose><geometry><box><size>0.52 0.38 0.32</size></box></geometry><material><diffuse>0.46 0.34 0.22 1</diffuse></material></visual>
+        <visual name="inbound_pallet_stack_2"><pose>-3.84 -0.98 0.28 0 0 -0.08</pose><geometry><box><size>0.50 0.36 0.22</size></box></geometry><material><diffuse>0.54 0.44 0.30 1</diffuse></material></visual>
+        <visual name="inbound_wrap_band_1"><pose>-3.18 -0.96 0.54 0 0 0.10</pose><geometry><box><size>0.56 0.035 0.035</size></box></geometry><material><diffuse>0.18 0.22 0.24 1</diffuse></material></visual>
+        <visual name="inbound_wrap_band_2"><pose>-3.84 -0.98 0.42 0 0 -0.08</pose><geometry><box><size>0.54 0.035 0.035</size></box></geometry><material><diffuse>0.18 0.22 0.24 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_storage_industrial_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="rack_a_upper_shelf"><pose>1.50 1.50 1.02 0 0 0.30</pose><geometry><box><size>1.38 0.52 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_mid_shelf"><pose>1.50 1.50 0.62 0 0 0.30</pose><geometry><box><size>1.38 0.52 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_load_1"><pose>1.22 1.33 1.20 0 0 0.30</pose><geometry><box><size>0.34 0.26 0.24</size></box></geometry><material><diffuse>0.58 0.46 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_load_2"><pose>1.75 1.57 1.20 0 0 0.30</pose><geometry><box><size>0.42 0.24 0.20</size></box></geometry><material><diffuse>0.36 0.42 0.44 1</diffuse></material></visual>
+        <visual name="rack_a_id_plate"><pose>0.91 1.23 1.02 0 0 0.30</pose><geometry><box><size>0.32 0.035 0.18</size></box></geometry><material><diffuse>0.12 0.18 0.20 1</diffuse><emissive>0.02 0.04 0.04 1</emissive></material></visual>
+        <visual name="rack_a_id_mark"><pose>0.91 1.23 1.04 0 0 0.30</pose><geometry><box><size>0.22 0.042 0.032</size></box></geometry><material><diffuse>0.86 0.78 0.42 1</diffuse></material></visual>
+        <visual name="rack_b_upper_shelf"><pose>-2.00 2.00 1.02 0 0 -0.40</pose><geometry><box><size>1.38 0.56 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_mid_shelf"><pose>-2.00 2.00 0.62 0 0 -0.40</pose><geometry><box><size>1.38 0.56 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_load_1"><pose>-2.32 2.22 1.20 0 0 -0.40</pose><geometry><box><size>0.40 0.24 0.22</size></box></geometry><material><diffuse>0.58 0.46 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_load_2"><pose>-1.78 1.86 1.20 0 0 -0.40</pose><geometry><box><size>0.36 0.26 0.24</size></box></geometry><material><diffuse>0.30 0.38 0.46 1</diffuse></material></visual>
+        <visual name="rack_b_id_plate"><pose>-2.52 2.22 1.02 0 0 -0.40</pose><geometry><box><size>0.32 0.035 0.18</size></box></geometry><material><diffuse>0.12 0.18 0.20 1</diffuse><emissive>0.02 0.04 0.04 1</emissive></material></visual>
+        <visual name="rack_b_id_mark"><pose>-2.52 2.22 1.04 0 0 -0.40</pose><geometry><box><size>0.22 0.042 0.032</size></box></geometry><material><diffuse>0.86 0.78 0.42 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_packing_workcell_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="packing_tool_board"><pose>2.68 -1.40 1.13 0 0 0</pose><geometry><box><size>0.08 0.78 0.46</size></box></geometry><material><diffuse>0.16 0.24 0.30 1</diffuse></material></visual>
+        <visual name="packing_tool_shadow_rail"><pose>2.63 -1.40 1.28 0 0 0</pose><geometry><box><size>0.10 0.62 0.035</size></box></geometry><material><diffuse>0.66 0.72 0.68 1</diffuse></material></visual>
+        <visual name="packing_scale_base"><pose>1.58 -2.56 0.44 0 0 0</pose><geometry><box><size>0.34 0.30 0.08</size></box></geometry><material><diffuse>0.08 0.10 0.11 1</diffuse></material></visual>
+        <visual name="packing_scale_display"><pose>1.58 -2.70 0.63 0 0 0</pose><geometry><box><size>0.24 0.04 0.14</size></box></geometry><material><diffuse>0.04 0.08 0.10 1</diffuse><emissive>0.00 0.14 0.18 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_north"><pose>2.00 -1.08 0.044 0 0 0</pose><geometry><box><size>1.42 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_south"><pose>2.00 -2.92 0.044 0 0 0</pose><geometry><box><size>1.42 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_east"><pose>2.72 -2.00 0.044 0 0 1.5708</pose><geometry><box><size>1.84 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_safety_and_landmarks">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="guardrail_dock_rail"><pose>-3.90 -4.55 0.58 0 0 0</pose><geometry><box><size>1.24 0.055 0.08</size></box></geometry><material><diffuse>0.88 0.70 0.12 1</diffuse><emissive>0.14 0.08 0.00 1</emissive></material></visual>
+        <visual name="guardrail_receiving_rail"><pose>-4.55 0.00 0.58 0 0 1.5708</pose><geometry><box><size>1.58 0.055 0.08</size></box></geometry><material><diffuse>0.88 0.70 0.12 1</diffuse><emissive>0.14 0.08 0.00 1</emissive></material></visual>
+        <visual name="estop_post"><pose>2.86 -0.92 0.48 0 0 0</pose><geometry><cylinder><radius>0.04</radius><length>0.86</length></cylinder></geometry><material><diffuse>0.10 0.10 0.11 1</diffuse></material></visual>
+        <visual name="estop_button"><pose>2.86 -0.92 0.94 0 0 0</pose><geometry><cylinder><radius>0.095</radius><length>0.05</length></cylinder></geometry><material><diffuse>0.80 0.05 0.04 1</diffuse><emissive>0.18 0.00 0.00 1</emissive></material></visual>
+        <visual name="slow_zone_hash_1"><pose>0.72 -0.82 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="slow_zone_hash_2"><pose>1.10 -0.44 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="slow_zone_hash_3"><pose>1.48 -0.06 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="landmark_receiving_plate"><pose>-4.88 1.62 0.92 0 0 0</pose><geometry><box><size>0.045 0.42 0.42</size></box></geometry><material><diffuse>0.90 0.92 0.86 1</diffuse></material></visual>
+        <visual name="landmark_receiving_black_1"><pose>-4.91 1.50 1.02 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_receiving_black_2"><pose>-4.91 1.75 0.82 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_dock_plate"><pose>-4.88 -3.18 0.92 0 0 0</pose><geometry><box><size>0.045 0.42 0.42</size></box></geometry><material><diffuse>0.90 0.92 0.86 1</diffuse></material></visual>
+        <visual name="landmark_dock_black_1"><pose>-4.91 -3.30 1.02 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_dock_black_2"><pose>-4.91 -3.05 0.82 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+      </link>
+    </model>
     <!-- END AMR_SHOWCASE_SEMANTIC_FLOOR -->
 
     <model name="receiving_door">
@@ -1148,7 +1222,7 @@
         <scene>scene</scene>
         <ambient_light>0.55 0.57 0.60</ambient_light>
         <background_color>0.80 0.83 0.86</background_color>
-        <camera_pose>-8.5 -8.5 7.5 0 0.62 0.785</camera_pose>
+        <camera_pose>-6.20 -6.85 6.10 0 0.78 0.72</camera_pose>
       </plugin>
       <plugin filename="GzSceneManager" name="Scene Manager"/>
       <plugin filename="InteractiveViewControl" name="Interactive view control"/>

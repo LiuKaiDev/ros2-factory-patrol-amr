@@ -63,6 +63,8 @@ echo "  rviz2 -d ${RVIZ_PATH}"
 echo
 echo "[nav2-basic-demo] RViz config:"
 echo "  ${RVIZ_FILE}"
+echo "[nav2-basic-demo] Factory Patrol showcase uses a separate non-Nav2 RViz config:"
+echo "  src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 echo
 echo "[nav2-basic-demo] Expected runtime topics:"
 echo "  /map /scan /odom /cmd_vel /tf /global_costmap/costmap /local_costmap/costmap"

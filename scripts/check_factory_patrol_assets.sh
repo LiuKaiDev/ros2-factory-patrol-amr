@@ -70,7 +70,7 @@ require_grep "station_C" "${ROUTE_FILE}" "route does not reference station_C"
 require_grep "world_file" "${SIM_LAUNCH}" "sim.launch.py does not expose world_file"
 require_grep "world_name" "${SIM_LAUNCH}" "sim.launch.py does not expose world_name"
 require_grep "factory_patrol.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not use factory world"
-require_grep "factory_patrol_debug.rviz" "${DEMO_LAUNCH}" "factory patrol launch does not use factory RViz debug config"
+require_grep "factory_patrol_showcase.rviz" "${DEMO_LAUNCH}" "factory patrol launch does not use factory RViz showcase config"
 require_grep "factory_patrol_demo.launch.py" "${RUN_SCRIPT}" "run script does not reference factory launch"
 
 require_grep "Phase 5A" "${SCENARIO_DOC}" "simulation docs do not mention Phase 5A"

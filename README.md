@@ -77,7 +77,7 @@ workflows are demo and validation entry points, not measured runtime results.
 Factory Patrol default RViz config:
 
 ```text
-src/robot_simulation/rviz/factory_patrol_debug.rviz
+src/robot_simulation/rviz/factory_patrol_showcase.rviz
 ```
 
 Nav2 basic debug RViz config:
@@ -117,7 +117,7 @@ Script index: [scripts/README.md](scripts/README.md).
 
 ## Gazebo + RViz Simulation Debugging
 
-Launch the polished Factory Patrol simulation with Gazebo and RViz:
+Launch the Factory Patrol showcase simulation with Gazebo and RViz:
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
@@ -138,6 +138,22 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
 `/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
+
+The Factory Patrol world uses lightweight procedural SDF primitives for racks,
+receiving buffers, workcell equipment, dock guidance, safety landmarks, floor
+markings, and station signs. The default RViz view is a non-Nav2 showcase
+layout; Nav2 map and costmap debugging remains in `nav2_basic_debug.rviz`.
+
+After Windows-side edits, final visual acceptance should be performed in WSL2
+Ubuntu 24.04 with ROS2 Jazzy:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+bash scripts/check_factory_patrol_runtime_topics.sh
+```
 
 This is WSL2 / ROS2 Jazzy simulation validation. It does not claim physical
 robot deployment or real factory operation.
