@@ -148,10 +148,10 @@ The default RViz view is a non-Nav2 showcase layout; Nav2 map and costmap
 debugging remains in `nav2_basic_debug.rviz`. The Factory Semantics marker layer
 is present in RViz but disabled by default for cleaner screenshots.
 
-The Gazebo GUI world config avoids explicitly opening the Scene Manager and
-Camera Tracking side panels for the showcase view. If a local Gazebo version
-still opens extra panels, fold them manually before screenshots; this does not
-affect the runtime graph.
+The Gazebo GUI world config keeps the standard Scene Manager, Camera Tracking,
+and Interactive view control plugins enabled so the 3D view and camera services
+are available. For clean screenshots, fold the right-side panels manually; this
+does not affect the runtime graph.
 
 After Windows-side edits, final visual acceptance should be performed in WSL2
 Ubuntu 24.04 with ROS2 Jazzy:

@@ -70,9 +70,10 @@ signs, floor finish seams, scuff marks, and orthogonal inspection-route floor
 markings are modeled with SDF primitives rather than downloaded third-party
 assets.
 
-The world config does not explicitly open the Scene Manager or Camera Tracking
-side panels. If a local Gazebo installation restores those panels anyway, fold
-the right-side panels manually before capturing screenshots.
+The world config keeps the standard Scene Manager, Camera Tracking, and
+Interactive view control plugins enabled so Gazebo can render the 3D scene and
+provide camera control services. Fold the right-side panels manually before
+capturing screenshots when a cleaner frame is needed.
 
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
