@@ -123,6 +123,14 @@ Launch the Factory Patrol showcase simulation with Gazebo and RViz:
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
 ```
 
+Preview the independent Factory Patrol Scene V2 industrial layout:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
+  gui:=true use_rviz:=true
+```
+
 Headless mode:
 
 ```bash
@@ -144,6 +152,10 @@ The Factory Patrol world uses lightweight procedural SDF primitives for a
 rack rows, a right-side packing workcell, dock guidance, safety landmarks,
 orthogonal inspection-route floor markings, muted station signs, and subtle
 floor finish detail.
+`factory_patrol_industrial.sdf` is an optional Scene V2 preview world with a
+24 m x 16 m industrial floor, clearer receiving / storage / packing / dock
+zones, and a wider closed inspection loop. The original `factory_patrol.sdf`
+remains the default stable baseline until the V2 scene is reviewed in WSL2.
 The default RViz view is a non-Nav2 showcase layout; Nav2 map and costmap
 debugging remains in `nav2_basic_debug.rviz`. The Factory Semantics marker layer
 is present in RViz but disabled by default for cleaner screenshots.
@@ -166,6 +178,28 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 
 This is WSL2 / ROS2 Jazzy simulation validation. It does not claim physical
 robot deployment or real factory operation.
+
+AMR motion smoke test with direct velocity command:
+
+```bash
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+```
+
+Command multiplexer inputs are `/teleop_cmd_vel`, `/nav2_cmd_vel`,
+`/tracking_cmd_vel`, and `/virtual_rc/cmd_vel`. Useful observations:
+`/cmd_vel_mux/active_source`, `/safety_state`, `/cmd_vel`, `/odom`, and
+`/mission_runner/state`.
+
+Robot-not-moving checks:
+
+```bash
+ros2 topic echo /cmd_vel
+ros2 topic echo /odom
+ros2 topic echo /safety_state
+ros2 topic echo /mission_runner/state
+ros2 topic info -v /cmd_vel
+```
 
 ## Validation Status
 

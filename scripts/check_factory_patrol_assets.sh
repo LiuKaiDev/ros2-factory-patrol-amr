@@ -27,6 +27,7 @@ require_grep() {
 }
 
 WORLD_FILE="src/robot_simulation/worlds/factory_patrol.sdf"
+INDUSTRIAL_WORLD_FILE="src/robot_simulation/worlds/factory_patrol_industrial.sdf"
 STATIONS_FILE="src/robot_simulation/config/factory_patrol_stations.yaml"
 ZONES_FILE="src/robot_simulation/config/factory_patrol_zones.yaml"
 ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
@@ -38,7 +39,7 @@ SCENARIO_DOC="docs/simulation_scenarios.md"
 ARCH_DOC="docs/architecture.md"
 README_FILE="README.md"
 
-for file in "${WORLD_FILE}" "${STATIONS_FILE}" "${ZONES_FILE}" "${ROUTE_FILE}" \
+for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZONES_FILE}" "${ROUTE_FILE}" \
   "${MAP_README}" "${DEMO_LAUNCH}" "${RUN_SCRIPT}" "${SIM_LAUNCH}" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
@@ -60,6 +61,10 @@ require_grep "showcase_static_station_signs" "${WORLD_FILE}" "showcase station s
 require_grep "showcase_large_factory_layout" "${WORLD_FILE}" "showcase large factory layout layer is missing"
 require_grep "showcase_storage_industrial_detail" "${WORLD_FILE}" "showcase storage detail is missing"
 require_grep "showcase_packing_workcell_detail" "${WORLD_FILE}" "showcase packing detail is missing"
+require_grep "industrial_v2_factory_layout" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 factory layout is missing"
+require_grep "24 16 0.05" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 floor size is not documented in SDF"
+require_grep "GzSceneManager" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 Scene Manager plugin is missing"
+require_grep "CameraTracking" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 Camera Tracking plugin is missing"
 
 require_grep "station_A" "${STATIONS_FILE}" "station_A config is missing"
 require_grep "station_B" "${STATIONS_FILE}" "station_B config is missing"
@@ -75,11 +80,14 @@ require_grep "station_C" "${ROUTE_FILE}" "route does not reference station_C"
 require_grep "world_file" "${SIM_LAUNCH}" "sim.launch.py does not expose world_file"
 require_grep "world_name" "${SIM_LAUNCH}" "sim.launch.py does not expose world_name"
 require_grep "factory_patrol.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not use factory world"
+require_grep "world_file" "${DEMO_LAUNCH}" "factory patrol launch does not expose world override"
+require_grep "factory_patrol_industrial.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not mention industrial V2 world"
 require_grep "factory_patrol_showcase.rviz" "${DEMO_LAUNCH}" "factory patrol launch does not use factory RViz showcase config"
 require_grep "factory_patrol_demo.launch.py" "${RUN_SCRIPT}" "run script does not reference factory launch"
 
 require_grep "Phase 5A" "${SCENARIO_DOC}" "simulation docs do not mention Phase 5A"
 require_grep "factory_patrol.sdf" "${SCENARIO_DOC}" "simulation docs do not document factory world"
+require_grep "factory_patrol_industrial.sdf" "${SCENARIO_DOC}" "simulation docs do not document industrial V2 world"
 require_grep "factory_patrol_stations.yaml" "${SCENARIO_DOC}" "simulation docs do not document stations"
 require_grep "factory_patrol_zones.yaml" "${SCENARIO_DOC}" "simulation docs do not document zones"
 require_grep "factory_patrol_route.yaml" "${SCENARIO_DOC}" "simulation docs do not document route"

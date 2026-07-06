@@ -90,6 +90,7 @@ New Phase 5A assets:
 | Asset | Path | Status |
 | --- | --- | --- |
 | Factory world | `src/robot_simulation/worlds/factory_patrol.sdf` | current asset |
+| Factory Scene V2 world | `src/robot_simulation/worlds/factory_patrol_industrial.sdf` | optional preview asset |
 | Station seed config | `src/robot_simulation/config/factory_patrol_stations.yaml` | current config asset |
 | Zone seed config | `src/robot_simulation/config/factory_patrol_zones.yaml` | current config asset |
 | Patrol route config | `src/robot_simulation/config/factory_patrol_route.yaml` | current config asset / planned mission input |
@@ -187,6 +188,63 @@ Current / planned boundary:
   and any experiment result report.
 
 No Gazebo, RViz, Nav2, or real robot runtime result is claimed by this document.
+
+## Factory Patrol Scene V2 Preview
+
+`src/robot_simulation/worlds/factory_patrol_industrial.sdf` is an independent
+industrial-layout preview world. It preserves the original `factory_patrol.sdf`
+baseline and keeps the same `factory_patrol` world name, robot names, topics,
+frames, and mission seed semantics. The V2 file expands the visual factory floor
+to 24 m x 16 m, keeps collision geometry simple, and adds a layered industrial
+layout with:
+
+- AMR dock / D01 charging visual area near the existing dock seed pose
+- receiving and inbound buffer visuals on the left side
+- back storage rack rows with simple rack collision boxes and visual loads
+- right-side packing workcell with bins, tool board, safety boundaries
+- a closed dock -> receiving -> storage -> packing -> dock inspection loop
+- slow-zone hatching, waiting / stop markers, guardrails, bollards, and estop
+
+The V2 visual loop is aligned to the existing station seed poses where practical.
+If visual polish later requires moving route anchors, update only the scene asset
+and documentation first; do not change navigation, chassis, safety, or task
+logic to force a screenshot.
+
+Launch V2 explicitly:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
+  gui:=true use_rviz:=true
+```
+
+Headless V2 smoke test:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
+  gui:=false use_rviz:=false
+```
+
+Basic AMR motion smoke test:
+
+```bash
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+```
+
+Command mux inputs are `/teleop_cmd_vel`, `/nav2_cmd_vel`,
+`/tracking_cmd_vel`, and `/virtual_rc/cmd_vel`. Observe
+`/cmd_vel_mux/active_source`, `/safety_state`, `/cmd_vel`, `/odom`, and
+`/mission_runner/state` when the robot does not move:
+
+```bash
+ros2 topic echo /cmd_vel
+ros2 topic echo /odom
+ros2 topic echo /safety_state
+ros2 topic echo /mission_runner/state
+ros2 topic info -v /cmd_vel
+```
 
 ## Phase 5B Factory Patrol Demo Workflows
 

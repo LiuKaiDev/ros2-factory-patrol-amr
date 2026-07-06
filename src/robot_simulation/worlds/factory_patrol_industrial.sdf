@@ -1,0 +1,1404 @@
+﻿<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="factory_patrol">
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.54 0.55 0.55 1</ambient>
+      <background>0.74 0.76 0.76 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- Phase 5A factory patrol semantic layer.
+         These are simple SDF primitives for a low-speed semi-closed patrol site.
+         Dynamic obstacles, real SLAM map generation, and closed-loop scenario
+         validation are intentionally left to later phases. -->
+    <model name="factory_patrol_main_road">
+      <static>true</static>
+      <pose>0 0 0.062 0 0 0</pose>
+      <link name="link">
+        <visual name="east_west_main_patrol_road">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry><box><size>8.6 1.15 0.018</size></box></geometry>
+          <material>
+            <ambient>0.18 0.20 0.20 0.72</ambient>
+            <diffuse>0.18 0.20 0.20 0.72</diffuse>
+          </material>
+        </visual>
+        <visual name="north_south_service_road">
+          <pose>-2.2 0 0.004 0 0 0</pose>
+          <geometry><box><size>1.05 8.1 0.018</size></box></geometry>
+          <material>
+            <ambient>0.18 0.20 0.20 0.64</ambient>
+            <diffuse>0.18 0.20 0.20 0.64</diffuse>
+          </material>
+        </visual>
+        <visual name="turning_area">
+          <pose>2.7 -2.25 0.008 0 0 0</pose>
+          <geometry><cylinder><radius>1.15</radius><length>0.02</length></cylinder></geometry>
+          <material>
+            <ambient>0.24 0.28 0.30 0.42</ambient>
+            <diffuse>0.24 0.28 0.30 0.42</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="factory_patrol_lane_markers">
+      <static>true</static>
+      <pose>0 0 0.084 0 0 0</pose>
+      <link name="link">
+        <visual name="center_lane_main"><pose>0 0 0 0 0 0</pose><geometry><box><size>8.1 0.045 0.018</size></box></geometry><material><diffuse>0.92 0.78 0.18 0.72</diffuse><emissive>0.16 0.10 0.00 1</emissive></material></visual>
+        <visual name="center_lane_service"><pose>-2.2 0 0.004 0 0 1.5708</pose><geometry><box><size>7.5 0.045 0.018</size></box></geometry><material><diffuse>0.92 0.78 0.18 0.62</diffuse><emissive>0.16 0.10 0.00 1</emissive></material></visual>
+        <visual name="narrow_corridor_marker"><pose>-2.2 2.55 0.01 0 0 1.5708</pose><geometry><box><size>2.25 0.10 0.018</size></box></geometry><material><diffuse>0.98 0.82 0.12 0.9</diffuse><emissive>0.2 0.1 0.0 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="factory_patrol_equipment_area">
+      <static>true</static>
+      <pose>1.9 2.55 0.34 0 0 0</pose>
+      <link name="link">
+        <collision name="equipment_bank_collision"><geometry><box><size>1.8 0.72 0.68</size></box></geometry></collision>
+        <visual name="equipment_bank_visual"><geometry><box><size>1.8 0.72 0.68</size></box></geometry><material><diffuse>0.20 0.34 0.42 1</diffuse></material></visual>
+        <visual name="equipment_warning_panel"><pose>0 -0.38 0.32 0 0 0</pose><geometry><box><size>1.45 0.035 0.24</size></box></geometry><material><diffuse>0.95 0.72 0.08 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="factory_patrol_static_obstacles">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <collision name="pallet_stack_a_collision"><pose>-0.15 -1.15 0.25 0 0 0.25</pose><geometry><box><size>0.75 0.45 0.50</size></box></geometry></collision>
+        <visual name="pallet_stack_a"><pose>-0.15 -1.15 0.25 0 0 0.25</pose><geometry><box><size>0.75 0.45 0.50</size></box></geometry><material><diffuse>0.58 0.38 0.16 1</diffuse></material></visual>
+        <collision name="barrel_b_collision"><pose>0.85 1.05 0.28 0 0 0</pose><geometry><cylinder><radius>0.24</radius><length>0.56</length></cylinder></geometry></collision>
+        <visual name="barrel_b"><pose>0.85 1.05 0.28 0 0 0</pose><geometry><cylinder><radius>0.24</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.72 0.18 0.12 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="factory_patrol_zone_overlays">
+      <static>true</static>
+      <pose>0 0 0.096 0 0 0</pose>
+      <link name="link">
+        <visual name="slow_zone_visual">
+          <pose>-2.2 2.45 0 0 0 0</pose>
+          <geometry><box><size>1.25 2.25 0.018</size></box></geometry>
+          <material><diffuse>0.08 0.56 1.00 0.24</diffuse><ambient>0.08 0.56 1.00 0.24</ambient></material>
+        </visual>
+        <visual name="no_go_zone_planned_visual">
+          <pose>3.55 1.70 0.006 0 0 0</pose>
+          <geometry><box><size>1.45 1.35 0.018</size></box></geometry>
+          <material><diffuse>0.95 0.08 0.08 0.20</diffuse><ambient>0.95 0.08 0.08 0.20</ambient></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="factory_patrol_station_pads">
+      <static>true</static>
+      <pose>0 0 0.125 0 0 0</pose>
+      <link name="link">
+        <visual name="station_A_pad"><pose>-3.55 0.0 0 0 0 0</pose><geometry><cylinder><radius>0.33</radius><length>0.035</length></cylinder></geometry><material><diffuse>0.12 0.88 0.42 0.82</diffuse><emissive>0.00 0.22 0.08 1</emissive></material></visual>
+        <visual name="station_B_pad"><pose>-2.2 3.2 0 0 0 0</pose><geometry><cylinder><radius>0.33</radius><length>0.035</length></cylinder></geometry><material><diffuse>0.95 0.70 0.16 0.82</diffuse><emissive>0.22 0.10 0.00 1</emissive></material></visual>
+        <visual name="station_C_pad"><pose>2.7 -2.25 0 0 0 0</pose><geometry><cylinder><radius>0.33</radius><length>0.035</length></cylinder></geometry><material><diffuse>0.42 0.54 0.95 0.82</diffuse><emissive>0.04 0.08 0.24 1</emissive></material></visual>
+        <visual name="factory_dock_pad"><pose>-3.85 -3.65 0 0 0 0</pose><geometry><cylinder><radius>0.36</radius><length>0.035</length></cylinder></geometry><material><diffuse>0.06 0.95 0.34 0.88</diffuse><emissive>0.00 0.28 0.08 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <light name="sun" type="directional">
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.95 0.95 0.92 1</diffuse>
+      <specular>0.28 0.28 0.26 1</specular>
+      <direction>-0.5 0.1 -1</direction>
+    </light>
+
+    <light name="soft_fill_light" type="point">
+      <pose>0 -2 5 0 0 0</pose>
+      <diffuse>0.45 0.48 0.52 1</diffuse>
+      <specular>0.08 0.08 0.08 1</specular>
+      <attenuation>
+        <range>12</range>
+        <constant>0.8</constant>
+        <linear>0.03</linear>
+        <quadratic>0.002</quadratic>
+      </attenuation>
+    </light>
+
+    <model name="floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>24 16 0.05</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>24 16 0.05</size></box></geometry><material><ambient>0.43 0.44 0.42 1</ambient><diffuse>0.43 0.44 0.42 1</diffuse><specular>0.03 0.03 0.03 1</specular></material></visual>
+      </link>
+    </model>
+
+    <model name="north_wall"><static>true</static><pose>0 8 0.5 0 0 0</pose><link name="link"><collision name="c"><geometry><box><size>24 0.1 1</size></box></geometry></collision><visual name="v"><geometry><box><size>24 0.1 1</size></box></geometry><material><diffuse>0.30 0.32 0.33 1</diffuse></material></visual></link></model>
+    <model name="south_wall"><static>true</static><pose>0 -8 0.5 0 0 0</pose><link name="link"><collision name="c"><geometry><box><size>24 0.1 1</size></box></geometry></collision><visual name="v"><geometry><box><size>24 0.1 1</size></box></geometry><material><diffuse>0.30 0.32 0.33 1</diffuse></material></visual></link></model>
+    <model name="east_wall"><static>true</static><pose>12 0 0.5 0 0 0</pose><link name="link"><collision name="c"><geometry><box><size>0.1 16 1</size></box></geometry></collision><visual name="v"><geometry><box><size>0.1 16 1</size></box></geometry><material><diffuse>0.30 0.32 0.33 1</diffuse></material></visual></link></model>
+    <model name="west_wall"><static>true</static><pose>-12 0 0.5 0 0 0</pose><link name="link"><collision name="c"><geometry><box><size>0.1 16 1</size></box></geometry></collision><visual name="v"><geometry><box><size>0.1 16 1</size></box></geometry><material><diffuse>0.30 0.32 0.33 1</diffuse></material></visual></link></model>
+    <model name="industrial_v2_factory_layout">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="industrial_floor_receiving_zone"><pose>-5.80 0.80 0.056 0 0 0</pose><geometry><box><size>3.80 5.60 0.012</size></box></geometry><material><diffuse>0.24 0.32 0.29 0.18</diffuse><ambient>0.24 0.32 0.29 0.18</ambient></material></visual>
+        <visual name="industrial_floor_storage_zone"><pose>1.40 5.25 0.058 0 0 0</pose><geometry><box><size>8.80 3.40 0.012</size></box></geometry><material><diffuse>0.40 0.36 0.28 0.18</diffuse><ambient>0.40 0.36 0.28 0.18</ambient></material></visual>
+        <visual name="industrial_floor_packing_zone"><pose>5.95 -2.45 0.060 0 0 0</pose><geometry><box><size>4.40 4.20 0.012</size></box></geometry><material><diffuse>0.26 0.32 0.38 0.18</diffuse><ambient>0.26 0.32 0.38 0.18</ambient></material></visual>
+        <visual name="industrial_floor_dock_zone"><pose>-4.60 -5.15 0.062 0 0 0</pose><geometry><box><size>3.20 2.70 0.012</size></box></geometry><material><diffuse>0.24 0.34 0.28 0.20</diffuse><ambient>0.24 0.34 0.28 0.20</ambient></material></visual>
+        <visual name="industrial_floor_restricted_zone"><pose>8.10 1.70 0.064 0 0 0</pose><geometry><box><size>2.80 2.60 0.012</size></box></geometry><material><diffuse>0.34 0.22 0.22 0.16</diffuse><ambient>0.34 0.22 0.22 0.16</ambient></material></visual>
+
+        <visual name="industrial_aisle_left"><pose>-3.85 -1.60 0.070 0 0 1.5708</pose><geometry><box><size>7.20 1.65 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.14</diffuse><ambient>0.50 0.51 0.48 0.14</ambient></material></visual>
+        <visual name="industrial_aisle_back"><pose>0.15 3.65 0.072 0 0 0</pose><geometry><box><size>8.00 1.65 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.14</diffuse><ambient>0.50 0.51 0.48 0.14</ambient></material></visual>
+        <visual name="industrial_aisle_right"><pose>3.95 0.20 0.074 0 0 1.5708</pose><geometry><box><size>6.90 1.65 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.14</diffuse><ambient>0.50 0.51 0.48 0.14</ambient></material></visual>
+        <visual name="industrial_aisle_return"><pose>-0.55 -4.60 0.076 0 0 0</pose><geometry><box><size>7.10 1.65 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.14</diffuse><ambient>0.50 0.51 0.48 0.14</ambient></material></visual>
+        <visual name="industrial_aisle_center"><pose>-0.40 0.00 0.078 0 0 0</pose><geometry><box><size>7.20 1.35 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.10</diffuse><ambient>0.50 0.51 0.48 0.10</ambient></material></visual>
+
+        <visual name="industrial_route_dock_receiving"><pose>-3.85 -1.83 0.086 0 0 1.5708</pose><geometry><box><size>3.64 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+        <visual name="industrial_route_receiving_storage"><pose>-3.55 1.60 0.088 0 0 1.5708</pose><geometry><box><size>3.20 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+        <visual name="industrial_route_storage_back"><pose>-0.42 3.20 0.090 0 0 0</pose><geometry><box><size>4.26 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+        <visual name="industrial_route_storage_packing"><pose>2.70 0.48 0.092 0 0 1.5708</pose><geometry><box><size>5.44 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+        <visual name="industrial_route_packing_return"><pose>2.70 -2.95 0.094 0 0 1.5708</pose><geometry><box><size>1.40 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+        <visual name="industrial_route_return_dock"><pose>-0.58 -3.65 0.096 0 0 0</pose><geometry><box><size>6.55 0.085 0.018</size></box></geometry><material><diffuse>0.67 0.60 0.36 0.68</diffuse><emissive>0.05 0.04 0.00 1</emissive></material></visual>
+
+        <visual name="industrial_slow_hatch_1"><pose>-2.58 2.12 0.105 0 0 0.7854</pose><geometry><box><size>1.35 0.050 0.018</size></box></geometry><material><diffuse>0.23 0.42 0.52 0.48</diffuse></material></visual>
+        <visual name="industrial_slow_hatch_2"><pose>-2.28 2.42 0.105 0 0 0.7854</pose><geometry><box><size>1.35 0.050 0.018</size></box></geometry><material><diffuse>0.23 0.42 0.52 0.48</diffuse></material></visual>
+        <visual name="industrial_slow_hatch_3"><pose>-1.98 2.72 0.105 0 0 0.7854</pose><geometry><box><size>1.35 0.050 0.018</size></box></geometry><material><diffuse>0.23 0.42 0.52 0.48</diffuse></material></visual>
+        <visual name="industrial_slow_hatch_4"><pose>-1.68 3.02 0.105 0 0 0.7854</pose><geometry><box><size>1.35 0.050 0.018</size></box></geometry><material><diffuse>0.23 0.42 0.52 0.48</diffuse></material></visual>
+
+        <visual name="industrial_stop_dock_n"><pose>-3.85 -3.22 0.110 0 0 0</pose><geometry><box><size>1.18 0.055 0.018</size></box></geometry><material><diffuse>0.72 0.64 0.38 0.82</diffuse></material></visual>
+        <visual name="industrial_stop_dock_s"><pose>-3.85 -4.08 0.110 0 0 0</pose><geometry><box><size>1.18 0.055 0.018</size></box></geometry><material><diffuse>0.72 0.64 0.38 0.82</diffuse></material></visual>
+        <visual name="industrial_stop_receiving"><pose>-3.55 0.00 0.112 0 0 0</pose><geometry><box><size>1.18 0.055 0.018</size></box></geometry><material><diffuse>0.72 0.64 0.38 0.76</diffuse></material></visual>
+        <visual name="industrial_stop_storage"><pose>-2.20 3.20 0.114 0 0 0</pose><geometry><box><size>1.18 0.055 0.018</size></box></geometry><material><diffuse>0.72 0.64 0.38 0.76</diffuse></material></visual>
+        <visual name="industrial_stop_packing"><pose>2.70 -2.25 0.116 0 0 0</pose><geometry><box><size>1.18 0.055 0.018</size></box></geometry><material><diffuse>0.72 0.64 0.38 0.76</diffuse></material></visual>
+
+        <collision name="industrial_rack_a_collision"><pose>0.20 5.80 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry></collision>
+        <collision name="industrial_rack_b_collision"><pose>4.60 5.80 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry></collision>
+        <collision name="industrial_rack_c_collision"><pose>0.20 4.45 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry></collision>
+        <collision name="industrial_rack_d_collision"><pose>4.60 4.45 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry></collision>
+        <visual name="industrial_rack_a"><pose>0.20 5.80 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry><material><diffuse>0.30 0.29 0.25 1</diffuse></material></visual>
+        <visual name="industrial_rack_b"><pose>4.60 5.80 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry><material><diffuse>0.30 0.29 0.25 1</diffuse></material></visual>
+        <visual name="industrial_rack_c"><pose>0.20 4.45 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry><material><diffuse>0.26 0.28 0.28 1</diffuse></material></visual>
+        <visual name="industrial_rack_d"><pose>4.60 4.45 0.58 0 0 0</pose><geometry><box><size>3.40 0.58 1.16</size></box></geometry><material><diffuse>0.26 0.28 0.28 1</diffuse></material></visual>
+        <visual name="industrial_rack_a_shelf"><pose>0.20 5.80 1.18 0 0 0</pose><geometry><box><size>3.55 0.68 0.055</size></box></geometry><material><diffuse>0.12 0.14 0.15 1</diffuse></material></visual>
+        <visual name="industrial_rack_b_shelf"><pose>4.60 5.80 1.18 0 0 0</pose><geometry><box><size>3.55 0.68 0.055</size></box></geometry><material><diffuse>0.12 0.14 0.15 1</diffuse></material></visual>
+        <visual name="industrial_rack_c_shelf"><pose>0.20 4.45 1.18 0 0 0</pose><geometry><box><size>3.55 0.68 0.055</size></box></geometry><material><diffuse>0.12 0.14 0.15 1</diffuse></material></visual>
+        <visual name="industrial_rack_d_shelf"><pose>4.60 4.45 1.18 0 0 0</pose><geometry><box><size>3.55 0.68 0.055</size></box></geometry><material><diffuse>0.12 0.14 0.15 1</diffuse></material></visual>
+        <visual name="industrial_rack_load_a01"><pose>-0.95 5.72 1.43 0 0 0</pose><geometry><box><size>0.46 0.34 0.32</size></box></geometry><material><diffuse>0.52 0.42 0.28 1</diffuse></material></visual>
+        <visual name="industrial_rack_load_a02"><pose>0.25 5.90 1.43 0 0 0</pose><geometry><box><size>0.54 0.34 0.26</size></box></geometry><material><diffuse>0.34 0.40 0.42 1</diffuse></material></visual>
+        <visual name="industrial_rack_load_b01"><pose>3.55 4.38 1.43 0 0 0</pose><geometry><box><size>0.52 0.32 0.30</size></box></geometry><material><diffuse>0.48 0.38 0.26 1</diffuse></material></visual>
+        <visual name="industrial_rack_load_b02"><pose>5.00 4.55 1.43 0 0 0</pose><geometry><box><size>0.48 0.36 0.28</size></box></geometry><material><diffuse>0.30 0.36 0.40 1</diffuse></material></visual>
+
+        <visual name="industrial_receiving_door"><pose>-7.55 0.80 1.00 0 0 0</pose><geometry><box><size>0.12 2.55 1.82</size></box></geometry><material><diffuse>0.19 0.21 0.22 1</diffuse></material></visual>
+        <visual name="industrial_receiving_header"><pose>-7.50 0.80 2.02 0 0 0</pose><geometry><box><size>0.16 2.85 0.16</size></box></geometry><material><diffuse>0.11 0.12 0.13 1</diffuse></material></visual>
+        <visual name="industrial_receiving_pallet_1"><pose>-6.30 -0.90 0.23 0 0 0.05</pose><geometry><box><size>0.92 0.68 0.46</size></box></geometry><material><diffuse>0.50 0.40 0.28 1</diffuse></material></visual>
+        <visual name="industrial_receiving_pallet_2"><pose>-6.45 1.58 0.28 0 0 -0.03</pose><geometry><box><size>0.86 0.72 0.56</size></box></geometry><material><diffuse>0.56 0.47 0.34 1</diffuse></material></visual>
+        <visual name="industrial_receiving_lane_stop"><pose>-5.45 -1.72 0.115 0 0 0</pose><geometry><box><size>1.75 0.080 0.018</size></box></geometry><material><diffuse>0.70 0.62 0.34 0.72</diffuse></material></visual>
+
+        <visual name="industrial_packing_table"><pose>6.10 -2.45 0.54 0 0 0</pose><geometry><box><size>1.55 2.10 0.84</size></box></geometry><material><diffuse>0.24 0.30 0.34 1</diffuse></material></visual>
+        <visual name="industrial_packing_tool_board"><pose>7.08 -2.45 1.28 0 0 0</pose><geometry><box><size>0.10 1.72 0.72</size></box></geometry><material><diffuse>0.14 0.20 0.23 1</diffuse></material></visual>
+        <visual name="industrial_packing_bin_1"><pose>5.20 -3.72 0.30 0 0 0</pose><geometry><box><size>0.56 0.46 0.60</size></box></geometry><material><diffuse>0.18 0.25 0.30 1</diffuse></material></visual>
+        <visual name="industrial_packing_bin_2"><pose>6.92 -3.66 0.30 0 0 0</pose><geometry><box><size>0.56 0.46 0.60</size></box></geometry><material><diffuse>0.22 0.26 0.24 1</diffuse></material></visual>
+        <visual name="industrial_packing_safety_n"><pose>6.10 -1.10 0.120 0 0 0</pose><geometry><box><size>2.70 0.070 0.018</size></box></geometry><material><diffuse>0.72 0.60 0.24 0.72</diffuse></material></visual>
+        <visual name="industrial_packing_safety_s"><pose>6.10 -3.80 0.120 0 0 0</pose><geometry><box><size>2.70 0.070 0.018</size></box></geometry><material><diffuse>0.72 0.60 0.24 0.72</diffuse></material></visual>
+
+        <visual name="industrial_dock_pylon"><pose>-5.30 -5.15 0.88 0 0 0</pose><geometry><box><size>0.32 0.50 1.76</size></box></geometry><material><diffuse>0.13 0.15 0.16 1</diffuse></material></visual>
+        <visual name="industrial_dock_face"><pose>-5.12 -5.15 1.24 0 0 0</pose><geometry><box><size>0.06 0.42 0.44</size></box></geometry><material><diffuse>0.18 0.40 0.28 1</diffuse><emissive>0.00 0.05 0.02 1</emissive></material></visual>
+        <visual name="industrial_dock_guide_left"><pose>-4.12 -4.72 0.125 0 0 1.5708</pose><geometry><box><size>1.22 0.070 0.018</size></box></geometry><material><diffuse>0.30 0.52 0.32 0.74</diffuse></material></visual>
+        <visual name="industrial_dock_guide_right"><pose>-3.58 -4.72 0.125 0 0 1.5708</pose><geometry><box><size>1.22 0.070 0.018</size></box></geometry><material><diffuse>0.30 0.52 0.32 0.74</diffuse></material></visual>
+        <visual name="industrial_dock_stop_bar"><pose>-3.85 -5.32 0.128 0 0 0</pose><geometry><box><size>1.42 0.080 0.018</size></box></geometry><material><diffuse>0.70 0.62 0.34 0.80</diffuse></material></visual>
+
+        <visual name="industrial_guardrail_back"><pose>1.90 6.95 0.62 0 0 0</pose><geometry><box><size>8.80 0.080 0.10</size></box></geometry><material><diffuse>0.66 0.54 0.18 1</diffuse></material></visual>
+        <visual name="industrial_guardrail_right"><pose>8.95 -0.20 0.62 0 0 1.5708</pose><geometry><box><size>5.60 0.080 0.10</size></box></geometry><material><diffuse>0.66 0.54 0.18 1</diffuse></material></visual>
+        <visual name="industrial_bollard_dock_1"><pose>-4.85 -5.95 0.38 0 0 0</pose><geometry><cylinder><radius>0.075</radius><length>0.76</length></cylinder></geometry><material><diffuse>0.76 0.62 0.18 1</diffuse></material></visual>
+        <visual name="industrial_bollard_dock_2"><pose>-2.85 -5.95 0.38 0 0 0</pose><geometry><cylinder><radius>0.075</radius><length>0.76</length></cylinder></geometry><material><diffuse>0.76 0.62 0.18 1</diffuse></material></visual>
+        <visual name="industrial_estop_post"><pose>7.35 -0.85 0.52 0 0 0</pose><geometry><cylinder><radius>0.045</radius><length>1.04</length></cylinder></geometry><material><diffuse>0.10 0.10 0.11 1</diffuse></material></visual>
+        <visual name="industrial_estop_button"><pose>7.35 -0.85 1.08 0 0 0</pose><geometry><cylinder><radius>0.11</radius><length>0.055</length></cylinder></geometry><material><diffuse>0.68 0.06 0.05 1</diffuse><emissive>0.10 0.00 0.00 1</emissive></material></visual>
+
+        <visual name="industrial_sign_dock_board"><pose>-5.55 -5.15 1.92 0 0 0</pose><geometry><box><size>0.055 1.10 0.42</size></box></geometry><material><diffuse>0.16 0.24 0.18 0.96</diffuse></material></visual>
+        <visual name="industrial_sign_receiving_board"><pose>-7.72 0.80 2.34 0 0 0</pose><geometry><box><size>0.055 1.62 0.42</size></box></geometry><material><diffuse>0.18 0.24 0.22 0.96</diffuse></material></visual>
+        <visual name="industrial_sign_storage_a_board"><pose>0.20 6.45 1.80 0 0 0</pose><geometry><box><size>1.30 0.055 0.38</size></box></geometry><material><diffuse>0.23 0.22 0.18 0.96</diffuse></material></visual>
+        <visual name="industrial_sign_packing_board"><pose>7.28 -2.45 1.88 0 0 0</pose><geometry><box><size>0.055 1.36 0.40</size></box></geometry><material><diffuse>0.18 0.24 0.30 0.96</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_large_factory_layout">
+      <static>true</static>
+      <pose>0 0 0.052 0 0 0</pose>
+      <link name="link">
+        <visual name="receiving_area_large"><pose>-5.35 1.10 0 0 0 0</pose><geometry><box><size>2.70 3.90 0.012</size></box></geometry><material><diffuse>0.25 0.34 0.30 0.16</diffuse><ambient>0.25 0.34 0.30 0.16</ambient></material></visual>
+        <visual name="storage_area_large"><pose>1.80 3.95 0.002 0 0 0</pose><geometry><box><size>7.10 2.80 0.012</size></box></geometry><material><diffuse>0.45 0.40 0.30 0.15</diffuse><ambient>0.45 0.40 0.30 0.15</ambient></material></visual>
+        <visual name="packing_area_large"><pose>4.65 -2.40 0.004 0 0 0</pose><geometry><box><size>3.80 3.05 0.012</size></box></geometry><material><diffuse>0.27 0.33 0.39 0.16</diffuse><ambient>0.27 0.33 0.39 0.16</ambient></material></visual>
+        <visual name="dock_area_large"><pose>-4.80 -4.35 0.006 0 0 0</pose><geometry><box><size>2.70 1.95 0.012</size></box></geometry><material><diffuse>0.25 0.36 0.30 0.18</diffuse><ambient>0.25 0.36 0.30 0.18</ambient></material></visual>
+        <visual name="restricted_service_area_large"><pose>5.50 1.30 0.008 0 0 0</pose><geometry><box><size>2.40 1.85 0.012</size></box></geometry><material><diffuse>0.42 0.25 0.25 0.13</diffuse><ambient>0.42 0.25 0.25 0.13</ambient></material></visual>
+
+        <visual name="aisle_left_band"><pose>-3.85 -0.35 0.010 0 0 1.5708</pose><geometry><box><size>6.90 1.30 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.13</diffuse><ambient>0.50 0.51 0.48 0.13</ambient></material></visual>
+        <visual name="aisle_back_band"><pose>-0.20 3.20 0.012 0 0 0</pose><geometry><box><size>7.35 1.30 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.13</diffuse><ambient>0.50 0.51 0.48 0.13</ambient></material></visual>
+        <visual name="aisle_right_drop_band"><pose>2.70 0.45 0.014 0 0 1.5708</pose><geometry><box><size>5.50 1.30 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.13</diffuse><ambient>0.50 0.51 0.48 0.13</ambient></material></visual>
+        <visual name="aisle_return_band"><pose>-0.55 -3.65 0.016 0 0 0</pose><geometry><box><size>6.60 1.30 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.13</diffuse><ambient>0.50 0.51 0.48 0.13</ambient></material></visual>
+        <visual name="aisle_center_cross_band"><pose>-0.55 0.00 0.018 0 0 0</pose><geometry><box><size>6.60 1.15 0.010</size></box></geometry><material><diffuse>0.50 0.51 0.48 0.10</diffuse><ambient>0.50 0.51 0.48 0.10</ambient></material></visual>
+
+        <visual name="route_dock_to_receiving"><pose>-3.85 -1.82 0.026 0 0 1.5708</pose><geometry><box><size>3.66 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="route_receiving_to_back"><pose>-3.55 1.60 0.028 0 0 1.5708</pose><geometry><box><size>3.20 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="route_back_storage"><pose>-0.42 3.20 0.030 0 0 0</pose><geometry><box><size>4.26 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="route_storage_to_packing"><pose>2.70 0.48 0.032 0 0 1.5708</pose><geometry><box><size>5.44 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="route_packing_to_return"><pose>2.70 -2.95 0.034 0 0 1.5708</pose><geometry><box><size>1.40 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="route_return_to_dock"><pose>-0.58 -3.65 0.036 0 0 0</pose><geometry><box><size>6.55 0.070 0.018</size></box></geometry><material><diffuse>0.66 0.60 0.38 0.62</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+
+        <visual name="station_frame_dock_n"><pose>-3.85 -3.28 0.040 0 0 0</pose><geometry><box><size>1.02 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.76</diffuse></material></visual>
+        <visual name="station_frame_dock_s"><pose>-3.85 -4.02 0.040 0 0 0</pose><geometry><box><size>1.02 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.76</diffuse></material></visual>
+        <visual name="station_frame_dock_e"><pose>-3.34 -3.65 0.040 0 0 1.5708</pose><geometry><box><size>0.74 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.76</diffuse></material></visual>
+        <visual name="station_frame_dock_w"><pose>-4.36 -3.65 0.040 0 0 1.5708</pose><geometry><box><size>0.74 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.76</diffuse></material></visual>
+        <visual name="station_frame_receiving_n"><pose>-3.55 0.38 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+        <visual name="station_frame_receiving_s"><pose>-3.55 -0.38 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+        <visual name="station_frame_storage_n"><pose>-2.20 3.58 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+        <visual name="station_frame_storage_s"><pose>-2.20 2.82 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+        <visual name="station_frame_packing_n"><pose>2.70 -1.87 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+        <visual name="station_frame_packing_s"><pose>2.70 -2.63 0.040 0 0 0</pose><geometry><box><size>1.05 0.050 0.018</size></box></geometry><material><diffuse>0.73 0.65 0.40 0.72</diffuse></material></visual>
+
+        <visual name="slow_zone_large_hatch_1"><pose>-2.45 2.20 0.048 0 0 0.7854</pose><geometry><box><size>1.05 0.045 0.018</size></box></geometry><material><diffuse>0.24 0.44 0.56 0.48</diffuse></material></visual>
+        <visual name="slow_zone_large_hatch_2"><pose>-2.15 2.50 0.048 0 0 0.7854</pose><geometry><box><size>1.05 0.045 0.018</size></box></geometry><material><diffuse>0.24 0.44 0.56 0.48</diffuse></material></visual>
+        <visual name="slow_zone_large_hatch_3"><pose>-1.85 2.80 0.048 0 0 0.7854</pose><geometry><box><size>1.05 0.045 0.018</size></box></geometry><material><diffuse>0.24 0.44 0.56 0.48</diffuse></material></visual>
+
+        <visual name="storage_showcase_rack_a"><pose>1.25 4.55 0.45 0 0 0</pose><geometry><box><size>3.20 0.28 0.90</size></box></geometry><material><diffuse>0.38 0.34 0.26 1</diffuse></material></visual>
+        <visual name="storage_showcase_rack_b"><pose>4.85 4.55 0.45 0 0 0</pose><geometry><box><size>2.60 0.28 0.90</size></box></geometry><material><diffuse>0.38 0.34 0.26 1</diffuse></material></visual>
+        <visual name="storage_showcase_rack_c"><pose>4.05 3.15 0.45 0 0 0</pose><geometry><box><size>3.10 0.28 0.90</size></box></geometry><material><diffuse>0.34 0.33 0.29 1</diffuse></material></visual>
+        <visual name="receiving_inbound_buffer_1"><pose>-5.90 0.15 0.18 0 0 0</pose><geometry><box><size>0.72 0.52 0.34</size></box></geometry><material><diffuse>0.50 0.38 0.24 1</diffuse></material></visual>
+        <visual name="receiving_inbound_buffer_2"><pose>-5.85 1.00 0.24 0 0 0</pose><geometry><box><size>0.78 0.56 0.46</size></box></geometry><material><diffuse>0.56 0.46 0.32 1</diffuse></material></visual>
+        <visual name="packing_showcase_toolwall"><pose>6.20 -2.38 0.85 0 0 0</pose><geometry><box><size>0.10 1.55 1.20</size></box></geometry><material><diffuse>0.18 0.23 0.26 1</diffuse></material></visual>
+        <visual name="dock_approach_stop_bar"><pose>-3.85 -4.80 0.052 0 0 0</pose><geometry><box><size>1.30 0.070 0.018</size></box></geometry><material><diffuse>0.72 0.62 0.34 0.78</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="storage_rack_1"><static>true</static><pose>1.5 1.5 0.35 0 0 0.3</pose><link name="link"><collision name="c"><geometry><box><size>1.2 0.45 0.7</size></box></geometry></collision><visual name="v"><geometry><box><size>1.2 0.45 0.7</size></box></geometry><material><diffuse>0.50 0.42 0.30 1</diffuse></material></visual></link></model>
+    <model name="storage_rack_2"><static>true</static><pose>-2 2 0.35 0 0 -0.4</pose><link name="link"><collision name="c"><geometry><box><size>1.2 0.5 0.7</size></box></geometry></collision><visual name="v"><geometry><box><size>1.2 0.5 0.7</size></box></geometry><material><diffuse>0.50 0.42 0.30 1</diffuse></material></visual></link></model>
+    <model name="packing_table"><static>true</static><pose>2 -2 0.35 0 0 0.0</pose><link name="link"><collision name="c"><geometry><box><size>0.8 1.4 0.7</size></box></geometry></collision><visual name="v"><geometry><box><size>0.8 1.4 0.7</size></box></geometry><material><diffuse>0.28 0.38 0.46 1</diffuse></material></visual></link></model>
+
+    <model name="showcase_rack_and_workcell_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="rack_a_top_beam"><pose>1.50 1.50 0.78 0 0 0.30</pose><geometry><box><size>1.34 0.06 0.08</size></box></geometry><material><diffuse>0.10 0.12 0.14 1</diffuse></material></visual>
+        <visual name="rack_a_bottom_beam"><pose>1.50 1.50 0.42 0 0 0.30</pose><geometry><box><size>1.34 0.06 0.08</size></box></geometry><material><diffuse>0.10 0.12 0.14 1</diffuse></material></visual>
+        <visual name="rack_a_post_1"><pose>0.94 1.31 0.55 0 0 0.30</pose><geometry><box><size>0.07 0.07 0.72</size></box></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="rack_a_post_2"><pose>2.06 1.69 0.55 0 0 0.30</pose><geometry><box><size>0.07 0.07 0.72</size></box></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="rack_b_top_beam"><pose>-2.00 2.00 0.78 0 0 -0.40</pose><geometry><box><size>1.34 0.06 0.08</size></box></geometry><material><diffuse>0.10 0.12 0.14 1</diffuse></material></visual>
+        <visual name="rack_b_bottom_beam"><pose>-2.00 2.00 0.42 0 0 -0.40</pose><geometry><box><size>1.34 0.06 0.08</size></box></geometry><material><diffuse>0.10 0.12 0.14 1</diffuse></material></visual>
+        <visual name="rack_b_post_1"><pose>-2.54 2.24 0.55 0 0 -0.40</pose><geometry><box><size>0.07 0.07 0.72</size></box></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="rack_b_post_2"><pose>-1.46 1.76 0.55 0 0 -0.40</pose><geometry><box><size>0.07 0.07 0.72</size></box></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="packing_conveyor"><pose>2.00 -1.36 0.78 0 0 0</pose><geometry><box><size>0.90 0.16 0.12</size></box></geometry><material><diffuse>0.07 0.08 0.09 1</diffuse></material></visual>
+        <visual name="packing_roller_1"><pose>1.70 -1.36 0.87 0 1.5708 0</pose><geometry><cylinder><radius>0.035</radius><length>0.82</length></cylinder></geometry><material><diffuse>0.80 0.82 0.76 1</diffuse></material></visual>
+        <visual name="packing_roller_2"><pose>2.00 -1.36 0.87 0 1.5708 0</pose><geometry><cylinder><radius>0.035</radius><length>0.82</length></cylinder></geometry><material><diffuse>0.80 0.82 0.76 1</diffuse></material></visual>
+        <visual name="packing_roller_3"><pose>2.30 -1.36 0.87 0 1.5708 0</pose><geometry><cylinder><radius>0.035</radius><length>0.82</length></cylinder></geometry><material><diffuse>0.80 0.82 0.76 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- BEGIN AMR_SHOWCASE_SEMANTIC_FLOOR -->
+    <model name="showcase_zone_floor">
+      <static>true</static>
+      <pose>0 0 0.035 0 0 0</pose>
+      <link name="link">
+        <visual name="receiving_zone"><pose>-3.70 0.00 0 0 0 0</pose><geometry><box><size>1.25 1.50 0.012</size></box></geometry><material><diffuse>0.28 0.36 0.32 0.20</diffuse><ambient>0.28 0.36 0.32 0.20</ambient></material></visual>
+        <visual name="storage_a_zone"><pose>1.50 1.50 0 0 0 0.30</pose><geometry><box><size>1.65 1.10 0.012</size></box></geometry><material><diffuse>0.48 0.43 0.32 0.20</diffuse><ambient>0.48 0.43 0.32 0.20</ambient></material></visual>
+        <visual name="storage_b_zone"><pose>-2.00 2.00 0 0 0 -0.40</pose><geometry><box><size>1.65 1.15 0.012</size></box></geometry><material><diffuse>0.48 0.43 0.32 0.20</diffuse><ambient>0.48 0.43 0.32 0.20</ambient></material></visual>
+        <visual name="packing_zone"><pose>2.00 -2.00 0 0 0 0</pose><geometry><box><size>1.30 1.85 0.012</size></box></geometry><material><diffuse>0.30 0.36 0.42 0.20</diffuse><ambient>0.30 0.36 0.42 0.20</ambient></material></visual>
+        <visual name="dock_zone"><pose>-3.90 -3.80 0 0 0 0</pose><geometry><box><size>1.35 1.35 0.012</size></box></geometry><material><diffuse>0.28 0.38 0.32 0.22</diffuse><ambient>0.28 0.38 0.32 0.22</ambient></material></visual>
+        <visual name="elevator_zone"><pose>3.65 2.85 0 0 0 0</pose><geometry><box><size>1.70 2.30 0.012</size></box></geometry><material><diffuse>0.46 0.42 0.62 0.15</diffuse><ambient>0.46 0.42 0.62 0.15</ambient></material></visual>
+        <visual name="traffic_control_zone"><pose>0.00 0.00 0.006 0 0 0</pose><geometry><box><size>1.90 1.90 0.012</size></box></geometry><material><diffuse>0.72 0.64 0.40 0.14</diffuse><ambient>0.72 0.64 0.40 0.14</ambient></material></visual>
+        <visual name="slow_zone_overlay"><pose>1.20 -0.25 0.012 0 0 0</pose><geometry><box><size>1.55 1.25 0.012</size></box></geometry><material><diffuse>0.22 0.38 0.48 0.24</diffuse><ambient>0.22 0.38 0.48 0.24</ambient></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_floor_finish">
+      <static>true</static>
+      <pose>0 0 0.057 0 0 0</pose>
+      <link name="link">
+        <visual name="floor_joint_x_neg"><pose>-4.00 0 0 0 0 0</pose><geometry><box><size>0.018 11.30 0.010</size></box></geometry><material><diffuse>0.28 0.29 0.28 0.42</diffuse><ambient>0.28 0.29 0.28 0.42</ambient></material></visual>
+        <visual name="floor_joint_x_pos"><pose>4.00 0 0 0 0 0</pose><geometry><box><size>0.018 11.30 0.010</size></box></geometry><material><diffuse>0.28 0.29 0.28 0.42</diffuse><ambient>0.28 0.29 0.28 0.42</ambient></material></visual>
+        <visual name="floor_joint_y_neg"><pose>0 -3.00 0 0 0 0</pose><geometry><box><size>15.30 0.018 0.010</size></box></geometry><material><diffuse>0.28 0.29 0.28 0.42</diffuse><ambient>0.28 0.29 0.28 0.42</ambient></material></visual>
+        <visual name="floor_joint_y_pos"><pose>0 3.00 0 0 0 0</pose><geometry><box><size>15.30 0.018 0.010</size></box></geometry><material><diffuse>0.28 0.29 0.28 0.42</diffuse><ambient>0.28 0.29 0.28 0.42</ambient></material></visual>
+        <visual name="floor_tire_scuff_main_1"><pose>-0.55 -0.18 0.004 0 0 -0.01</pose><geometry><box><size>6.80 0.035 0.010</size></box></geometry><material><diffuse>0.22 0.23 0.22 0.26</diffuse><ambient>0.22 0.23 0.22 0.26</ambient></material></visual>
+        <visual name="floor_tire_scuff_main_2"><pose>-0.42 0.20 0.004 0 0 -0.01</pose><geometry><box><size>6.40 0.028 0.010</size></box></geometry><material><diffuse>0.22 0.23 0.22 0.22</diffuse><ambient>0.22 0.23 0.22 0.22</ambient></material></visual>
+        <visual name="floor_tire_scuff_dock_1"><pose>-3.88 -2.10 0.004 0 0 1.5708</pose><geometry><box><size>3.20 0.030 0.010</size></box></geometry><material><diffuse>0.22 0.23 0.22 0.24</diffuse><ambient>0.22 0.23 0.22 0.24</ambient></material></visual>
+        <visual name="floor_tire_scuff_packing_1"><pose>2.70 -1.60 0.004 0 0 -1.5708</pose><geometry><box><size>3.20 0.025 0.010</size></box></geometry><material><diffuse>0.22 0.23 0.22 0.22</diffuse><ambient>0.22 0.23 0.22 0.22</ambient></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_lane_markers">
+      <static>true</static>
+      <pose>0 0 0.055 0 0 0</pose>
+      <link name="link">
+        <visual name="lane_dock_receiving"><pose>-3.90 -1.84 0 0 0 1.5708</pose><geometry><box><size>3.62 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.20</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_receiving_storage_a"><pose>-3.55 1.60 0 0 0 1.5708</pose><geometry><box><size>3.20 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_receiving_storage_b"><pose>-2.85 3.20 0 0 0 0</pose><geometry><box><size>1.40 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_storage_a_packing"><pose>0.25 3.20 0 0 0 0</pose><geometry><box><size>4.90 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_storage_b_packing"><pose>2.70 0.48 0.004 0 0 1.5708</pose><geometry><box><size>5.44 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_packing_dock"><pose>-0.58 -3.65 0 0 0 0</pose><geometry><box><size>6.55 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_packing_lift"><pose>2.70 -2.95 0 0 0 1.5708</pose><geometry><box><size>1.40 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.18</diffuse><emissive>0.03 0.03 0.03 1</emissive></material></visual>
+        <visual name="lane_lift_floor2"><pose>3.65 3.35 0 0 0 1.5708</pose><geometry><box><size>1.05 0.045 0.018</size></box></geometry><material><diffuse>0.60 0.62 0.58 0.16</diffuse><emissive>0.02 0.02 0.02 1</emissive></material></visual>
+        <visual name="arrow_receiving"><pose>-3.28 0.34 0.020 0 0 0.78</pose><geometry><cone><radius>0.11</radius><length>0.18</length></cone></geometry><material><diffuse>0.64 0.66 0.60 0.55</diffuse><emissive>0.08 0.08 0.06 1</emissive></material></visual>
+        <visual name="arrow_packing"><pose>1.82 -1.36 0.020 0 0 -1.2</pose><geometry><cone><radius>0.11</radius><length>0.18</length></cone></geometry><material><diffuse>0.64 0.66 0.60 0.55</diffuse><emissive>0.08 0.08 0.06 1</emissive></material></visual>
+        <visual name="arrow_dock"><pose>-3.82 -3.18 0.020 0 0 -1.57</pose><geometry><cone><radius>0.11</radius><length>0.18</length></cone></geometry><material><diffuse>0.64 0.66 0.60 0.55</diffuse><emissive>0.08 0.08 0.06 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_station_pads">
+      <static>true</static>
+      <pose>0 0 0.070 0 0 0</pose>
+      <link name="link">
+        <visual name="pad_receiving"><pose>-3.70 0.00 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.20 0.52 0.34 0.58</diffuse><emissive>0.00 0.07 0.03 1</emissive></material></visual>
+        <visual name="pad_storage_a"><pose>1.50 1.50 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.54 0.46 0.28 0.50</diffuse><emissive>0.06 0.03 0.00 1</emissive></material></visual>
+        <visual name="pad_storage_b"><pose>-2.00 2.00 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.54 0.46 0.28 0.50</diffuse><emissive>0.06 0.03 0.00 1</emissive></material></visual>
+        <visual name="pad_packing"><pose>2.00 -2.00 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.26 0.40 0.52 0.50</diffuse><emissive>0.00 0.04 0.08 1</emissive></material></visual>
+        <visual name="pad_dock"><pose>-3.90 -3.80 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.18 0.58 0.30 0.58</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+        <visual name="pad_lift"><pose>3.65 2.85 0 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.026</length></cylinder></geometry><material><diffuse>0.42 0.36 0.60 0.55</diffuse><emissive>0.03 0.02 0.08 1</emissive></material></visual>
+        <visual name="wait_point_1"><pose>-1.05 0.62 0.012 0 0 0.28</pose><geometry><box><size>0.42 0.18 0.026</size></box></geometry><material><diffuse>0.78 0.68 0.34 0.60</diffuse><emissive>0.28 0.20 0.00 1</emissive></material></visual>
+        <visual name="wait_point_2"><pose>0.88 -0.52 0.012 0 0 -0.78</pose><geometry><box><size>0.42 0.18 0.026</size></box></geometry><material><diffuse>0.78 0.68 0.34 0.60</diffuse><emissive>0.28 0.20 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_pallets_and_totes">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="receiving_pallet"><pose>-3.42 -0.86 0.08 0 0 0.08</pose><geometry><box><size>0.68 0.46 0.16</size></box></geometry><material><diffuse>0.58 0.38 0.16 1</diffuse></material></visual>
+        <visual name="receiving_tote_1"><pose>-3.56 -0.86 0.30 0 0 0.08</pose><geometry><box><size>0.30 0.22 0.22</size></box></geometry><material><diffuse>0.64 0.52 0.36 1</diffuse></material></visual>
+        <visual name="receiving_tote_2"><pose>-3.22 -0.83 0.30 0 0 0.08</pose><geometry><box><size>0.30 0.22 0.22</size></box></geometry><material><diffuse>0.64 0.52 0.36 1</diffuse></material></visual>
+        <visual name="storage_a_tote_1"><pose>1.12 1.06 0.78 0 0 0.30</pose><geometry><box><size>0.34 0.22 0.18</size></box></geometry><material><diffuse>0.66 0.56 0.40 1</diffuse></material></visual>
+        <visual name="storage_a_tote_2"><pose>1.50 1.15 0.78 0 0 0.30</pose><geometry><box><size>0.34 0.22 0.18</size></box></geometry><material><diffuse>0.66 0.56 0.40 1</diffuse></material></visual>
+        <visual name="storage_b_tote_1"><pose>-2.32 1.58 0.78 0 0 -0.40</pose><geometry><box><size>0.34 0.22 0.18</size></box></geometry><material><diffuse>0.66 0.56 0.40 1</diffuse></material></visual>
+        <visual name="storage_b_tote_2"><pose>-1.94 1.46 0.78 0 0 -0.40</pose><geometry><box><size>0.34 0.22 0.18</size></box></geometry><material><diffuse>0.66 0.56 0.40 1</diffuse></material></visual>
+        <visual name="packing_bin"><pose>2.52 -2.45 0.18 0 0 0</pose><geometry><box><size>0.46 0.36 0.36</size></box></geometry><material><diffuse>0.05 0.18 0.30 1</diffuse></material></visual>
+        <visual name="packing_ready_tote"><pose>2.02 -2.60 0.82 0 0 0</pose><geometry><box><size>0.34 0.24 0.20</size></box></geometry><material><diffuse>0.68 0.58 0.42 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_dock_guidance">
+      <static>true</static>
+      <pose>-3.90 -3.48 0.075 0 0 0</pose>
+      <link name="link">
+        <visual name="approach_lane"><pose>0 0 0 0 0 1.5708</pose><geometry><box><size>0.86 0.06 0.024</size></box></geometry><material><diffuse>0.22 0.58 0.32 0.74</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+        <visual name="left_alignment"><pose>-0.28 -0.10 0.006 0 0 1.5708</pose><geometry><box><size>0.58 0.04 0.024</size></box></geometry><material><diffuse>0.22 0.58 0.32 0.74</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+        <visual name="right_alignment"><pose>0.28 -0.10 0.006 0 0 1.5708</pose><geometry><box><size>0.58 0.04 0.024</size></box></geometry><material><diffuse>0.22 0.58 0.32 0.74</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_environment_polish">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="north_wall_safety_stripe"><pose>0 5.935 0.72 0 0 0</pose><geometry><box><size>14.80 0.026 0.055</size></box></geometry><material><diffuse>0.72 0.58 0.18 1</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="south_wall_safety_stripe"><pose>0 -5.935 0.72 0 0 0</pose><geometry><box><size>14.80 0.026 0.055</size></box></geometry><material><diffuse>0.72 0.58 0.18 1</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="east_wall_safety_stripe"><pose>7.935 0 0.72 0 0 0</pose><geometry><box><size>0.026 10.80 0.055</size></box></geometry><material><diffuse>0.72 0.58 0.18 1</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="west_wall_safety_stripe"><pose>-7.935 0 0.72 0 0 0</pose><geometry><box><size>0.026 10.80 0.055</size></box></geometry><material><diffuse>0.72 0.58 0.18 1</diffuse><emissive>0.06 0.04 0.00 1</emissive></material></visual>
+        <visual name="dock_charge_mast"><pose>-4.48 -3.78 0.62 0 0 0</pose><geometry><cylinder><radius>0.045</radius><length>1.12</length></cylinder></geometry><material><diffuse>0.10 0.12 0.14 1</diffuse></material></visual>
+        <visual name="dock_charge_panel"><pose>-4.48 -3.78 1.22 0 0 0</pose><geometry><box><size>0.18 0.36 0.20</size></box></geometry><material><diffuse>0.18 0.48 0.30 0.95</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+        <visual name="door_keypad"><pose>-4.04 0.76 0.78 0 0 0</pose><geometry><box><size>0.05 0.14 0.22</size></box></geometry><material><diffuse>0.02 0.06 0.10 1</diffuse><emissive>0.00 0.18 0.28 1</emissive></material></visual>
+        <visual name="elevator_call_panel"><pose>2.86 2.18 0.86 0 0 0</pose><geometry><box><size>0.20 0.05 0.28</size></box></geometry><material><diffuse>0.06 0.08 0.16 1</diffuse><emissive>0.18 0.12 0.42 1</emissive></material></visual>
+        <visual name="traffic_light_pole"><pose>-0.82 -0.82 0.62 0 0 0</pose><geometry><cylinder><radius>0.035</radius><length>1.18</length></cylinder></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="traffic_light_housing"><pose>-0.82 -0.82 1.25 0 0 0</pose><geometry><box><size>0.22 0.12 0.42</size></box></geometry><material><diffuse>0.04 0.04 0.05 1</diffuse></material></visual>
+        <visual name="traffic_light_red"><pose>-0.82 -0.88 1.36 0 0 0</pose><geometry><sphere><radius>0.042</radius></sphere></geometry><material><diffuse>0.70 0.08 0.06 1</diffuse><emissive>0.12 0.00 0.00 1</emissive></material></visual>
+        <visual name="traffic_light_yellow"><pose>-0.82 -0.88 1.25 0 0 0</pose><geometry><sphere><radius>0.042</radius></sphere></geometry><material><diffuse>0.78 0.58 0.12 1</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+        <visual name="traffic_light_green"><pose>-0.82 -0.88 1.14 0 0 0</pose><geometry><sphere><radius>0.042</radius></sphere></geometry><material><diffuse>0.16 0.58 0.28 1</diffuse><emissive>0.00 0.08 0.02 1</emissive></material></visual>
+        <visual name="speed_sign_pole"><pose>1.95 -0.92 0.55 0 0 0</pose><geometry><cylinder><radius>0.032</radius><length>1.02</length></cylinder></geometry><material><diffuse>0.08 0.09 0.10 1</diffuse></material></visual>
+        <visual name="speed_sign_panel"><pose>1.95 -0.92 1.08 0 0 0</pose><geometry><box><size>0.34 0.035 0.22</size></box></geometry><material><diffuse>0.18 0.34 0.46 0.96</diffuse><emissive>0.00 0.04 0.06 1</emissive></material></visual>
+        <visual name="receiving_bollard_1"><pose>-4.45 -0.78 0.28 0 0 0</pose><geometry><cylinder><radius>0.06</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.98 0.76 0.12 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
+        <visual name="receiving_bollard_2"><pose>-4.45 0.78 0.28 0 0 0</pose><geometry><cylinder><radius>0.06</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.98 0.76 0.12 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
+        <visual name="dock_bollard_1"><pose>-4.55 -4.35 0.28 0 0 0</pose><geometry><cylinder><radius>0.06</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.98 0.76 0.12 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
+        <visual name="dock_bollard_2"><pose>-3.25 -4.35 0.28 0 0 0</pose><geometry><cylinder><radius>0.06</radius><length>0.56</length></cylinder></geometry><material><diffuse>0.98 0.76 0.12 1</diffuse><emissive>0.18 0.10 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_receiving_inbound_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="receiving_rollup_header"><pose>-4.54 0.00 1.22 0 0 0</pose><geometry><box><size>0.10 1.72 0.12</size></box></geometry><material><diffuse>0.18 0.20 0.22 1</diffuse></material></visual>
+        <visual name="receiving_rollup_left_post"><pose>-4.54 -0.92 0.62 0 0 0</pose><geometry><box><size>0.12 0.10 1.18</size></box></geometry><material><diffuse>0.16 0.17 0.18 1</diffuse></material></visual>
+        <visual name="receiving_rollup_right_post"><pose>-4.54 0.92 0.62 0 0 0</pose><geometry><box><size>0.12 0.10 1.18</size></box></geometry><material><diffuse>0.16 0.17 0.18 1</diffuse></material></visual>
+        <visual name="receiving_door_slat_1"><pose>-4.60 -0.46 0.90 0 0 0</pose><geometry><box><size>0.035 0.62 0.045</size></box></geometry><material><diffuse>0.48 0.50 0.50 1</diffuse></material></visual>
+        <visual name="receiving_door_slat_2"><pose>-4.60 0.18 0.90 0 0 0</pose><geometry><box><size>0.035 0.62 0.045</size></box></geometry><material><diffuse>0.48 0.50 0.50 1</diffuse></material></visual>
+        <visual name="receiving_buffer_floor_lane"><pose>-3.62 -0.58 0.030 0 0 0</pose><geometry><box><size>1.22 0.09 0.018</size></box></geometry><material><diffuse>0.78 0.72 0.52 0.58</diffuse><emissive>0.08 0.06 0.00 1</emissive></material></visual>
+        <visual name="receiving_buffer_floor_stop"><pose>-3.05 0.52 0.031 0 0 1.5708</pose><geometry><box><size>0.86 0.07 0.018</size></box></geometry><material><diffuse>0.80 0.72 0.44 0.62</diffuse><emissive>0.08 0.06 0.00 1</emissive></material></visual>
+        <visual name="receiving_floor_id_panel"><pose>-4.47 0.62 0.96 0 0 0</pose><geometry><box><size>0.045 0.38 0.24</size></box></geometry><material><diffuse>0.10 0.32 0.24 0.96</diffuse><emissive>0.00 0.08 0.04 1</emissive></material></visual>
+        <visual name="receiving_floor_id_bar_1"><pose>-4.49 0.52 0.99 0 0 0</pose><geometry><box><size>0.052 0.14 0.035</size></box></geometry><material><diffuse>0.88 0.92 0.82 1</diffuse></material></visual>
+        <visual name="receiving_floor_id_bar_2"><pose>-4.49 0.71 0.92 0 0 0</pose><geometry><box><size>0.052 0.16 0.035</size></box></geometry><material><diffuse>0.88 0.92 0.82 1</diffuse></material></visual>
+        <visual name="inbound_pallet_stack_1"><pose>-3.18 -0.96 0.36 0 0 0.10</pose><geometry><box><size>0.52 0.38 0.32</size></box></geometry><material><diffuse>0.46 0.34 0.22 1</diffuse></material></visual>
+        <visual name="inbound_pallet_stack_2"><pose>-3.84 -0.98 0.28 0 0 -0.08</pose><geometry><box><size>0.50 0.36 0.22</size></box></geometry><material><diffuse>0.54 0.44 0.30 1</diffuse></material></visual>
+        <visual name="inbound_wrap_band_1"><pose>-3.18 -0.96 0.54 0 0 0.10</pose><geometry><box><size>0.56 0.035 0.035</size></box></geometry><material><diffuse>0.18 0.22 0.24 1</diffuse></material></visual>
+        <visual name="inbound_wrap_band_2"><pose>-3.84 -0.98 0.42 0 0 -0.08</pose><geometry><box><size>0.54 0.035 0.035</size></box></geometry><material><diffuse>0.18 0.22 0.24 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_storage_industrial_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="rack_a_upper_shelf"><pose>1.50 1.50 1.02 0 0 0.30</pose><geometry><box><size>1.38 0.52 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_mid_shelf"><pose>1.50 1.50 0.62 0 0 0.30</pose><geometry><box><size>1.38 0.52 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_load_1"><pose>1.22 1.33 1.20 0 0 0.30</pose><geometry><box><size>0.34 0.26 0.24</size></box></geometry><material><diffuse>0.58 0.46 0.28 1</diffuse></material></visual>
+        <visual name="rack_a_load_2"><pose>1.75 1.57 1.20 0 0 0.30</pose><geometry><box><size>0.42 0.24 0.20</size></box></geometry><material><diffuse>0.36 0.42 0.44 1</diffuse></material></visual>
+        <visual name="rack_a_id_plate"><pose>0.91 1.23 1.02 0 0 0.30</pose><geometry><box><size>0.32 0.035 0.18</size></box></geometry><material><diffuse>0.12 0.18 0.20 1</diffuse><emissive>0.02 0.04 0.04 1</emissive></material></visual>
+        <visual name="rack_a_id_mark"><pose>0.91 1.23 1.04 0 0 0.30</pose><geometry><box><size>0.22 0.042 0.032</size></box></geometry><material><diffuse>0.86 0.78 0.42 1</diffuse></material></visual>
+        <visual name="rack_b_upper_shelf"><pose>-2.00 2.00 1.02 0 0 -0.40</pose><geometry><box><size>1.38 0.56 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_mid_shelf"><pose>-2.00 2.00 0.62 0 0 -0.40</pose><geometry><box><size>1.38 0.56 0.045</size></box></geometry><material><diffuse>0.24 0.27 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_load_1"><pose>-2.32 2.22 1.20 0 0 -0.40</pose><geometry><box><size>0.40 0.24 0.22</size></box></geometry><material><diffuse>0.58 0.46 0.28 1</diffuse></material></visual>
+        <visual name="rack_b_load_2"><pose>-1.78 1.86 1.20 0 0 -0.40</pose><geometry><box><size>0.36 0.26 0.24</size></box></geometry><material><diffuse>0.30 0.38 0.46 1</diffuse></material></visual>
+        <visual name="rack_b_id_plate"><pose>-2.52 2.22 1.02 0 0 -0.40</pose><geometry><box><size>0.32 0.035 0.18</size></box></geometry><material><diffuse>0.12 0.18 0.20 1</diffuse><emissive>0.02 0.04 0.04 1</emissive></material></visual>
+        <visual name="rack_b_id_mark"><pose>-2.52 2.22 1.04 0 0 -0.40</pose><geometry><box><size>0.22 0.042 0.032</size></box></geometry><material><diffuse>0.86 0.78 0.42 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_packing_workcell_detail">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="packing_tool_board"><pose>2.68 -1.40 1.13 0 0 0</pose><geometry><box><size>0.08 0.78 0.46</size></box></geometry><material><diffuse>0.16 0.24 0.30 1</diffuse></material></visual>
+        <visual name="packing_tool_shadow_rail"><pose>2.63 -1.40 1.28 0 0 0</pose><geometry><box><size>0.10 0.62 0.035</size></box></geometry><material><diffuse>0.66 0.72 0.68 1</diffuse></material></visual>
+        <visual name="packing_scale_base"><pose>1.58 -2.56 0.44 0 0 0</pose><geometry><box><size>0.34 0.30 0.08</size></box></geometry><material><diffuse>0.08 0.10 0.11 1</diffuse></material></visual>
+        <visual name="packing_scale_display"><pose>1.58 -2.70 0.63 0 0 0</pose><geometry><box><size>0.24 0.04 0.14</size></box></geometry><material><diffuse>0.04 0.08 0.10 1</diffuse><emissive>0.00 0.14 0.18 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_north"><pose>2.00 -1.08 0.044 0 0 0</pose><geometry><box><size>1.42 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_south"><pose>2.00 -2.92 0.044 0 0 0</pose><geometry><box><size>1.42 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+        <visual name="packing_safety_boundary_east"><pose>2.72 -2.00 0.044 0 0 1.5708</pose><geometry><box><size>1.84 0.045 0.018</size></box></geometry><material><diffuse>0.86 0.68 0.18 0.76</diffuse><emissive>0.10 0.06 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_safety_and_landmarks">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="guardrail_dock_rail"><pose>-3.90 -4.55 0.58 0 0 0</pose><geometry><box><size>1.24 0.055 0.08</size></box></geometry><material><diffuse>0.88 0.70 0.12 1</diffuse><emissive>0.14 0.08 0.00 1</emissive></material></visual>
+        <visual name="guardrail_receiving_rail"><pose>-4.55 0.00 0.58 0 0 1.5708</pose><geometry><box><size>1.58 0.055 0.08</size></box></geometry><material><diffuse>0.88 0.70 0.12 1</diffuse><emissive>0.14 0.08 0.00 1</emissive></material></visual>
+        <visual name="estop_post"><pose>2.86 -0.92 0.48 0 0 0</pose><geometry><cylinder><radius>0.04</radius><length>0.86</length></cylinder></geometry><material><diffuse>0.10 0.10 0.11 1</diffuse></material></visual>
+        <visual name="estop_button"><pose>2.86 -0.92 0.94 0 0 0</pose><geometry><cylinder><radius>0.095</radius><length>0.05</length></cylinder></geometry><material><diffuse>0.80 0.05 0.04 1</diffuse><emissive>0.18 0.00 0.00 1</emissive></material></visual>
+        <visual name="slow_zone_hash_1"><pose>0.72 -0.82 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="slow_zone_hash_2"><pose>1.10 -0.44 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="slow_zone_hash_3"><pose>1.48 -0.06 0.050 0 0 0.7854</pose><geometry><box><size>0.72 0.035 0.018</size></box></geometry><material><diffuse>0.18 0.48 0.72 0.58</diffuse></material></visual>
+        <visual name="landmark_receiving_plate"><pose>-4.88 1.62 0.92 0 0 0</pose><geometry><box><size>0.045 0.42 0.42</size></box></geometry><material><diffuse>0.90 0.92 0.86 1</diffuse></material></visual>
+        <visual name="landmark_receiving_black_1"><pose>-4.91 1.50 1.02 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_receiving_black_2"><pose>-4.91 1.75 0.82 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_dock_plate"><pose>-4.88 -3.18 0.92 0 0 0</pose><geometry><box><size>0.045 0.42 0.42</size></box></geometry><material><diffuse>0.90 0.92 0.86 1</diffuse></material></visual>
+        <visual name="landmark_dock_black_1"><pose>-4.91 -3.30 1.02 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+        <visual name="landmark_dock_black_2"><pose>-4.91 -3.05 0.82 0 0 0</pose><geometry><box><size>0.050 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.04 0.04 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="showcase_static_station_signs">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="sign_receiving_board"><pose>-4.66 0.00 1.52 0 0 0</pose><geometry><box><size>0.045 1.28 0.34</size></box></geometry><material><diffuse>0.18 0.24 0.22 0.96</diffuse><ambient>0.18 0.24 0.22 0.96</ambient></material></visual>
+        <visual name="sign_receiving_text"><pose>-4.69 0.00 1.52 0 0 1.5708</pose><geometry><mesh><uri>../media/text_meshes/label_receiving.obj</uri><scale>1.28 1.28 1</scale></mesh></geometry><material><ambient>0.92 0.90 0.78 1</ambient><diffuse>0.92 0.90 0.78 1</diffuse><double_sided>true</double_sided></material></visual>
+        <visual name="sign_dock_board"><pose>-4.62 -3.80 1.44 0 0 0</pose><geometry><box><size>0.045 1.00 0.38</size></box></geometry><material><diffuse>0.16 0.24 0.18 0.96</diffuse><ambient>0.16 0.24 0.18 0.96</ambient></material></visual>
+        <visual name="sign_dock_text"><pose>-4.65 -3.80 1.44 0 0 1.5708</pose><geometry><mesh><uri>../media/text_meshes/label_dock.obj</uri><scale>1.35 1.35 1</scale></mesh></geometry><material><ambient>0.92 0.90 0.78 1</ambient><diffuse>0.92 0.90 0.78 1</diffuse><double_sided>true</double_sided></material></visual>
+        <visual name="sign_storage_a_board"><pose>1.22 2.35 1.34 0 0 0.30</pose><geometry><box><size>1.18 0.045 0.32</size></box></geometry><material><diffuse>0.24 0.22 0.18 0.96</diffuse><ambient>0.24 0.22 0.18 0.96</ambient></material></visual>
+        <visual name="sign_storage_a_text"><pose>1.22 2.38 1.34 0 0 0.30</pose><geometry><mesh><uri>../media/text_meshes/label_storage_a.obj</uri><scale>1.12 1.12 1</scale></mesh></geometry><material><ambient>0.92 0.86 0.62 1</ambient><diffuse>0.92 0.86 0.62 1</diffuse><double_sided>true</double_sided></material></visual>
+        <visual name="sign_packing_board"><pose>2.78 -2.00 1.32 0 0 0</pose><geometry><box><size>0.045 1.05 0.32</size></box></geometry><material><diffuse>0.18 0.24 0.30 0.96</diffuse><ambient>0.18 0.24 0.30 0.96</ambient></material></visual>
+        <visual name="sign_packing_text"><pose>2.81 -2.00 1.32 0 0 1.5708</pose><geometry><mesh><uri>../media/text_meshes/label_packing.obj</uri><scale>1.20 1.20 1</scale></mesh></geometry><material><ambient>0.84 0.88 0.86 1</ambient><diffuse>0.84 0.88 0.86 1</diffuse><double_sided>true</double_sided></material></visual>
+        <visual name="sign_slow_zone_board"><pose>1.98 -0.25 1.02 0 0 0</pose><geometry><box><size>0.045 0.82 0.30</size></box></geometry><material><diffuse>0.16 0.28 0.34 0.94</diffuse><ambient>0.16 0.28 0.34 0.94</ambient></material></visual>
+        <visual name="sign_slow_zone_text"><pose>2.01 -0.25 1.02 0 0 1.5708</pose><geometry><mesh><uri>../media/text_meshes/label_slow_zone.obj</uri><scale>1.12 1.12 1</scale></mesh></geometry><material><ambient>0.78 0.86 0.88 1</ambient><diffuse>0.78 0.86 0.88 1</diffuse><double_sided>true</double_sided></material></visual>
+        <visual name="sign_route_board"><pose>-0.25 -4.78 0.82 0 0 0</pose><geometry><box><size>1.60 0.045 0.30</size></box></geometry><material><diffuse>0.22 0.23 0.21 0.96</diffuse><ambient>0.22 0.23 0.21 0.96</ambient></material></visual>
+        <visual name="sign_route_mark_1"><pose>-0.72 -4.81 0.84 0 0 0</pose><geometry><box><size>0.38 0.052 0.045</size></box></geometry><material><diffuse>0.82 0.68 0.30 1</diffuse></material></visual>
+        <visual name="sign_route_mark_2"><pose>-0.18 -4.81 0.84 0 0 0</pose><geometry><box><size>0.38 0.052 0.045</size></box></geometry><material><diffuse>0.82 0.68 0.30 1</diffuse></material></visual>
+        <visual name="sign_route_arrow"><pose>0.36 -4.81 0.84 0 0 1.5708</pose><geometry><cone><radius>0.09</radius><length>0.16</length></cone></geometry><material><diffuse>0.82 0.68 0.30 1</diffuse></material></visual>
+      </link>
+    </model>
+    <!-- END AMR_SHOWCASE_SEMANTIC_FLOOR -->
+
+    <model name="receiving_door">
+      <static>true</static>
+      <pose>-4.15 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="frame_visual"><pose>0 0 0.55 0 0 0</pose><geometry><box><size>0.12 1.25 1.1</size></box></geometry><material><diffuse>0.12 0.12 0.14 0.45</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="receiving_door_panel">
+      <static>false</static>
+      <pose>-4.15 0 0.55 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="panel_visual"><geometry><box><size>0.10 1.00 1.00</size></box></geometry><material><diffuse>0.88 0.16 0.12 0.85</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="freight_elevator">
+      <static>true</static>
+      <pose>3.65 2.85 0 0 0 0</pose>
+      <link name="link">
+        <visual name="back_wall_visual"><pose>0.62 0 0.6 0 0 0</pose><geometry><box><size>0.08 1.35 1.2</size></box></geometry><material><diffuse>0.20 0.18 0.32 1</diffuse></material></visual>
+        <visual name="left_wall_visual"><pose>0 -0.64 0.6 0 0 0</pose><geometry><box><size>1.35 0.08 1.2</size></box></geometry><material><diffuse>0.20 0.18 0.32 1</diffuse></material></visual>
+        <visual name="right_wall_visual"><pose>0 0.64 0.6 0 0 0</pose><geometry><box><size>1.35 0.08 1.2</size></box></geometry><material><diffuse>0.20 0.18 0.32 1</diffuse></material></visual>
+        <visual name="door_open_visual"><pose>-0.62 0.42 0.55 0 0 0</pose><geometry><box><size>0.08 0.32 1.0</size></box></geometry><material><diffuse>0.85 0.75 0.12 0.75</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="freight_elevator_cabin">
+      <static>false</static>
+      <pose>3.65 2.85 0.04 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="platform_visual"><geometry><box><size>1.15 1.15 0.08</size></box></geometry><material><diffuse>0.65 0.48 0.95 0.95</diffuse></material></visual>
+        <visual name="indicator_visual"><pose>-0.45 0 0.18 0 0 0</pose><geometry><box><size>0.08 0.85 0.22</size></box></geometry><material><diffuse>0.95 0.75 0.12 0.85</diffuse><emissive>0.45 0.28 0.02 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="floor_2_dropoff_zone">
+      <static>true</static>
+      <pose>3.65 3.85 0.82 0 0 0</pose>
+      <link name="link">
+        <visual name="platform_visual"><geometry><box><size>1.45 1.1 0.06</size></box></geometry><material><diffuse>0.42 0.42 0.52 0.85</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_intersection_zone">
+      <static>true</static>
+      <pose>0 0 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual"><geometry><cylinder><radius>0.65</radius><length>0.03</length></cylinder></geometry><material><diffuse>1.0 0.72 0.1 0.35</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_route_block_barrier">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="barrier_visual"><geometry><box><size>1.25 0.12 0.55</size></box></geometry><material><diffuse>0.95 0.05 0.05 0.9</diffuse><emissive>0.35 0.0 0.0 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="speed_limit_zone_indicator">
+      <static>false</static>
+      <pose>1.2 -0.25 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="slow_zone_visual"><geometry><cylinder><radius>0.62</radius><length>0.05</length></cylinder></geometry><material><diffuse>0.08 0.55 1.0 0.55</diffuse><emissive>0.02 0.16 0.38 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="speed_limit_restored_beacon">
+      <static>false</static>
+      <pose>1.2 -0.25 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="restore_visual"><geometry><sphere><radius>0.12</radius></sphere></geometry><material><diffuse>0.05 0.95 0.45 0.95</diffuse><emissive>0.02 0.55 0.20 1</emissive></material></visual>
+        <visual name="speed_bar_visual"><pose>0 0 -0.22 0 0 0</pose><geometry><cylinder><radius>0.03</radius><length>0.44</length></cylinder></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_deadlock_warning_beacon">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="warning_visual"><geometry><sphere><radius>0.14</radius></sphere></geometry><material><diffuse>1.0 0.18 0.05 0.95</diffuse><emissive>0.75 0.04 0.0 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_route_reopen_beacon">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="open_visual"><geometry><sphere><radius>0.13</radius></sphere></geometry><material><diffuse>0.04 0.95 0.62 0.95</diffuse><emissive>0.01 0.55 0.28 1</emissive></material></visual>
+        <visual name="lane_visual"><pose>0 0 -0.28 0 0 0</pose><geometry><box><size>1.10 0.08 0.08</size></box></geometry><material><diffuse>0.04 0.70 0.38 0.85</diffuse><emissive>0.01 0.22 0.10 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_yield_wait_marker">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="wait_pad_visual"><geometry><cylinder><radius>0.28</radius><length>0.05</length></cylinder></geometry><material><diffuse>1.0 0.78 0.05 0.70</diffuse><emissive>0.35 0.20 0.00 1</emissive></material></visual>
+        <visual name="wait_bar_visual"><pose>0 0 0.18 0 0 0</pose><geometry><box><size>0.46 0.10 0.26</size></box></geometry><material><diffuse>1.0 0.55 0.02 0.88</diffuse><emissive>0.42 0.18 0.00 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="traffic_release_go_marker">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="go_lane_visual"><geometry><box><size>0.92 0.10 0.10</size></box></geometry><material><diffuse>0.04 0.95 0.42 0.85</diffuse><emissive>0.01 0.48 0.16 1</emissive></material></visual>
+        <visual name="go_head_visual"><pose>0.54 0 0 0 1.5708 0</pose><geometry><cone><radius>0.16</radius><length>0.26</length></cone></geometry><material><diffuse>0.04 0.95 0.42 0.92</diffuse><emissive>0.01 0.48 0.16 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="localization_status_beacon">
+      <static>false</static>
+      <pose>-3.35 -3.55 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="mast_visual"><pose>0 0 -0.28 0 0 0</pose><geometry><cylinder><radius>0.025</radius><length>0.55</length></cylinder></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+        <visual name="beacon_visual"><geometry><sphere><radius>0.12</radius></sphere></geometry><material><diffuse>0.05 0.75 1.0 0.95</diffuse><emissive>0.02 0.34 0.70 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="manual_takeover_indicator">
+      <static>false</static>
+      <pose>-4.35 3.65 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="joystick_base_visual"><geometry><box><size>0.38 0.28 0.10</size></box></geometry><material><diffuse>0.05 0.05 0.06 1</diffuse></material></visual>
+        <visual name="joystick_stick_visual"><pose>0 0 0.22 0.38 0 0</pose><geometry><cylinder><radius>0.035</radius><length>0.42</length></cylinder></geometry><material><diffuse>0.95 0.95 0.95 1</diffuse></material></visual>
+        <visual name="joystick_top_visual"><pose>0 0.07 0.45 0 0 0</pose><geometry><sphere><radius>0.08</radius></sphere></geometry><material><diffuse>0.95 0.18 0.12 1</diffuse><emissive>0.35 0.02 0.01 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="operator_confirmation_panel">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="stand_visual"><pose>0 0 -0.18 0 0 0</pose><geometry><cylinder><radius>0.035</radius><length>0.36</length></cylinder></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+        <visual name="screen_visual"><pose>0 0 0.11 0 0 0</pose><geometry><box><size>0.36 0.08 0.26</size></box></geometry><material><diffuse>0.06 0.12 0.18 1</diffuse><emissive>0.00 0.12 0.26 1</emissive></material></visual>
+        <visual name="confirm_light_visual"><pose>0.12 0 0.18 0 0 0</pose><geometry><sphere><radius>0.055</radius></sphere></geometry><material><diffuse>1.0 0.85 0.05 0.95</diffuse><emissive>0.55 0.36 0.02 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="top_module_status_indicator">
+      <static>false</static>
+      <pose>-3.35 -0.90 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="module_visual"><geometry><box><size>0.36 0.22 0.12</size></box></geometry><material><diffuse>0.05 0.65 0.28 0.95</diffuse><emissive>0.01 0.28 0.08 1</emissive></material></visual>
+        <visual name="scan_bar_visual"><pose>0.24 0 0.02 0 0 0</pose><geometry><box><size>0.05 0.34 0.04</size></box></geometry><material><diffuse>0.95 0.95 0.20 1</diffuse><emissive>0.45 0.45 0.03 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="payload_box_waiting">
+      <static>false</static>
+      <pose>-3.35 -0.45 0.18 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="visual"><geometry><box><size>0.45 0.32 0.28</size></box></geometry><material><diffuse>0.9 0.55 0.12 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="payload_lock_indicator">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="lock_base_visual"><geometry><box><size>0.34 0.22 0.06</size></box></geometry><material><diffuse>0.04 0.45 0.18 0.95</diffuse><emissive>0.01 0.20 0.06 1</emissive></material></visual>
+        <visual name="lock_light_visual"><pose>0 0 0.08 0 0 0</pose><geometry><sphere><radius>0.07</radius></sphere></geometry><material><diffuse>0.05 0.95 0.34 0.95</diffuse><emissive>0.02 0.55 0.12 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="safety_obstacle_block">
+      <static>false</static>
+      <pose>0 0 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="obstacle_visual"><geometry><box><size>0.42 0.42 0.70</size></box></geometry><material><diffuse>1.0 0.05 0.05 0.9</diffuse><emissive>0.35 0.0 0.0 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="obstacle_clearance_indicator">
+      <static>false</static>
+      <pose>0.65 3.65 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="clear_visual"><geometry><sphere><radius>0.12</radius></sphere></geometry><material><diffuse>0.05 0.95 0.35 0.95</diffuse><emissive>0.02 0.55 0.12 1</emissive></material></visual>
+        <visual name="base_visual"><pose>0 0 -0.22 0 0 0</pose><geometry><cylinder><radius>0.03</radius><length>0.44</length></cylinder></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="charging_dock">
+      <static>true</static>
+      <pose>-3.9 -3.8 0 0 0 0</pose>
+      <link name="base">
+        <collision name="base_collision"><pose>0 0 0.04 0 0 0</pose><geometry><box><size>0.85 0.55 0.08</size></box></geometry></collision>
+        <visual name="base_visual"><pose>0 0 0.04 0 0 0</pose><geometry><box><size>0.85 0.55 0.08</size></box></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+        <visual name="back_panel"><pose>-0.34 0 0.42 0 0 0</pose><geometry><box><size>0.10 0.65 0.75</size></box></geometry><material><diffuse>0.04 0.18 0.28 1</diffuse></material></visual>
+        <visual name="charge_contact_left"><pose>0.10 0.14 0.13 0 0 0</pose><geometry><box><size>0.16 0.04 0.08</size></box></geometry><material><diffuse>0.76 0.58 0.22 1</diffuse></material></visual>
+        <visual name="charge_contact_right"><pose>0.10 -0.14 0.13 0 0 0</pose><geometry><box><size>0.16 0.04 0.08</size></box></geometry><material><diffuse>0.76 0.58 0.22 1</diffuse></material></visual>
+        <visual name="dock_cable_gland"><pose>-0.40 0.25 0.52 0 1.5708 0</pose><geometry><cylinder><radius>0.035</radius><length>0.10</length></cylinder></geometry><material><diffuse>0.03 0.03 0.035 1</diffuse></material></visual>
+        <visual name="dock_service_panel"><pose>-0.405 -0.18 0.48 0 0 0</pose><geometry><box><size>0.025 0.22 0.30</size></box></geometry><material><diffuse>0.12 0.16 0.18 1</diffuse></material></visual>
+        <visual name="dock_service_slot_1"><pose>-0.422 -0.18 0.55 0 0 0</pose><geometry><box><size>0.030 0.15 0.026</size></box></geometry><material><diffuse>0.55 0.58 0.54 1</diffuse></material></visual>
+        <visual name="dock_service_slot_2"><pose>-0.422 -0.18 0.43 0 0 0</pose><geometry><box><size>0.030 0.15 0.026</size></box></geometry><material><diffuse>0.55 0.58 0.54 1</diffuse></material></visual>
+        <visual name="status_light"><pose>-0.40 0 0.85 0 0 0</pose><geometry><sphere><radius>0.06</radius></sphere></geometry><material><diffuse>0.16 0.58 0.28 1</diffuse><emissive>0.00 0.10 0.03 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="charging_status_beacon">
+      <static>false</static>
+      <pose>-4.30 -3.80 0.95 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="beacon_visual"><geometry><sphere><radius>0.10</radius></sphere></geometry><material><diffuse>0.05 0.95 0.25 0.95</diffuse><emissive>0.02 0.75 0.12 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <model name="docking_retry_warning_beacon">
+      <static>false</static>
+      <pose>-4.30 -3.42 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="beacon_visual"><geometry><sphere><radius>0.11</radius></sphere></geometry><material><diffuse>1.0 0.55 0.04 0.95</diffuse><emissive>0.70 0.24 0.02 1</emissive></material></visual>
+        <visual name="base_visual"><pose>0 0 -0.20 0 0 0</pose><geometry><cylinder><radius>0.035</radius><length>0.40</length></cylinder></geometry><material><diffuse>0.08 0.08 0.09 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="opportunity_charge_beacon">
+      <static>false</static>
+      <pose>-3.55 -3.42 -2 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="battery_visual"><geometry><box><size>0.28 0.16 0.16</size></box></geometry><material><diffuse>0.12 0.88 0.32 0.95</diffuse><emissive>0.02 0.42 0.10 1</emissive></material></visual>
+        <visual name="battery_tip_visual"><pose>0.17 0 0 0 0 0</pose><geometry><box><size>0.05 0.08 0.09</size></box></geometry><material><diffuse>0.12 0.88 0.32 0.95</diffuse><emissive>0.02 0.42 0.10 1</emissive></material></visual>
+      </link>
+    </model>
+
+    <!-- BEGIN AMR_TEXT_LABEL_MODELS -->
+    <model name="label_robot_1">
+      <static>false</static>
+      <pose>0.00 0.00 1.70 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_robot_1.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_robot_2">
+      <static>false</static>
+      <pose>-3.90 -3.10 1.60 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_robot_2.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_dock">
+      <static>false</static>
+      <pose>-3.90 -3.80 1.65 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_dock.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_receiving">
+      <static>false</static>
+      <pose>-3.70 0.65 1.55 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_receiving.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_door">
+      <static>false</static>
+      <pose>-4.15 0.00 1.70 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_door.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_elevator">
+      <static>false</static>
+      <pose>3.65 2.85 1.80 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_elevator.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_floor_2">
+      <static>false</static>
+      <pose>3.65 3.85 1.65 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_floor_2.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_storage_a">
+      <static>false</static>
+      <pose>1.50 1.50 1.60 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_storage_a.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_storage_b">
+      <static>false</static>
+      <pose>-2.00 2.00 1.60 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_storage_b.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_packing">
+      <static>false</static>
+      <pose>2.00 -2.00 1.60 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_packing.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_traffic">
+      <static>false</static>
+      <pose>0.00 0.00 1.35 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_traffic.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_slow_zone">
+      <static>false</static>
+      <pose>1.20 -0.25 1.25 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_slow_zone.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_confirm">
+      <static>false</static>
+      <pose>-3.32 1.03 1.35 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_confirm.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_payload">
+      <static>false</static>
+      <pose>-3.35 -0.45 1.20 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_payload.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <!-- END AMR_TEXT_LABEL_MODELS -->
+
+    <!-- BEGIN AMR_STATUS_LABEL_MODELS -->
+    <model name="label_charging_status">
+      <static>false</static>
+      <pose>-4.30 -3.80 1.10 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_charging_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_docking_retry_status">
+      <static>false</static>
+      <pose>-4.30 -3.42 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_docking_retry_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_opportunity_charge_status">
+      <static>false</static>
+      <pose>-3.55 -3.42 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_opportunity_charge_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_top_module_status">
+      <static>false</static>
+      <pose>-3.35 -0.90 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_top_module_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_localization_status">
+      <static>false</static>
+      <pose>-3.35 -3.55 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_localization_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_manual_takeover_status">
+      <static>false</static>
+      <pose>-4.35 3.65 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_manual_takeover_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_operator_confirmation_status">
+      <static>false</static>
+      <pose>0.00 0.00 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_operator_confirmation_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_traffic_block_status">
+      <static>false</static>
+      <pose>0.00 0.00 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_traffic_block_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_traffic_deadlock_status">
+      <static>false</static>
+      <pose>0.00 0.00 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_traffic_deadlock_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_traffic_reopen_status">
+      <static>false</static>
+      <pose>0.00 0.00 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_traffic_reopen_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_speed_limit_status">
+      <static>false</static>
+      <pose>1.20 -0.25 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_speed_limit_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_speed_restored_status">
+      <static>false</static>
+      <pose>1.20 -0.25 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_speed_restored_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_obstacle_status">
+      <static>false</static>
+      <pose>0.00 0.00 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_obstacle_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="label_obstacle_clear_status">
+      <static>false</static>
+      <pose>0.65 3.65 -2 0 0 0.00</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <visual name="text_mesh_visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry><mesh><uri>../media/text_meshes/label_obstacle_clear_status.obj</uri></mesh></geometry>
+          <material>
+            <ambient>0.000 0.000 0.000 1</ambient>
+            <diffuse>0.000 0.000 0.000 1</diffuse>
+            <emissive>0 0 0 1</emissive>
+            <double_sided>true</double_sided>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <!-- END AMR_STATUS_LABEL_MODELS -->
+
+    <model name="mobile_robot">
+      <pose>0 0 0.24 0 0 0</pose>
+      <link name="base_link">
+        <inertial><mass>24.0</mass><inertia><ixx>0.18</ixx><iyy>0.28</iyy><izz>0.36</izz></inertia></inertial>
+        <collision name="base_collision"><pose>0 0 0.18 0 0 0</pose><geometry><box><size>1.10 0.76 0.36</size></box></geometry></collision>
+        <visual name="base_visual"><pose>0 0 0.18 0 0 0</pose><geometry><box><size>1.10 0.76 0.36</size></box></geometry><material><diffuse>0.08 0.28 0.70 1</diffuse></material></visual>
+        <visual name="lidar_visual"><pose>0.36 0 0.54 0 0 0</pose><geometry><cylinder><radius>0.11</radius><length>0.11</length></cylinder></geometry><material><diffuse>0.05 0.55 0.32 1</diffuse></material></visual>
+        <visual name="camera_visual"><pose>0.58 0 0.42 0 0 0</pose><geometry><box><size>0.14 0.07 0.07</size></box></geometry><material><diffuse>0.05 0.55 0.32 1</diffuse></material></visual>
+        <sensor name="lidar" type="gpu_lidar">
+          <pose>0.36 0 0.54 0 0 0</pose>
+          <topic>/sim/scan</topic>
+          <update_rate>10</update_rate>
+          <always_on>true</always_on>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159265359</min_angle>
+                <max_angle>3.14159265359</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.08</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+        </sensor>
+        <sensor name="imu" type="imu">
+          <pose>0 0 0.46 0 0 0</pose>
+          <topic>/sim/imu</topic>
+          <update_rate>100</update_rate>
+          <always_on>true</always_on>
+        </sensor>
+      </link>
+      <link name="left_wheel">
+        <pose>0 0.43 0 1.57079632679 0 0</pose>
+        <inertial><mass>0.7</mass><inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz></inertia></inertial>
+        <collision name="collision"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <link name="right_wheel">
+        <pose>0 -0.43 0 1.57079632679 0 0</pose>
+        <inertial><mass>0.7</mass><inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz></inertia></inertial>
+        <collision name="collision"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <link name="caster_wheel">
+        <pose>-0.4 0 -0.08 0 0 0</pose>
+        <collision name="collision"><geometry><sphere><radius>0.08</radius></sphere></geometry></collision>
+        <visual name="visual"><geometry><sphere><radius>0.08</radius></sphere></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>base_link</parent><child>left_wheel</child><axis><xyz>0 1 0</xyz></axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>base_link</parent><child>right_wheel</child><axis><xyz>0 1 0</xyz></axis>
+      </joint>
+      <joint name="caster_joint" type="fixed">
+        <parent>base_link</parent><child>caster_wheel</child>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.86</wheel_separation>
+        <wheel_radius>0.15</wheel_radius>
+        <topic>/cmd_vel</topic>
+        <odom_topic>/model/mobile_robot/odometry</odom_topic>
+        <frame_id>odom</frame_id>
+        <child_frame_id>base_link</child_frame_id>
+      </plugin>
+    </model>
+
+    <model name="mobile_robot_2">
+      <static>false</static>
+      <pose>-3.9 -3.8 0.24 0 0 0</pose>
+      <link name="base_link">
+        <inertial><mass>24.0</mass><inertia><ixx>0.18</ixx><iyy>0.28</iyy><izz>0.36</izz></inertia></inertial>
+        <collision name="base_collision"><pose>0 0 0.18 0 0 0</pose><geometry><box><size>1.10 0.76 0.36</size></box></geometry></collision>
+        <visual name="base_visual"><pose>0 0 0.18 0 0 0</pose><geometry><box><size>1.10 0.76 0.36</size></box></geometry><material><diffuse>0.32 0.37 0.44 1</diffuse></material></visual>
+        <visual name="fleet_label_visual"><pose>0.10 0 0.43 0 0 0</pose><geometry><box><size>0.48 0.44 0.05</size></box></geometry><material><diffuse>0.85 0.47 0.16 1</diffuse></material></visual>
+        <visual name="lidar_visual"><pose>0.36 0 0.54 0 0 0</pose><geometry><cylinder><radius>0.11</radius><length>0.11</length></cylinder></geometry><material><diffuse>0.05 0.55 0.32 1</diffuse></material></visual>
+        <sensor name="lidar" type="gpu_lidar">
+          <pose>0.36 0 0.54 0 0 0</pose>
+          <topic>/robot_2/sim/scan</topic>
+          <update_rate>10</update_rate>
+          <always_on>true</always_on>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159265359</min_angle>
+                <max_angle>3.14159265359</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.08</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+        </sensor>
+      </link>
+      <link name="left_wheel">
+        <pose>0 0.43 0 1.57079632679 0 0</pose>
+        <inertial><mass>0.7</mass><inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz></inertia></inertial>
+        <collision name="collision"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <link name="right_wheel">
+        <pose>0 -0.43 0 1.57079632679 0 0</pose>
+        <inertial><mass>0.7</mass><inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz></inertia></inertial>
+        <collision name="collision"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.15</radius><length>0.09</length></cylinder></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <link name="caster_wheel">
+        <pose>-0.4 0 -0.08 0 0 0</pose>
+        <collision name="collision"><geometry><sphere><radius>0.08</radius></sphere></geometry></collision>
+        <visual name="visual"><geometry><sphere><radius>0.08</radius></sphere></geometry><material><diffuse>0.02 0.02 0.02 1</diffuse></material></visual>
+      </link>
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>base_link</parent><child>left_wheel</child><axis><xyz>0 1 0</xyz></axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>base_link</parent><child>right_wheel</child><axis><xyz>0 1 0</xyz></axis>
+      </joint>
+      <joint name="caster_joint" type="fixed">
+        <parent>base_link</parent><child>caster_wheel</child>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.86</wheel_separation>
+        <wheel_radius>0.15</wheel_radius>
+        <topic>/robot_2/cmd_vel</topic>
+        <odom_topic>/model/mobile_robot_2/odometry</odom_topic>
+        <frame_id>robot_2/odom</frame_id>
+        <child_frame_id>robot_2/base_link</child_frame_id>
+      </plugin>
+    </model>
+
+    <gui fullscreen="0">
+      <!-- Default camera: oblique overview for the 24 m x 16 m industrial showcase floor. -->
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.55 0.57 0.60</ambient_light>
+        <background_color>0.80 0.83 0.86</background_color>
+        <camera_pose>-12.80 -10.40 12.20 0 0.78 0.72</camera_pose>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"/>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"/>
+      <plugin filename="CameraTracking" name="Camera Tracking"/>
+    </gui>
+  </world>
+</sdf>
+

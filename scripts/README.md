@@ -57,6 +57,14 @@ non-Nav2 Gazebo/RViz showcase. `check_factory_patrol_runtime_topics.sh` requires
 a running ROS2 graph and prints topic counts, `/scan` QoS hints, sampled frame
 IDs, and odom TF connectivity diagnostics.
 
+To preview the independent Factory Patrol Scene V2 industrial world:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
+  gui:=true use_rviz:=true
+```
+
 ## Final Readiness
 
 ```bash

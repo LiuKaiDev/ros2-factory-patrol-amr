@@ -11,7 +11,7 @@ Visualization Manager:
       Name: Factory Floor Grid
       Cell Size: 0.5
       Plane: XY
-      Plane Cell Count: 32
+      Plane Cell Count: 48
       Reference Frame: <Fixed Frame>
       Color: 66; 70; 70
     - Class: rviz_default_plugins/RobotModel
@@ -109,10 +109,10 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 9.8
+      Distance: 13.8
       Focal Point:
-        X: -0.35
-        Y: -0.30
+        X: -0.20
+        Y: -0.10
         Z: 0.32
       Name: Factory Patrol Showcase
       Pitch: 0.88

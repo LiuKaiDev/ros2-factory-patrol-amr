@@ -39,6 +39,14 @@ Default Factory Patrol simulation launch:
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
 ```
 
+Optional Scene V2 industrial layout preview:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  world_file:=$(ros2 pkg prefix robot_simulation)/share/robot_simulation/worlds/factory_patrol_industrial.sdf \
+  gui:=true use_rviz:=true
+```
+
 Headless launch:
 
 ```bash
@@ -69,11 +77,27 @@ workcell props, dock guidance, safety rails, landmark plates, muted station
 signs, floor finish seams, scuff marks, and orthogonal inspection-route floor
 markings are modeled with SDF primitives rather than downloaded third-party
 assets.
+The independent `factory_patrol_industrial.sdf` Scene V2 preview keeps the
+original robot topics, frames, and mission seed poses while expanding the visual
+factory footprint to 24 m x 16 m. It adds clearer receiving, storage, packing,
+dock, slow-zone, guardrail, and closed-loop inspection-route visual layers for
+portfolio screenshots after real WSL2 visual review.
 
 The world config keeps the standard Scene Manager, Camera Tracking, and
 Interactive view control plugins enabled so Gazebo can render the 3D scene and
 provide camera control services. Fold the right-side panels manually before
 capturing screenshots when a cleaner frame is needed.
+
+Motion smoke-test commands for a live simulation:
+
+```bash
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}, angular: {z: 0.0}}"
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
+```
+
+If the AMR does not move, inspect `/cmd_vel`, `/odom`, `/safety_state`,
+`/mission_runner/state`, and `ros2 topic info -v /cmd_vel` before changing any
+navigation, safety, chassis, or task code.
 
 Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
 `/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,

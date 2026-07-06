@@ -17,6 +17,7 @@ def generate_launch_description():
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
     rviz_config = LaunchConfiguration("rviz_config")
+    world_file = LaunchConfiguration("world_file")
 
     sim_launch = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "launch", "sim.launch.py"]
@@ -30,7 +31,7 @@ def generate_launch_description():
     mission_runner_launch = PathJoinSubstitution(
         [FindPackageShare("robot_tasks"), "launch", "mission_runner.launch.py"]
     )
-    world_file = PathJoinSubstitution(
+    default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
     )
     default_rviz_config = PathJoinSubstitution(
@@ -69,6 +70,14 @@ def generate_launch_description():
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
             DeclareLaunchArgument("rviz_config", default_value=default_rviz_config),
             DeclareLaunchArgument("nav2_map", default_value=default_nav2_map),
+            DeclareLaunchArgument(
+                "world_file",
+                default_value=default_world_file,
+                description=(
+                    "Gazebo world file. Override with factory_patrol_industrial.sdf "
+                    "to preview the Scene V2 industrial layout."
+                ),
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(sim_launch),
                 launch_arguments={
