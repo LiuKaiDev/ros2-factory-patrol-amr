@@ -13,6 +13,15 @@ PARAMS_PATH="${REPO_ROOT}/${PARAMS_FILE}"
 MAP_PATH="${REPO_ROOT}/${MAP_FILE}"
 RVIZ_PATH="${REPO_ROOT}/${RVIZ_FILE}"
 
+safe_source_setup() {
+  local setup_file="$1"
+  echo "[nav2-basic-demo] Sourcing ${setup_file}"
+  set +u
+  # shellcheck disable=SC1090
+  source "${setup_file}"
+  set -u
+}
+
 echo "[nav2-basic-demo] Repository: ${REPO_ROOT}"
 
 [[ -f "${PARAMS_FILE}" ]] || {
@@ -28,20 +37,18 @@ echo "[nav2-basic-demo] Repository: ${REPO_ROOT}"
   exit 1
 }
 
-if ! command -v ros2 >/dev/null 2>&1; then
-  echo "FAIL: ros2 command not found. Source ROS2 first, for example:"
-  echo "  source /opt/ros/jazzy/setup.bash"
-  exit 1
-fi
-
 if [[ -f "install/setup.bash" ]]; then
-  echo "[nav2-basic-demo] Sourcing install/setup.bash"
-  # shellcheck disable=SC1091
-  source install/setup.bash
+  safe_source_setup "install/setup.bash"
 else
   echo "[nav2-basic-demo] install/setup.bash not found; using current ROS2 environment."
   echo "[nav2-basic-demo] Build first if packages are not discoverable:"
   echo "  colcon build --symlink-install"
+fi
+
+if ! command -v ros2 >/dev/null 2>&1; then
+  echo "FAIL: ros2 command not found. Source ROS2 first, for example:" >&2
+  echo "  source /opt/ros/jazzy/setup.bash" >&2
+  exit 1
 fi
 
 echo
@@ -53,6 +60,12 @@ echo "  ros2 launch robot_navigation nav.launch.py params_file:=${PARAMS_PATH} m
 echo
 echo "[nav2-basic-demo] Suggested terminal 3: start RViz debug view"
 echo "  rviz2 -d ${RVIZ_PATH}"
+echo
+echo "[nav2-basic-demo] RViz config:"
+echo "  ${RVIZ_FILE}"
+echo
+echo "[nav2-basic-demo] Expected runtime topics:"
+echo "  /map /scan /odom /cmd_vel /tf /global_costmap/costmap /local_costmap/costmap"
 echo
 echo "[nav2-basic-demo] After Nav2 is running, check topics with:"
 echo "  bash scripts/check_nav2_runtime_topics.sh"

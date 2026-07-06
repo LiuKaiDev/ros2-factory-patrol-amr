@@ -1139,7 +1139,7 @@
     </model>
 
     <gui fullscreen="0">
-      <!-- 默认观察机位：场景斜上方俯视 ~40°，对准房间中心，避免每次手动转视角 -->
+      <!-- Default camera: oblique overview for first-launch screenshots. -->
       <plugin filename="MinimalScene" name="3D View">
         <gz-gui>
           <property type="string" key="state">docked</property>

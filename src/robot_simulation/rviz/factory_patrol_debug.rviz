@@ -1,0 +1,126 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Factory Floor Grid
+      Cell Size: 0.5
+      Plane: XY
+      Plane Cell Count: 24
+      Reference Frame: <Fixed Frame>
+      Color: 92; 96; 98
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: Robot Model
+      Alpha: 1
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+      Visual Enabled: true
+      Collision Enabled: false
+      Update Interval: 0
+      TF Prefix: ""
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Name: TF
+      Frame Timeout: 15
+      Marker Scale: 0.24
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: Laser Scan
+      Topic:
+        Value: /scan
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 10
+      Style: Points
+      Size (m): 0.035
+      Color: 255; 78; 70
+    - Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Name: Odometry
+      Topic:
+        Value: /odom
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 10
+      Shape: Arrow
+      Color: 255; 220; 0
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+    - Class: rviz_default_plugins/Path
+      Enabled: false
+      Name: Odom Path
+      Topic:
+        Value: /odom/path
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 10
+      Color: 40; 210; 255
+      Line Style: Lines
+      Line Width: 0.045
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: AMR Simulation Markers
+      Marker Topic:
+        Value: /amr_simulation/markers
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Pose
+      Enabled: false
+      Name: Mission Current Goal
+      Topic:
+        Value: /navigate_sequence/current_goal
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Shape: Arrow
+      Color: 255; 120; 30
+  Enabled: true
+  Global Options:
+    Fixed Frame: odom
+    Background Color: 32; 34; 36
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 9.0
+      Focal Point:
+        X: 0.0
+        Y: 0.0
+        Z: 0.2
+      Name: Factory Patrol Overview
+      Pitch: 0.78
+      Target Frame: odom
+      Yaw: 0.78
+    Saved: ~
+Window Geometry:
+  Height: 900
+  Width: 1440
+  X: 80
+  Y: 60

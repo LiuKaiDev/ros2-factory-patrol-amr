@@ -47,6 +47,7 @@ python3 scripts/print_factory_patrol_goals.py
 bash scripts/run_factory_patrol_obstacle_demo.sh
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 bash scripts/check_factory_patrol_demo_workflows.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 

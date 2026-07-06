@@ -118,12 +118,20 @@ robot deployment or real factory operation.
 | Build result | Full workspace build completed locally |
 | Final test result | 514 tests, 0 errors, 0 failures, 0 skipped |
 | robot_navigation retry | 100% tests passed, 0 tests failed out of 6 |
+| RViz launch | Passed in WSL2 validation |
+| Gazebo Factory Patrol launch | Passed after adding lightweight label mesh assets |
 
 An earlier full test run had one transient `/map` message timeout in
 `robot_navigation/test_nav2_mock_runtime.launch.py`. Re-running
 `robot_navigation` independently passed, and the final aggregated
 `colcon test-result` reported all tests passing. The likely cause was WSL2/Nav2
 runtime timing or DDS topic timing, not a syntax-level build issue.
+
+Runtime topics observed during Factory Patrol simulation validation included
+`/map`, `/scan`, `/odom`, `/cmd_vel`, `/tf`, `/joint_states`,
+`/mission_runner/state`, `/safety_state`, `/localization/health`,
+`/global_costmap/costmap`, `/local_costmap/costmap`,
+`/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
 
 ## Result Policy
 

@@ -16,6 +16,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     sim_launch = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "launch", "sim.launch.py"]
@@ -32,8 +33,8 @@ def generate_launch_description():
     world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
     )
-    rviz_config = PathJoinSubstitution(
-        [FindPackageShare("robot_simulation"), "rviz", "nav2_basic_debug.rviz"]
+    default_rviz_config = PathJoinSubstitution(
+        [FindPackageShare("robot_simulation"), "rviz", "factory_patrol_debug.rviz"]
     )
     nav2_params = PathJoinSubstitution(
         [FindPackageShare("robot_navigation"), "config", "nav2_basic.yaml"]
@@ -66,6 +67,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
+            DeclareLaunchArgument("rviz_config", default_value=default_rviz_config),
             DeclareLaunchArgument("nav2_map", default_value=default_nav2_map),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(sim_launch),

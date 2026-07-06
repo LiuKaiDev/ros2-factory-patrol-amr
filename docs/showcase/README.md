@@ -31,6 +31,35 @@ not claim physical robot deployment or real factory operation.
   packages finished and 104 tests passing while excluding `robot_tasks` because
   the low-memory server killed `cc1plus` during compilation.
 
+## Gazebo + RViz Simulation Debugging
+
+Default Factory Patrol simulation launch:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+```
+
+Headless launch:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
+```
+
+Runtime topic check:
+
+```bash
+bash scripts/check_factory_patrol_runtime_topics.sh
+```
+
+The default RViz config is
+`src/robot_simulation/rviz/factory_patrol_debug.rviz`. It uses `odom` as the
+fixed frame and focuses on TF, robot model, laser scan, odometry, and
+`/amr_simulation/markers` so the default non-Nav2 demo is screenshot-friendly.
+
+Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
+`/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
+`/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
+
 ## Future Artifact Checklist
 
 For every future artifact, record:

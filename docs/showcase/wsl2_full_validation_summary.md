@@ -44,10 +44,13 @@ not a syntax-level build issue.
 
 RViz launched successfully in the WSL2 ROS2 Jazzy environment.
 
-Gazebo Sim launched successfully after adding the missing Factory Patrol text
-label mesh assets under `src/robot_simulation/media/text_meshes/`. The
-`factory_patrol.sdf` world is now visible in Gazebo with the label visuals kept
-in place.
+Gazebo Sim launched successfully after replacing the temporary Factory Patrol
+label placeholders with lightweight text mesh assets under
+`src/robot_simulation/media/text_meshes/`. The `factory_patrol.sdf` world is now
+visible in Gazebo with the label visuals kept in place.
+
+The default RViz configuration for this demo is
+`src/robot_simulation/rviz/factory_patrol_debug.rviz`.
 
 ## Runtime Topics Observed
 

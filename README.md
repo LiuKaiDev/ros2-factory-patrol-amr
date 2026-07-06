@@ -74,6 +74,12 @@ Factory Patrol Demo includes Phase 5B demo workflows for multipoint patrol,
 temporary obstacle validation entries, and localization recovery entries. These
 workflows are demo and validation entry points, not measured runtime results.
 
+Factory Patrol default RViz config:
+
+```text
+src/robot_simulation/rviz/factory_patrol_debug.rviz
+```
+
 Nav2 basic debug RViz config:
 
 ```text
@@ -103,10 +109,38 @@ Runtime topic checks require a running ROS2/Gazebo/Nav2 environment:
 bash scripts/check_nav2_runtime_topics.sh
 bash scripts/check_localization_runtime_topics.sh
 bash scripts/check_safety_runtime_topics.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
 Script index: [scripts/README.md](scripts/README.md).
+
+## Gazebo + RViz Simulation Debugging
+
+Launch the polished Factory Patrol simulation with Gazebo and RViz:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+```
+
+Headless mode:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
+```
+
+After launch, check the expected runtime graph:
+
+```bash
+bash scripts/check_factory_patrol_runtime_topics.sh
+```
+
+Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
+`/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
+`/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
+
+This is WSL2 / ROS2 Jazzy simulation validation. It does not claim physical
+robot deployment or real factory operation.
 
 ## Validation Status
 
@@ -121,6 +155,9 @@ Script index: [scripts/README.md](scripts/README.md).
   package-level retry for one transient Nav2 runtime timing issue: final
   aggregated `colcon test-result` reported 514 tests, 0 errors, 0 failures, and
   0 skipped.
+- RViz and Gazebo Sim launched in WSL2, and the Factory Patrol world loaded
+  after replacing temporary label placeholders with lightweight text mesh
+  assets.
 
 These validation notes cover build, tests, and static checks. They do not claim
 real robot deployment or real factory operation.
