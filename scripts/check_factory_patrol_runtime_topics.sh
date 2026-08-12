@@ -44,6 +44,11 @@ TOPICS=(
   "/perception/markers"
 )
 
+DETECTOR_MODE="${FACTORY_PATROL_DETECTOR_MODE:-false}"
+if [[ "${DETECTOR_MODE}" == "true" ]]; then
+  TOPICS+=("/perception/detections_2d" "/perception/debug_image")
+fi
+
 WARN_ONLY_TOPICS=(
   "/amr_simulation/demo_timeline"
 )
@@ -193,7 +198,13 @@ check_camera_tf() {
 check_geometry_message() {
   local topic="$1"
   local expected_frame="$2"
-  if timeout 10s ros2 topic echo --once --timeout 8 "${topic}" \
+  local command_timeout=10
+  local echo_timeout=8
+  if [[ "${DETECTOR_MODE}" == "true" ]]; then
+    command_timeout=30
+    echo_timeout=28
+  fi
+  if timeout "${command_timeout}s" ros2 topic echo --once --timeout "${echo_timeout}" "${topic}" \
       --filter "m.header.frame_id == '${expected_frame}' and (m.header.stamp.sec > 0 or m.header.stamp.nanosec > 0) and m.point.x == m.point.x and m.point.y == m.point.y and m.point.z == m.point.z and abs(m.point.x) < 1000000.0 and abs(m.point.y) < 1000000.0 and abs(m.point.z) < 1000000.0" \
       --no-arr >/dev/null 2>&1; then
     echo "PASS: ${topic} is finite, stamped, and frame_id=${expected_frame}"
@@ -338,11 +349,21 @@ else
   failures=$((failures + 1))
 fi
 
+if [[ "${DETECTOR_MODE}" == "true" ]]; then
+  echo
+  echo "[factory-topic-check] Delegating Phase 3 detector-chain validation..."
+  bash scripts/check_factory_patrol_detector_runtime.sh || failures=$((failures + 1))
+fi
+
 echo
-echo "[factory-topic-check] Validating geometry failure handling..."
-run_geometry_failure_probe "tf_failure" || failures=$((failures + 1))
-run_geometry_failure_probe "invalid_depth" || failures=$((failures + 1))
-run_geometry_failure_probe "missing_input" || failures=$((failures + 1))
+if [[ "${DETECTOR_MODE}" == "true" ]]; then
+  echo "[factory-topic-check] Synthetic geometry failure probes are covered by the default-mode run."
+else
+  echo "[factory-topic-check] Validating geometry failure handling..."
+  run_geometry_failure_probe "tf_failure" || failures=$((failures + 1))
+  run_geometry_failure_probe "invalid_depth" || failures=$((failures + 1))
+  run_geometry_failure_probe "missing_input" || failures=$((failures + 1))
+fi
 
 echo
 echo "[factory-topic-check] Sampling message frames..."

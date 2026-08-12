@@ -85,6 +85,15 @@
       </link>
     </model>
 
+    <!-- Phase 3 visual-only person target, offset so the Phase 2 center target
+         remains an independent synthetic-geometry regression fixture. -->
+    <include>
+      <uri>model://person_standing</uri>
+      <name>phase3_person_detection_target</name>
+      <pose>2.80 -0.75 0 0 0 1.5708</pose>
+      <static>true</static>
+    </include>
+
     <!-- Phase 2 visual-only target. Center-ray/front-face P_gt: [2.70, 0.00, 0.495]. -->
     <model name="phase2_geometry_validation_target">
       <static>true</static>

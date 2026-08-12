@@ -48,6 +48,8 @@ bash scripts/run_factory_patrol_obstacle_demo.sh
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 bash scripts/check_factory_patrol_demo_workflows.sh
 bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/check_factory_patrol_detector_runtime.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -56,6 +58,11 @@ bash scripts/check_factory_patrol_demo_runtime.sh
 non-Nav2 Gazebo/RViz showcase. `check_factory_patrol_runtime_topics.sh` requires
 a running ROS2 graph and prints topic counts, `/scan` QoS hints, sampled frame
 IDs, and odom TF connectivity diagnostics.
+
+`prepare_phase3_detector_model.sh` explicitly downloads and verifies the
+official OpenCV Zoo YOLOX-S model into the user cache. Normal ROS launch never
+downloads weights. With the detector-mode demo running,
+`check_factory_patrol_detector_runtime.sh` validates the real 2D-to-3D chain.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 

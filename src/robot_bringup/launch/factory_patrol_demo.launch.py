@@ -14,6 +14,10 @@ def generate_launch_description():
     use_localization_health = LaunchConfiguration("use_localization_health")
     use_mission_runner = LaunchConfiguration("use_mission_runner")
     use_geometry_validation = LaunchConfiguration("use_geometry_validation")
+    use_detector = LaunchConfiguration("use_detector")
+    geometry_input_mode = LaunchConfiguration("geometry_input_mode")
+    detector_model_path = LaunchConfiguration("detector_model_path")
+    perception_debug_image = LaunchConfiguration("perception_debug_image")
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
@@ -32,8 +36,8 @@ def generate_launch_description():
     mission_runner_launch = PathJoinSubstitution(
         [FindPackageShare("robot_tasks"), "launch", "mission_runner.launch.py"]
     )
-    geometry_validation_launch = PathJoinSubstitution(
-        [FindPackageShare("robot_perception"), "launch", "geometry_validation.launch.py"]
+    perception_launch = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "launch", "perception.launch.py"]
     )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
@@ -70,6 +74,10 @@ def generate_launch_description():
             DeclareLaunchArgument("use_localization_health", default_value="true"),
             DeclareLaunchArgument("use_mission_runner", default_value="true"),
             DeclareLaunchArgument("use_geometry_validation", default_value="true"),
+            DeclareLaunchArgument("use_detector", default_value="false"),
+            DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
+            DeclareLaunchArgument("detector_model_path", default_value=""),
+            DeclareLaunchArgument("perception_debug_image", default_value="true"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
@@ -122,13 +130,17 @@ def generate_launch_description():
                 }.items(),
             ),
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(geometry_validation_launch),
+                PythonLaunchDescriptionSource(perception_launch),
                 condition=IfCondition(use_geometry_validation),
                 launch_arguments={
                     "use_sim_time": use_sim_time,
                     "publish_sim_map_tf": PythonExpression(
                         ["'", use_nav2, "' == 'false'"]
                     ),
+                    "detector_enabled": use_detector,
+                    "geometry_input_mode": geometry_input_mode,
+                    "model_path": detector_model_path,
+                    "debug_image_enabled": perception_debug_image,
                 }.items(),
             ),
             Node(

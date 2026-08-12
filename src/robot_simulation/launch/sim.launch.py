@@ -1,8 +1,18 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    EnvironmentVariable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -13,6 +23,9 @@ def generate_launch_description():
     label_scale = LaunchConfiguration("label_scale")
     world_file = LaunchConfiguration("world_file")
     world_name = LaunchConfiguration("world_name")
+    simulation_models = PathJoinSubstitution(
+        [FindPackageShare("robot_simulation"), "models"]
+    )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "indoor_room.sdf"]
     )
@@ -32,6 +45,14 @@ def generate_launch_description():
             DeclareLaunchArgument("label_scale", default_value="0.55"),
             DeclareLaunchArgument("world_file", default_value=default_world_file),
             DeclareLaunchArgument("world_name", default_value="indoor_room"),
+            SetEnvironmentVariable(
+                "GZ_SIM_RESOURCE_PATH",
+                [
+                    simulation_models,
+                    ":",
+                    EnvironmentVariable("GZ_SIM_RESOURCE_PATH", default_value=""),
+                ],
+            ),
             ExecuteProcess(
                 cmd=["gz", "sim", "-r", world_file],
                 condition=IfCondition(use_gui),

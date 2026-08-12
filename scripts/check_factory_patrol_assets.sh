@@ -56,11 +56,28 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "${MAP_README}" "${DEMO_LAUNCH}" "${RUN_SCRIPT}" "${SIM_LAUNCH}" \
   "${ROBOT_XACRO}" "${SHOWCASE_RVIZ}" "${PERCEPTION_PACKAGE}/CMakeLists.txt" \
   "${PERCEPTION_PACKAGE}/package.xml" "${PERCEPTION_PACKAGE}/config/depth.yaml" \
+  "${PERCEPTION_PACKAGE}/config/detector.yaml" \
   "${PERCEPTION_PACKAGE}/launch/geometry_validation.launch.py" \
+  "${PERCEPTION_PACKAGE}/launch/perception.launch.py" \
+  "${PERCEPTION_PACKAGE}/robot_perception/detector_backend.py" \
+  "${PERCEPTION_PACKAGE}/robot_perception/detector_node.py" \
+  "${PERCEPTION_PACKAGE}/test/test_detection_utils.py" \
   "${PERCEPTION_PACKAGE}/test/depth_projector_test.cpp" \
+  "src/robot_simulation/models/person_standing/model.sdf" \
+  "src/robot_simulation/models/person_standing/LICENSE" \
+  "src/robot_simulation/models/person_standing/ATTRIBUTION.md" \
+  "src/robot_simulation/models/person_standing/meshes/standing.dae" \
+  "scripts/prepare_phase3_detector_model.sh" \
+  "scripts/check_factory_patrol_detector_runtime.sh" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
+
+require_grep '<static>true</static>' "src/robot_simulation/models/person_standing/model.sdf" "Phase 3 person target must be static"
+if grep -q '<collision' "${ROOT_DIR}/src/robot_simulation/models/person_standing/model.sdf"; then
+  fail "Phase 3 person target must remain visual-only"
+fi
+pass "Phase 3 person target is visual-only"
 
 require_grep "factory_patrol" "${WORLD_FILE}" "factory patrol world name is missing"
 require_grep "factory_patrol_main_road" "${WORLD_FILE}" "main patrol road visual is missing"
@@ -92,6 +109,8 @@ for world in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}"; do
   require_camera_sensor_grep '<height>480</height>' "${world}" "RGB-D image height is missing from ${world}"
   require_grep 'phase2_geometry_validation_target' "${world}" "Phase 2 geometry target is missing from ${world}"
   require_grep 'P_gt: \[2.70, 0.00, 0.495\]' "${world}" "Phase 2 ground truth is not documented in ${world}"
+  require_grep 'phase3_person_detection_target' "${world}" "Phase 3 person target is missing from ${world}"
+  require_grep 'model://person_standing' "${world}" "Phase 3 person asset URI is missing from ${world}"
 done
 
 require_grep 'name="camera_color_optical_frame"' "${ROBOT_XACRO}" "camera optical frame is missing from robot description"
@@ -116,9 +135,13 @@ require_grep "world_name" "${SIM_LAUNCH}" "sim.launch.py does not expose world_n
 require_grep "/camera/color/image_raw" "${SIM_LAUNCH}" "RGB image bridge/remapping is missing"
 require_grep "/camera/depth/image_raw" "${SIM_LAUNCH}" "depth image bridge/remapping is missing"
 require_grep "/camera/color/camera_info" "${SIM_LAUNCH}" "camera info bridge/remapping is missing"
+require_grep "GZ_SIM_RESOURCE_PATH" "${SIM_LAUNCH}" "Gazebo model resource path setup is missing"
 require_grep "/camera/color/image_raw" "${SHOWCASE_RVIZ}" "Factory Patrol RViz RGB display is missing"
 require_grep "/perception/markers" "${SHOWCASE_RVIZ}" "Factory Patrol RViz geometry marker is missing"
-require_grep "geometry_validation.launch.py" "${DEMO_LAUNCH}" "Factory Patrol launch does not include Phase 2 geometry validation"
+require_grep "/perception/debug_image" "${SHOWCASE_RVIZ}" "Factory Patrol RViz detector debug image is missing"
+require_grep "perception.launch.py" "${DEMO_LAUNCH}" "Factory Patrol launch does not include perception"
+require_grep "geometry_input_mode" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose geometry input mode"
+require_grep "use_detector" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose detector enablement"
 require_grep "robot_perception" "${DEMO_LAUNCH}" "Factory Patrol launch does not reference robot_perception"
 require_grep "factory_patrol.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not use factory world"
 require_grep "world_file" "${DEMO_LAUNCH}" "factory patrol launch does not expose world override"
@@ -136,6 +159,8 @@ require_grep "camera_color_optical_frame" "${SCENARIO_DOC}" "simulation docs do 
 require_grep "/camera/depth/image_raw" "${SCENARIO_DOC}" "simulation docs do not document the depth topic"
 require_grep "/perception/geometry/map_point" "${SCENARIO_DOC}" "simulation docs do not document the Phase 2 map point"
 require_grep "ApproximateTime" "${SCENARIO_DOC}" "simulation docs do not document Phase 2 synchronization"
+require_grep "/perception/detections_2d" "${SCENARIO_DOC}" "simulation docs do not document Phase 3 detections"
+require_grep "OpenCV Zoo" "${SCENARIO_DOC}" "simulation docs do not document detector model setup"
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
@@ -144,9 +169,12 @@ require_grep "class DepthProjector" "${PERCEPTION_PACKAGE}/include/robot_percept
 require_grep "32FC1" "${PERCEPTION_PACKAGE}/src/depth_projector.cpp" "32FC1 depth support is missing"
 require_grep "lookupTransform" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "observation-time TF lookup is missing"
 require_grep "ApproximateTime" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "camera stream synchronization is missing"
-if rg -n 'cmd_vel|DetectorBackend|TargetManager|Detection2D' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
-  fail "robot_perception contains out-of-scope control or Phase 3+ implementation"
+require_grep "class DetectorBackend" "${PERCEPTION_PACKAGE}/robot_perception/detector_backend.py" "replaceable detector backend is missing"
+require_grep "vision_msgs" "${PERCEPTION_PACKAGE}/package.xml" "standard 2D detection interface dependency is missing"
+require_grep "geometry_input_mode" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "synthetic/detector geometry selection is missing"
+if rg -n 'cmd_vel|TargetManager|target_id|objects_3d|perception/events|safety_event' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
+  fail "robot_perception contains out-of-scope control or Phase 4+ implementation"
 fi
-pass "robot_perception stays within Phase 2 geometry scope"
+pass "robot_perception stays within the Phase 3 detector and geometry scope"
 
 pass "factory patrol world, config assets, map note, demo entry, scripts, and docs are present"

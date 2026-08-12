@@ -10,6 +10,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     params_file = LaunchConfiguration("params_file")
+    geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     default_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "depth.yaml"]
     )
@@ -26,6 +27,11 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("params_file", default_value=default_params),
+            DeclareLaunchArgument(
+                "geometry_input_mode",
+                default_value="synthetic",
+                description="Geometry source: synthetic or detector.",
+            ),
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
@@ -38,7 +44,13 @@ def generate_launch_description():
             Node(
                 package="robot_perception",
                 executable="geometry_validation_node",
-                parameters=[params_file, {"use_sim_time": use_sim_time}],
+                parameters=[
+                    params_file,
+                    {
+                        "use_sim_time": use_sim_time,
+                        "geometry_input_mode": geometry_input_mode,
+                    },
+                ],
                 output="screen",
             ),
         ]

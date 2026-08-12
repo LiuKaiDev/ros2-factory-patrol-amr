@@ -351,6 +351,116 @@ safety, or publish velocity commands. Quantitative accuracy must be reported
 from an executed simulation run; target placement alone is not an accuracy
 result.
 
+### Phase 3 Real 2D Object Detection
+
+Phase 3 adds a replaceable Python detector adapter in the existing
+`robot_perception` package. The supplied backend is OpenCV-DNN YOLOX-S with
+COCO classes. It consumes RGB images and publishes the standard
+`vision_msgs/msg/Detection2DArray` contract:
+
+```text
+/camera/color/image_raw
+  -> DetectorBackend (OpenCV-DNN YOLOX-S)
+  -> /perception/detections_2d
+  -> ApproximateTime with depth + CameraInfo
+  -> existing central-ROI median DepthProjector
+  -> camera PointStamped + observation-time TF
+  -> map PointStamped + sphere/text RViz markers
+```
+
+The detector copies the source image header to both `Detection2DArray` and
+every `Detection2D`; no inference-completion timestamp is substituted. In
+`geometry_input_mode:=detector`, the geometry node synchronizes that detection
+header with depth and CameraInfo. The detection/source-image timestamp remains
+authoritative for both output points and the TF lookup. Multiple detections in
+one frame are processed independently. Invalid depth suppresses only that 3D
+result and never creates a false point.
+
+Phase 3 topics:
+
+| Topic | Type | Contents/frame |
+| --- | --- | --- |
+| `/perception/detections_2d` | `vision_msgs/msg/Detection2DArray` | class, confidence, pixel bbox; `camera_color_optical_frame` |
+| `/perception/debug_image` | `sensor_msgs/msg/Image` | optional RGB boxes/labels; `camera_color_optical_frame` |
+| `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | valid median-depth projection; optical frame |
+| `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | observation-time TF result; `map` |
+| `/perception/markers` | `visualization_msgs/msg/Marker` | sphere plus class/confidence/depth/map-position text |
+
+Detector parameters are in `src/robot_perception/config/detector.yaml`:
+
+| Parameter | Default | Purpose |
+| --- | --- | --- |
+| `backend` | `opencv_yolox` | Replaceable backend selection |
+| `model_path` | empty | Empty resolves to the verified user-cache path |
+| `confidence_threshold` | `0.45` | Minimum published class confidence |
+| `nms_threshold` | `0.5` | Class-aware nonmaximum suppression IoU |
+| `input_size` | `640` | Square YOLOX input size |
+| `device` | `auto` | `auto`, `cpu`, or OpenCV-DNN `cuda` |
+| `allowed_classes` | `[person]` | Published COCO class allowlist; empty allows all |
+| `debug_image_enabled` | `true` | Enable annotated debug image |
+
+The ONNX weights are not stored in Git and normal launch never downloads a
+model. Fetch and SHA-256 verify the official OpenCV Zoo model explicitly:
+
+```bash
+sudo apt install ros-jazzy-cv-bridge ros-jazzy-vision-msgs \
+  python3-opencv python3-numpy
+bash scripts/prepare_phase3_detector_model.sh
+```
+
+The script installs `object_detection_yolox_2022nov.onnx` under
+`${XDG_CACHE_HOME:-$HOME/.cache}/robot_perception/models` by default. Override
+the directory with `ROBOT_PERCEPTION_MODEL_DIR`, or pass an explicit launch
+path with `detector_model_path:=/absolute/model.onnx`. The download URL may be
+overridden with `ROBOT_PERCEPTION_MODEL_URL`; the same fixed SHA-256 is always
+required before installation. The backend uses the
+system `python3-opencv` and `python3-numpy`; CUDA is used only when requested
+and available through the installed OpenCV build. An absent, truncated, or
+unsupported model disables inference with an error log while the ROS node
+stays alive and publishes empty, correctly stamped detection arrays.
+
+Both Factory Patrol worlds include the visual-only
+`phase3_person_detection_target`, offset from the Phase 2 center-ray target so
+synthetic regression remains unchanged. Its source, license, and mechanical
+texture reduction are recorded beside the model in
+`src/robot_simulation/models/person_standing/ATTRIBUTION.md`.
+
+Run the real detector path:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false \
+  use_detector:=true geometry_input_mode:=detector
+```
+
+Keep the Phase 2 regression path by leaving `use_detector:=false` and
+`geometry_input_mode:=synthetic` (both defaults). These switches also allow a
+different node implementing the same `Detection2DArray` contract to replace
+YOLOX without changing depth projection.
+
+Validation commands:
+
+```bash
+colcon test --packages-select robot_perception
+bash scripts/check_factory_patrol_assets.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
+FACTORY_PATROL_DETECTOR_MODE=true bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/check_factory_patrol_detector_runtime.sh
+ros2 topic echo --once /perception/detections_2d
+ros2 topic echo --once /perception/geometry/map_point
+ros2 topic echo --once /perception/markers
+```
+
+Inference latency is measured around actual backend inference and logged as
+current and running-average milliseconds. The runtime validator requires a
+real `person` detection and the resulting camera/map points and text marker;
+it does not synthesize detections. Detector failures and empty scenes yield no
+3D points. Phase 3 does not assign target IDs, track or stabilize objects,
+publish a custom 3D object contract, create perception events, alter mission or
+safety state, or publish any velocity command. Those remain outside this phase.
+
 Current / planned boundary:
 
 - Current in Phase 5A: world/config assets, map-generation note, demo launch

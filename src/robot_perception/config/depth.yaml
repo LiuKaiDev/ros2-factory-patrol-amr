@@ -1,6 +1,8 @@
 geometry_validation_node:
   ros__parameters:
     use_sim_time: true
+    geometry_input_mode: synthetic
+    detection_topic: /perception/detections_2d
     min_depth: 0.2
     max_depth: 8.0
     roi_ratio: 0.3
@@ -10,12 +12,13 @@ geometry_validation_node:
       center_v: 240.0
       width: 80.0
       height: 80.0
-    sync_queue_size: 10
+    sync_queue_size: 30
     sync_slop_sec: 0.05
     tf_timeout_sec: 0.1
     camera_frame: camera_color_optical_frame
     target_frame: map
     marker_scale: 0.18
+    marker_lifetime_sec: 0.75
     marker_namespace: geometry_validation
     ground_truth:
       enabled: true

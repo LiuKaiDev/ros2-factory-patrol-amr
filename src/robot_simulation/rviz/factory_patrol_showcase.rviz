@@ -59,6 +59,16 @@ Visualization Manager:
         Reliability Policy: Best Effort
         History Policy: Keep Last
         Depth: 5
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: Detector Debug Image
+      Normalize Range: true
+      Topic:
+        Value: /perception/debug_image
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 2
     - Class: rviz_default_plugins/Odometry
       Enabled: true
       Name: Odometry
@@ -95,7 +105,7 @@ Visualization Manager:
         Depth: 5
     - Class: rviz_default_plugins/Marker
       Enabled: true
-      Name: Geometry Validation Point
+      Name: Perception 3D Result
       Marker Topic:
         Value: /perception/markers
         Durability Policy: Volatile
