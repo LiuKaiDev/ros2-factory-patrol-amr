@@ -85,6 +85,22 @@
       </link>
     </model>
 
+    <!-- Phase 2 visual-only target. Center-ray/front-face P_gt: [2.70, 0.00, 0.495]. -->
+    <model name="phase2_geometry_validation_target">
+      <static>true</static>
+      <pose>2.76 0 0.66 0 0 0</pose>
+      <link name="target_link">
+        <visual name="target_visual">
+          <geometry><box><size>0.12 0.80 0.80</size></box></geometry>
+          <material>
+            <ambient>0.08 0.80 0.20 1</ambient>
+            <diffuse>0.08 0.95 0.25 1</diffuse>
+            <emissive>0.02 0.18 0.04 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
     <model name="factory_patrol_zone_overlays">
       <static>true</static>
       <pose>0 0 0.096 0 0 0</pose>
@@ -1275,6 +1291,26 @@
           <update_rate>100</update_rate>
           <always_on>true</always_on>
         </sensor>
+        <sensor name="rgbd_camera" type="rgbd_camera">
+          <pose>0.58 0 0.42 0 0 0</pose>
+          <topic>/camera</topic>
+          <gz_frame_id>camera_color_optical_frame</gz_frame_id>
+          <update_rate>15</update_rate>
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <camera>
+            <horizontal_fov>1.0471975512</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>10.0</far>
+            </clip>
+            <optical_frame_id>camera_color_optical_frame</optical_frame_id>
+          </camera>
+        </sensor>
       </link>
       <link name="left_wheel">
         <pose>0 0.43 0 1.57079632679 0 0</pose>
@@ -1401,4 +1437,3 @@
     </gui>
   </world>
 </sdf>
-

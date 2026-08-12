@@ -26,6 +26,16 @@ require_grep() {
   pass "${file} contains ${pattern}"
 }
 
+require_camera_sensor_grep() {
+  local pattern="$1"
+  local file="$2"
+  local message="$3"
+  local sensor_block
+  sensor_block="$(sed -n '/<sensor name="rgbd_camera" type="rgbd_camera">/,/<\/sensor>/p' "${ROOT_DIR}/${file}")"
+  grep -q "${pattern}" <<<"${sensor_block}" || fail "${message}"
+  pass "${file} RGB-D sensor contains ${pattern}"
+}
+
 WORLD_FILE="src/robot_simulation/worlds/factory_patrol.sdf"
 INDUSTRIAL_WORLD_FILE="src/robot_simulation/worlds/factory_patrol_industrial.sdf"
 STATIONS_FILE="src/robot_simulation/config/factory_patrol_stations.yaml"
@@ -35,12 +45,19 @@ MAP_README="src/robot_navigation/maps/factory_patrol_map_README.md"
 DEMO_LAUNCH="src/robot_bringup/launch/factory_patrol_demo.launch.py"
 RUN_SCRIPT="scripts/run_factory_patrol_demo.sh"
 SIM_LAUNCH="src/robot_simulation/launch/sim.launch.py"
+ROBOT_XACRO="src/robot_description/urdf/robot.urdf.xacro"
+SHOWCASE_RVIZ="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
+PERCEPTION_PACKAGE="src/robot_perception"
 SCENARIO_DOC="docs/simulation_scenarios.md"
 ARCH_DOC="docs/architecture.md"
 README_FILE="README.md"
 
 for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZONES_FILE}" "${ROUTE_FILE}" \
   "${MAP_README}" "${DEMO_LAUNCH}" "${RUN_SCRIPT}" "${SIM_LAUNCH}" \
+  "${ROBOT_XACRO}" "${SHOWCASE_RVIZ}" "${PERCEPTION_PACKAGE}/CMakeLists.txt" \
+  "${PERCEPTION_PACKAGE}/package.xml" "${PERCEPTION_PACKAGE}/config/depth.yaml" \
+  "${PERCEPTION_PACKAGE}/launch/geometry_validation.launch.py" \
+  "${PERCEPTION_PACKAGE}/test/depth_projector_test.cpp" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
@@ -65,6 +82,23 @@ require_grep "industrial_v2_factory_layout" "${INDUSTRIAL_WORLD_FILE}" "industri
 require_grep "24 16 0.05" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 floor size is not documented in SDF"
 require_grep "GzSceneManager" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 Scene Manager plugin is missing"
 require_grep "CameraTracking" "${INDUSTRIAL_WORLD_FILE}" "industrial V2 Camera Tracking plugin is missing"
+for world in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}"; do
+  require_grep 'sensor name="rgbd_camera" type="rgbd_camera"' "${world}" "RGB-D camera sensor is missing from ${world}"
+  require_camera_sensor_grep '<pose>0.58 0 0.42 0 0 0</pose>' "${world}" "RGB-D camera extrinsic is inconsistent in ${world}"
+  require_camera_sensor_grep '<topic>/camera</topic>' "${world}" "RGB-D Gazebo topic root is missing from ${world}"
+  require_camera_sensor_grep '<gz_frame_id>camera_color_optical_frame</gz_frame_id>' "${world}" "RGB-D frame ID is missing from ${world}"
+  require_camera_sensor_grep '<optical_frame_id>camera_color_optical_frame</optical_frame_id>' "${world}" "camera info optical frame is missing from ${world}"
+  require_camera_sensor_grep '<width>640</width>' "${world}" "RGB-D image width is missing from ${world}"
+  require_camera_sensor_grep '<height>480</height>' "${world}" "RGB-D image height is missing from ${world}"
+  require_grep 'phase2_geometry_validation_target' "${world}" "Phase 2 geometry target is missing from ${world}"
+  require_grep 'P_gt: \[2.70, 0.00, 0.495\]' "${world}" "Phase 2 ground truth is not documented in ${world}"
+done
+
+require_grep 'name="camera_color_optical_frame"' "${ROBOT_XACRO}" "camera optical frame is missing from robot description"
+require_grep 'rpy="-1.57079632679 0 -1.57079632679"' "${ROBOT_XACRO}" "camera optical-frame orientation is not conventional"
+require_grep 'name="camera_x" value="0.58"' "${ROBOT_XACRO}" "authoritative camera X extrinsic is missing"
+require_grep 'name="camera_y" value="0.0"' "${ROBOT_XACRO}" "authoritative camera Y extrinsic is missing"
+require_grep 'name="camera_z" value="0.42"' "${ROBOT_XACRO}" "authoritative camera Z extrinsic is missing"
 
 require_grep "station_A" "${STATIONS_FILE}" "station_A config is missing"
 require_grep "station_B" "${STATIONS_FILE}" "station_B config is missing"
@@ -79,6 +113,13 @@ require_grep "station_C" "${ROUTE_FILE}" "route does not reference station_C"
 
 require_grep "world_file" "${SIM_LAUNCH}" "sim.launch.py does not expose world_file"
 require_grep "world_name" "${SIM_LAUNCH}" "sim.launch.py does not expose world_name"
+require_grep "/camera/color/image_raw" "${SIM_LAUNCH}" "RGB image bridge/remapping is missing"
+require_grep "/camera/depth/image_raw" "${SIM_LAUNCH}" "depth image bridge/remapping is missing"
+require_grep "/camera/color/camera_info" "${SIM_LAUNCH}" "camera info bridge/remapping is missing"
+require_grep "/camera/color/image_raw" "${SHOWCASE_RVIZ}" "Factory Patrol RViz RGB display is missing"
+require_grep "/perception/markers" "${SHOWCASE_RVIZ}" "Factory Patrol RViz geometry marker is missing"
+require_grep "geometry_validation.launch.py" "${DEMO_LAUNCH}" "Factory Patrol launch does not include Phase 2 geometry validation"
+require_grep "robot_perception" "${DEMO_LAUNCH}" "Factory Patrol launch does not reference robot_perception"
 require_grep "factory_patrol.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not use factory world"
 require_grep "world_file" "${DEMO_LAUNCH}" "factory patrol launch does not expose world override"
 require_grep "factory_patrol_industrial.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not mention industrial V2 world"
@@ -91,8 +132,21 @@ require_grep "factory_patrol_industrial.sdf" "${SCENARIO_DOC}" "simulation docs 
 require_grep "factory_patrol_stations.yaml" "${SCENARIO_DOC}" "simulation docs do not document stations"
 require_grep "factory_patrol_zones.yaml" "${SCENARIO_DOC}" "simulation docs do not document zones"
 require_grep "factory_patrol_route.yaml" "${SCENARIO_DOC}" "simulation docs do not document route"
+require_grep "camera_color_optical_frame" "${SCENARIO_DOC}" "simulation docs do not document the camera optical frame"
+require_grep "/camera/depth/image_raw" "${SCENARIO_DOC}" "simulation docs do not document the depth topic"
+require_grep "/perception/geometry/map_point" "${SCENARIO_DOC}" "simulation docs do not document the Phase 2 map point"
+require_grep "ApproximateTime" "${SCENARIO_DOC}" "simulation docs do not document Phase 2 synchronization"
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
+
+require_grep "class DepthProjector" "${PERCEPTION_PACKAGE}/include/robot_perception/depth_projector.hpp" "DepthProjector class is missing"
+require_grep "32FC1" "${PERCEPTION_PACKAGE}/src/depth_projector.cpp" "32FC1 depth support is missing"
+require_grep "lookupTransform" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "observation-time TF lookup is missing"
+require_grep "ApproximateTime" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "camera stream synchronization is missing"
+if rg -n 'cmd_vel|DetectorBackend|TargetManager|Detection2D' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
+  fail "robot_perception contains out-of-scope control or Phase 3+ implementation"
+fi
+pass "robot_perception stays within Phase 2 geometry scope"
 
 pass "factory patrol world, config assets, map note, demo entry, scripts, and docs are present"

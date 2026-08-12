@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -13,6 +13,7 @@ def generate_launch_description():
     use_nav2 = LaunchConfiguration("use_nav2")
     use_localization_health = LaunchConfiguration("use_localization_health")
     use_mission_runner = LaunchConfiguration("use_mission_runner")
+    use_geometry_validation = LaunchConfiguration("use_geometry_validation")
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
@@ -30,6 +31,9 @@ def generate_launch_description():
     )
     mission_runner_launch = PathJoinSubstitution(
         [FindPackageShare("robot_tasks"), "launch", "mission_runner.launch.py"]
+    )
+    geometry_validation_launch = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "launch", "geometry_validation.launch.py"]
     )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
@@ -65,6 +69,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_nav2", default_value="false"),
             DeclareLaunchArgument("use_localization_health", default_value="true"),
             DeclareLaunchArgument("use_mission_runner", default_value="true"),
+            DeclareLaunchArgument("use_geometry_validation", default_value="true"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
@@ -114,6 +119,16 @@ def generate_launch_description():
                     "preflight_zones_file": zones_file,
                     "preflight_map_name": "factory_patrol",
                     "return_to_dock_on_low_battery": "false",
+                }.items(),
+            ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(geometry_validation_launch),
+                condition=IfCondition(use_geometry_validation),
+                launch_arguments={
+                    "use_sim_time": use_sim_time,
+                    "publish_sim_map_tf": PythonExpression(
+                        ["'", use_nav2, "' == 'false'"]
+                    ),
                 }.items(),
             ),
             Node(

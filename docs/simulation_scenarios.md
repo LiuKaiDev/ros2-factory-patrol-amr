@@ -179,6 +179,178 @@ keep the AMR inspection loop visually separated from racks, rails, walls, and
 workcell props. These visual assets do not claim runtime mission success by
 themselves.
 
+### Factory Patrol RGB-D Camera
+
+The primary `mobile_robot` in both `factory_patrol.sdf` and
+`factory_patrol_industrial.sdf` has one simulated RGB-D camera. The same camera
+mount is represented in `robot.urdf.xacro`; the Xacro properties are the
+authoritative extrinsic and the static asset check verifies that both worlds
+mirror it.
+
+Camera parameters:
+
+| Parameter | Value |
+| --- | --- |
+| Parent frame | `base_link` |
+| Camera body frame | `camera_link` |
+| Optical frame | `camera_color_optical_frame` |
+| `base_link -> camera_link` translation | `x=0.58 m, y=0.0 m, z=0.42 m` |
+| `camera_link -> camera_color_optical_frame` rotation | RPY `-pi/2, 0, -pi/2` |
+| Resolution | `640 x 480` |
+| Update rate | `15 Hz` |
+| Horizontal field of view | `1.0471975512 rad` (60 degrees) |
+| Depth clip range | `0.1 m` to `10.0 m` |
+
+The optical frame follows the ROS camera convention: `+Z` forward, `+X` right,
+and `+Y` down. RGB, depth, and CameraInfo headers use
+`camera_color_optical_frame`.
+
+ROS topics exposed by the existing `ros_gz_bridge` process:
+
+| Topic | Type |
+| --- | --- |
+| `/camera/color/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/depth/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/color/camera_info` | `sensor_msgs/msg/CameraInfo` |
+
+The Factory Patrol showcase RViz configuration displays the RGB image by
+default. Depth visualization is not enabled by default.
+
+Static validation:
+
+```bash
+bash scripts/check_factory_patrol_assets.sh
+```
+
+Runtime validation after starting the Factory Patrol demo:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
+```
+
+In a second sourced shell:
+
+```bash
+bash scripts/check_factory_patrol_runtime_topics.sh
+ros2 topic info /camera/color/image_raw
+ros2 topic info /camera/depth/image_raw
+ros2 topic echo --once /camera/color/camera_info
+ros2 run tf2_ros tf2_echo base_link camera_color_optical_frame
+```
+
+The runtime check verifies topic presence and types, nonempty RGB/depth payloads,
+valid nonzero CameraInfo intrinsics, camera header frame IDs, and the camera TF.
+It does not validate detection, 3D projection, visual navigation, or perception
+safety behavior.
+
+### Phase 2 RGB-D Geometry Validation
+
+Phase 2 adds the minimal `robot_perception` package for validating depth
+projection and timestamped TF without an object detector. The pipeline is:
+
+```text
+synthetic bbox + synchronized RGB/depth/CameraInfo
+  -> central-ROI median depth
+  -> PointStamped in camera_color_optical_frame
+  -> TF2 lookup at the depth observation timestamp
+  -> PointStamped in map
+  -> RViz sphere marker
+```
+
+Inputs:
+
+| Topic | Type |
+| --- | --- |
+| `/camera/color/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/depth/image_raw` | `sensor_msgs/msg/Image` (`32FC1`) |
+| `/camera/color/camera_info` | `sensor_msgs/msg/CameraInfo` |
+
+Outputs:
+
+| Topic | Type | Frame |
+| --- | --- | --- |
+| `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | `camera_color_optical_frame` |
+| `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | `map` |
+| `/perception/markers` | `visualization_msgs/msg/Marker` | `map` |
+
+The three camera streams use `message_filters::ApproximateTime` with a default
+50 ms maximum interval. The depth message timestamp is the authoritative
+observation timestamp for both PointStamped outputs and the TF lookup. The node
+does not fall back to latest TF. A missing observation-time transform suppresses
+the map point and marker while leaving the camera point and node alive.
+
+For a bbox center `(u, v)`, median depth `Z`, and CameraInfo intrinsics, the
+camera-frame point is:
+
+```text
+X = (u - cx) * Z / fx
+Y = (v - cy) * Z / fy
+Z = median valid depth
+```
+
+Depth is sampled from the central portion of the bbox. Defaults in
+`src/robot_perception/config/depth.yaml` are a `0.3` ROI ratio, `0.2 m` minimum,
+`8.0 m` maximum, median statistic, and at least five valid samples. Zero, NaN,
+Inf, below-range, and above-range values are rejected. Invalid depth or
+intrinsics produce no point.
+
+Both Factory Patrol worlds contain a visual-only, non-colliding
+`phase2_geometry_validation_target`. The target visual is centered at
+`[2.76, 0.00, 0.66]`; its front face is at `x = 2.70`. The default bbox center
+ray is at the settled camera/TF height `z = 0.495`, so the relevant known
+surface intersection is `P_gt = [2.70, 0.00, 0.495]` in the map convention.
+The synthetic bbox is centered at `(320, 240)` and can be changed through ROS
+parameters without recompilation.
+
+Gazebo's freely settling model can move slightly before wheel odometry starts
+tracking motion. That passive displacement is not represented by the
+differential-drive odometry frame. Record the measured `P_est` versus `P_gt`
+error from the geometry node log rather than assuming exact equality; this is
+a simulator/odometry-origin limitation, not a latest-TF fallback.
+
+When Factory Patrol runs without Nav2/AMCL, the Phase 2 launch explicitly
+publishes an identity `map -> odom` static transform for this simulation
+validation only. With `use_nav2:=true`, that simulation transform is disabled
+and AMCL remains authoritative. No transform fallback exists in the geometry
+node.
+
+Launch the integrated validation:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false use_geometry_validation:=true
+```
+
+Or launch only the geometry component against an existing camera/TF runtime:
+
+```bash
+ros2 launch robot_perception geometry_validation.launch.py \
+  publish_sim_map_tf:=true
+```
+
+Validation commands:
+
+```bash
+colcon test --packages-select robot_perception
+colcon test-result --verbose
+bash scripts/check_factory_patrol_assets.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
+ros2 topic echo --once /perception/geometry/camera_point
+ros2 topic echo --once /perception/geometry/map_point
+ros2 topic echo --once /perception/markers
+```
+
+Known limitations: Phase 2 uses one configurable synthetic bbox and one static
+validation target. It does not detect or track objects, associate targets across
+frames, filter positions over time, create perception events, affect missions or
+safety, or publish velocity commands. Quantitative accuracy must be reported
+from an executed simulation run; target placement alone is not an accuracy
+result.
+
 Current / planned boundary:
 
 - Current in Phase 5A: world/config assets, map-generation note, demo launch

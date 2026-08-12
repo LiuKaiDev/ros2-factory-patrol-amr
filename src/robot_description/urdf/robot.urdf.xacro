@@ -15,6 +15,10 @@
   <xacro:property name="wheel_radius" value="0.075"/>
   <xacro:property name="wheel_width" value="0.045"/>
   <xacro:property name="wheel_separation" value="0.43"/>
+  <!-- Authoritative RGB-D camera extrinsic; Factory Patrol SDF assets mirror it. -->
+  <xacro:property name="camera_x" value="0.58"/>
+  <xacro:property name="camera_y" value="0.0"/>
+  <xacro:property name="camera_z" value="0.42"/>
 
   <material name="body_blue"><color rgba="0.22 0.30 0.42 1.0"/></material>
   <material name="wheel_black"><color rgba="0.05 0.05 0.06 1.0"/></material>
@@ -113,7 +117,14 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="0.28 0 0.2" rpy="0 0 0"/>
+    <origin xyz="${camera_x} ${camera_y} ${camera_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera_color_optical_frame"/>
+  <joint name="camera_color_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_color_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
   </joint>
 
   <xacro:if value="$(arg use_ros2_control_hardware)">
@@ -186,10 +197,24 @@
     </gazebo>
 
     <gazebo reference="camera_link">
-      <sensor type="camera" name="camera">
-        <topic>camera</topic>
+      <sensor type="rgbd_camera" name="rgbd_camera">
+        <topic>/camera</topic>
+        <gz_frame_id>camera_color_optical_frame</gz_frame_id>
         <update_rate>15</update_rate>
-        <camera><horizontal_fov>1.2</horizontal_fov><image><width>640</width><height>480</height></image></camera>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <camera>
+          <horizontal_fov>1.0471975512</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>10.0</far>
+          </clip>
+          <optical_frame_id>camera_color_optical_frame</optical_frame_id>
+        </camera>
       </sensor>
     </gazebo>
   </xacro:if>

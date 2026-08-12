@@ -49,6 +49,16 @@ Visualization Manager:
       Style: Points
       Size (m): 0.018
       Color: 210; 112; 82
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: RGB Camera
+      Normalize Range: true
+      Topic:
+        Value: /camera/color/image_raw
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        History Policy: Keep Last
+        Depth: 5
     - Class: rviz_default_plugins/Odometry
       Enabled: true
       Name: Odometry
@@ -80,6 +90,15 @@ Visualization Manager:
       Marker Topic:
         Value: /amr_simulation/markers
         Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Geometry Validation Point
+      Marker Topic:
+        Value: /perception/markers
+        Durability Policy: Volatile
         Reliability Policy: Reliable
         History Policy: Keep Last
         Depth: 5
