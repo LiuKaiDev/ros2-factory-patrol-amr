@@ -51,6 +51,7 @@ bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/prepare_phase3_detector_model.sh
 bash scripts/check_factory_patrol_detector_runtime.sh
 bash scripts/check_factory_patrol_target_manager_runtime.sh
+bash scripts/check_factory_patrol_visual_inspection_runtime.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -67,6 +68,11 @@ downloads weights. With the detector-mode demo running,
 `check_factory_patrol_target_manager_runtime.sh` reuses that live detector,
 depth, CameraInfo, and TF graph to validate stable IDs, lifecycle transitions,
 duplicate suppression, markers, and raw-versus-filtered position statistics.
+With the explicit Phase 5 validation profiles loaded,
+`check_factory_patrol_visual_inspection_runtime.sh` validates one accepted
+task-owned Nav2 approach, observation standoff and yaw, robot motion,
+completion feedback, the target's `PROCESSED` state, and the unchanged
+mux/Safety Gate velocity path.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 

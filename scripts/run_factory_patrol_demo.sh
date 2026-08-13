@@ -12,6 +12,7 @@ ZONES_FILE="src/robot_simulation/config/factory_patrol_zones.yaml"
 ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
 RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true"
+PHASE5_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true use_nav2:=true use_detector:=true geometry_input_mode:=detector use_visual_inspection:=true perception_max_inference_rate_hz:=0.5 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml visual_inspection_params:=\$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
 
 safe_source_setup() {
   local setup_file="$1"
@@ -29,9 +30,11 @@ Factory Patrol Gazebo + RViz demo helper
 Usage:
   bash scripts/run_factory_patrol_demo.sh
   bash scripts/run_factory_patrol_demo.sh --launch
+  bash scripts/run_factory_patrol_demo.sh --phase5
 
 Default mode prints the launch command and expected runtime topics.
 --launch starts the demo in this terminal.
+--phase5 starts the detector, visual inspection task, existing navigation adapter, and Nav2.
 EOF
 }
 
@@ -73,6 +76,8 @@ echo "  debug RViz:   src/robot_simulation/rviz/factory_patrol_debug.rviz"
 echo
 echo "[factory-patrol-demo] Launch command:"
 echo "  ${LAUNCH_CMD}"
+echo "[factory-patrol-demo] Phase 5 launch command:"
+echo "  ${PHASE5_LAUNCH_CMD}"
 echo
 echo "[factory-patrol-demo] Expected runtime topics:"
 cat <<'EOF'
@@ -87,6 +92,9 @@ cat <<'EOF'
   /localization/health
   /amr_simulation/markers
   /amr_simulation/demo_timeline
+  /perception/events
+  /inspection/observation_pose
+  /inspection/status
 EOF
 echo
 echo "[factory-patrol-demo] Runtime check after launch:"
@@ -99,6 +107,16 @@ case "${1:-}" in
     echo
     echo "[factory-patrol-demo] Running: ${LAUNCH_CMD}"
     exec ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
+    ;;
+  "--phase5")
+    echo
+    echo "[factory-patrol-demo] Running: ${PHASE5_LAUNCH_CMD}"
+    exec ros2 launch robot_bringup factory_patrol_demo.launch.py \
+      gui:=true use_rviz:=true use_nav2:=true use_detector:=true \
+      geometry_input_mode:=detector use_visual_inspection:=true \
+      perception_max_inference_rate_hz:=0.5 \
+      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml" \
+      visual_inspection_params:="$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
     ;;
   *)
     echo "FAIL: unknown argument: ${1}" >&2

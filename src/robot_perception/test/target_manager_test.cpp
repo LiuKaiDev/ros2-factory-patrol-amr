@@ -30,7 +30,13 @@ TargetManagerConfig Config(const std::size_t confirm_frames = 3U,
                            const std::size_t lost_frames = 5U,
                            const double max_match_distance = 0.5, const double ema_alpha = 0.4,
                            const double processed_cooldown_sec = 10.0) {
-    return {confirm_frames, lost_frames, max_match_distance, ema_alpha, processed_cooldown_sec};
+    TargetManagerConfig config;
+    config.confirm_frames = confirm_frames;
+    config.lost_frames = lost_frames;
+    config.max_match_distance = max_match_distance;
+    config.ema_alpha = ema_alpha;
+    config.processed_cooldown_sec = processed_cooldown_sec;
+    return config;
 }
 
 TEST(TargetManagerTest, NewObservationCreatesTentativeTarget) {
@@ -140,6 +146,22 @@ TEST(TargetManagerTest, LostTargetIsEventuallyRetired) {
     EXPECT_TRUE(manager.targets().empty());
 }
 
+TEST(TargetManagerTest, ConfiguredLostRetentionPreservesMissionTarget) {
+    auto config = Config(1U, 2U);
+    config.lost_retirement_frames = 8U;
+    TargetManager manager(config);
+    manager.Update({Observation(0.0)}, 1);
+    for (std::int64_t timestamp = 2; timestamp <= 8; ++timestamp) {
+        manager.Update({}, timestamp);
+    }
+
+    ASSERT_EQ(manager.targets().size(), 1U);
+    EXPECT_EQ(manager.targets()[0].state, TrackingState::kLost);
+    manager.Update({}, 9);
+    manager.Update({}, 10);
+    EXPECT_TRUE(manager.targets().empty());
+}
+
 TEST(TargetManagerTest, NearbyDuplicatesInOneCycleCreateOneTarget) {
     TargetManager manager;
     const auto& targets =
@@ -222,6 +244,18 @@ TEST(TargetManagerTest, MarkProcessedChangesLifecycleState) {
     ASSERT_TRUE(manager.MarkProcessed(1U, 2));
     EXPECT_EQ(manager.targets()[0].state, TrackingState::kProcessed);
     EXPECT_FALSE(manager.MarkProcessed(999U, 2));
+}
+
+TEST(TargetManagerTest, LostTargetRequiresExplicitProcessedOverride) {
+    TargetManager manager(Config(1U, 2U));
+    manager.Update({Observation(0.0)}, 1);
+    manager.Update({}, 2);
+    manager.Update({}, 3);
+    ASSERT_EQ(manager.targets()[0].state, TrackingState::kLost);
+
+    EXPECT_FALSE(manager.MarkProcessed(1U, 4));
+    EXPECT_TRUE(manager.MarkProcessed(1U, 4, true));
+    EXPECT_EQ(manager.targets()[0].state, TrackingState::kProcessed);
 }
 
 TEST(TargetManagerTest, ProcessedCooldownSuppressesNewActionableTarget) {

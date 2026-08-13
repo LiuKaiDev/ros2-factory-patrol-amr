@@ -14,6 +14,7 @@ def generate_launch_description():
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     model_path = LaunchConfiguration("model_path")
     debug_image_enabled = LaunchConfiguration("debug_image_enabled")
+    max_inference_rate_hz = LaunchConfiguration("max_inference_rate_hz")
     tracking_params_file = LaunchConfiguration("tracking_params_file")
     detector_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "detector.yaml"]
@@ -33,6 +34,7 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_sim_map_tf", default_value="true"),
             DeclareLaunchArgument("model_path", default_value=""),
             DeclareLaunchArgument("debug_image_enabled", default_value="true"),
+            DeclareLaunchArgument("max_inference_rate_hz", default_value="0.0"),
             DeclareLaunchArgument(
                 "tracking_params_file", default_value=default_tracking_params
             ),
@@ -46,6 +48,7 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "model_path": model_path,
                         "debug_image_enabled": debug_image_enabled,
+                        "max_inference_rate_hz": max_inference_rate_hz,
                     },
                 ],
                 output="screen",

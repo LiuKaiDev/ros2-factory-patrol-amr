@@ -801,6 +801,142 @@ Planned after Phase 5B:
 No Gazebo, RViz, Nav2, localization recovery, or obstacle-avoidance runtime
 success is claimed by this phase.
 
+## Visual Perception Phase 5: Static Inspection Approach
+
+Phase 5 connects a stable managed target to a task-owned Nav2 mission:
+
+```text
+/perception/objects_3d CONFIRMED
+  -> /perception/events INSPECTION_REQUIRED
+  -> visual_inspection_task_node
+  -> /navigate_sequence
+  -> NavigateToPose
+  -> arrival
+  -> INSPECTION_COMPLETED
+  -> /perception/objects_3d PROCESSED
+```
+
+The `PerceptionEvent` interface contains `target_id`, `event_type`, class,
+confidence, severity, and a stamped `target_pose`. Phase 5 declares only
+`TARGET_CONFIRMED`, `INSPECTION_REQUIRED`, and `INSPECTION_COMPLETED`; it does
+not implement Phase 6 person-proximity or safety-event behavior.
+
+### Eligibility and duplicate policy
+
+The detector continues to expose both `person` and `chair`, but the default
+inspection allowlist is only `chair` with `min_confidence: 0.5`. A raw detector
+frame cannot start a task. The target must first reach `CONFIRMED` through the
+Phase 4 `TargetManager`. Perception emits one actionable event for that managed
+target and suppresses subsequent frames. A successful task marks the target
+`PROCESSED`; the existing `tracking.processed_cooldown_sec` must expire and the
+target must pass through `TENTATIVE` and `CONFIRMED` again before a newer event
+can be emitted.
+
+The existing pretrained model does not reliably classify a code-native
+primitive chair. Runtime validation therefore explicitly loads
+`tracking_phase5_validation.yaml` and
+`visual_inspection_phase5_validation.yaml`, whose allowlists contain `person`,
+and reuses the existing visual-only, static `phase3_person_detection_target` at
+the known world pose `(2.80, -0.75)`. This does not change the default `chair`
+policy, add collision geometry, or implement person following. The target is a
+fixed inspection fixture for this explicitly configured validation run. The
+validation tracking profile also narrows the depth ROI and extends LOST-target
+retention so the original managed ID remains available for task completion
+after the robot turns or the static fixture leaves the camera view. Default
+Phase 4 retention behavior is unchanged. Its processed cooldown is 120 seconds
+so the same fixture cannot retrigger during the end-to-end measurement window.
+The `--phase5` helper also caps CPU inference at 0.5 Hz so Nav2 action callbacks
+remain responsive in WSL. The detector is still the same pretrained YOLOX
+backend on live RGB images, and the default detector rate remains uncapped.
+The validation profile permits one task-owned retry for a transient Nav2 result
+race at arrival; the default mission profile remains `retry_count: 0`.
+
+### Observation pose
+
+Planning occurs in `map`. For target position `T`, current robot position `R`,
+and configured `standoff_distance`, the task computes:
+
+```text
+d = normalize(R - T)
+observation_position = T + d * standoff_distance
+yaw = atan2(T.y - observation.y, T.x - observation.x)
+```
+
+The default `standoff_distance` is `1.2` m. The planner rejects non-finite
+poses, non-map frames, invalid quaternions, and non-positive standoff values.
+If `R` and `T` are coincident, it uses the direction opposite the robot's
+current heading. The selected pose is frozen when the mission starts; target
+updates or temporary detector loss do not replace the Nav2 goal. Phase 5 is for
+static inspection targets only and does not implement pursuit, following, or
+visual servoing.
+
+Navigation failures publish a `FAILED` task status and never mark the target
+successfully processed. The default retry count is zero. Nav2 rejection or an
+unreachable pose is treated as a normal task failure rather than adding a
+custom planner or costmap search.
+
+The Factory Patrol bringup delays the Phase 5 event consumer until after the
+existing delayed Nav2 bringup has completed. Because `/perception/events` is
+transient-local, a target confirmed during Nav2 activation is replayed once to
+the task after it starts; this avoids treating normal lifecycle startup as a
+navigation failure.
+
+### Launch and validation
+
+Prepare the existing Phase 3 model, build, then launch the complete chain:
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+bash scripts/run_factory_patrol_demo.sh --phase5
+```
+
+The equivalent launch command is:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=true use_rviz:=true use_nav2:=true use_detector:=true \
+  geometry_input_mode:=detector use_visual_inspection:=true \
+  perception_max_inference_rate_hz:=0.5 \
+  perception_tracking_params:=$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml \
+  visual_inspection_params:=$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml
+```
+
+Validate the running graph from another sourced shell:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_VISUAL_INSPECTION_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+
+bash scripts/check_factory_patrol_visual_inspection_runtime.sh
+ros2 topic echo /perception/events
+ros2 topic echo /inspection/status
+ros2 topic echo /inspection/observation_pose
+ros2 topic echo /perception/objects_3d
+```
+
+The RViz showcase displays managed target labels/IDs and the observation pose;
+the existing current-goal and odometry/path displays remain available. Runtime
+measurements come from the validation script output.
+
+The full headless Factory Patrol bringup was validated in WSL on 2026-08-13
+with the explicit Phase 5 profiles and the live YOLOX detector. Target
+`target_id=1` (`person`, validation fixture only) produced one accepted visual
+inspection mission at simulation time `18.679 s`. Its measured map position was
+`(2.842653, -0.759916)` m and the planned observation pose was
+`(1.683362, -0.450007)` m. The configured and planned target standoffs were both
+`1.2 m`. Nav2 accepted the goal and returned `SUCCEEDED` after `6.489` simulated
+seconds. The final robot pose was `(1.570, -0.334, yaw=-0.421137)` with a
+`0.162199 m` observation-pose error and a measured `1.342032 m` planar distance
+to the target. Robot displacement was `1.605134 m`. The run observed one
+`INSPECTION_REQUIRED` and one `INSPECTION_COMPLETED` for target 1, then verified
+that it reached `PROCESSED` without an immediate second mission. It also
+verified that perception published no velocity topic and that commands remained
+`/nav2_cmd_vel -> cmd_vel_mux_node/Safety Gate -> /cmd_vel`.
+
 ## Phase 6 Showcase Boundary
 
 Factory patrol assets are ready to support screenshots, videos, and report

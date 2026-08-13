@@ -66,11 +66,25 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "${PERCEPTION_PACKAGE}/test/test_detection_utils.py" \
   "${PERCEPTION_PACKAGE}/test/depth_projector_test.cpp" \
   "${PERCEPTION_PACKAGE}/test/target_manager_test.cpp" \
+  "${PERCEPTION_PACKAGE}/test/inspection_event_policy_test.cpp" \
   "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" \
+  "${PERCEPTION_PACKAGE}/include/robot_perception/inspection_event_policy.hpp" \
   "${PERCEPTION_PACKAGE}/src/target_manager.cpp" \
+  "${PERCEPTION_PACKAGE}/src/inspection_event_policy.cpp" \
   "${PERCEPTION_INTERFACES}/CMakeLists.txt" \
   "${PERCEPTION_INTERFACES}/package.xml" \
   "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" \
+  "${PERCEPTION_INTERFACES}/msg/PerceptionEvent.msg" \
+  "src/robot_tasks/config/visual_inspection.yaml" \
+  "src/robot_tasks/config/visual_inspection_phase5_validation.yaml" \
+  "${PERCEPTION_PACKAGE}/config/tracking_phase5_validation.yaml" \
+  "src/robot_tasks/include/robot_tasks/observation_pose_planner.hpp" \
+  "src/robot_tasks/include/robot_tasks/visual_inspection_mission.hpp" \
+  "src/robot_tasks/src/observation_pose_planner.cpp" \
+  "src/robot_tasks/src/visual_inspection_mission.cpp" \
+  "src/robot_tasks/src/visual_inspection_task_node.cpp" \
+  "src/robot_tasks/test/observation_pose_planner_test.cpp" \
+  "src/robot_tasks/test/visual_inspection_mission_test.cpp" \
   "src/robot_simulation/models/person_standing/model.sdf" \
   "src/robot_simulation/models/person_standing/LICENSE" \
   "src/robot_simulation/models/person_standing/ATTRIBUTION.md" \
@@ -78,6 +92,7 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "scripts/prepare_phase3_detector_model.sh" \
   "scripts/check_factory_patrol_detector_runtime.sh" \
   "scripts/check_factory_patrol_target_manager_runtime.sh" \
+  "scripts/check_factory_patrol_visual_inspection_runtime.sh" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
@@ -149,9 +164,13 @@ require_grep "/camera/color/image_raw" "${SHOWCASE_RVIZ}" "Factory Patrol RViz R
 require_grep "/perception/markers" "${SHOWCASE_RVIZ}" "Factory Patrol RViz geometry marker is missing"
 require_grep "/perception/debug_image" "${SHOWCASE_RVIZ}" "Factory Patrol RViz detector debug image is missing"
 require_grep "Managed Targets" "${SHOWCASE_RVIZ}" "Factory Patrol RViz managed-target display is missing"
+require_grep "/inspection/observation_pose" "${SHOWCASE_RVIZ}" "Factory Patrol RViz observation pose is missing"
 require_grep "perception.launch.py" "${DEMO_LAUNCH}" "Factory Patrol launch does not include perception"
 require_grep "geometry_input_mode" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose geometry input mode"
 require_grep "use_detector" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose detector enablement"
+require_grep "use_visual_inspection" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose visual inspection"
+require_grep "visual_inspection_task_node" "${DEMO_LAUNCH}" "Factory Patrol launch does not start the visual inspection task"
+require_grep "navigate_sequence_server_node" "${DEMO_LAUNCH}" "Factory Patrol launch does not use the existing navigation adapter"
 require_grep "robot_perception" "${DEMO_LAUNCH}" "Factory Patrol launch does not reference robot_perception"
 require_grep "factory_patrol.sdf" "${DEMO_LAUNCH}" "factory patrol launch does not use factory world"
 require_grep "world_file" "${DEMO_LAUNCH}" "factory patrol launch does not expose world override"
@@ -173,6 +192,8 @@ require_grep "/perception/detections_2d" "${SCENARIO_DOC}" "simulation docs do n
 require_grep "OpenCV Zoo" "${SCENARIO_DOC}" "simulation docs do not document detector model setup"
 require_grep "/perception/objects_3d" "${SCENARIO_DOC}" "simulation docs do not document Phase 4 managed targets"
 require_grep "TENTATIVE" "${SCENARIO_DOC}" "simulation docs do not document target lifecycle"
+require_grep "INSPECTION_REQUIRED" "${SCENARIO_DOC}" "simulation docs do not document Phase 5 events"
+require_grep "standoff_distance" "${SCENARIO_DOC}" "simulation docs do not document Phase 5 standoff"
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
@@ -187,14 +208,23 @@ require_grep "geometry_input_mode" "${PERCEPTION_PACKAGE}/src/geometry_validatio
 require_grep "class TargetManager" "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" "TargetManager class is missing"
 require_grep "max_match_distance" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager association configuration is missing"
 require_grep "ema_alpha" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager EMA configuration is missing"
+require_grep "lost_retirement_frames" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager retirement configuration is missing"
 require_grep "robot_interfaces_perception" "${PERCEPTION_PACKAGE}/package.xml" "managed target interface dependency is missing"
 require_grep "DetectedObject3D.msg" "${PERCEPTION_INTERFACES}/CMakeLists.txt" "managed target interface is not generated"
 require_grep "uint32 target_id" "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" "managed target ID field is missing"
 require_grep "uint8 tracking_state" "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" "managed lifecycle field is missing"
+require_grep "PerceptionEvent.msg" "${PERCEPTION_INTERFACES}/CMakeLists.txt" "perception event interface is not generated"
+require_grep "string event_type" "${PERCEPTION_INTERFACES}/msg/PerceptionEvent.msg" "perception event type field is missing"
 require_grep "/perception/objects_3d" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "managed target topic is missing"
-if rg -n 'cmd_vel|perception/events|safety_event|VisualInspectionTask|PERSON_(NEAR|TOO_CLOSE|IN_DANGER_ZONE)' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
-  fail "robot_perception contains out-of-scope control, mission, or safety integration"
+require_grep "/perception/events" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "Phase 5 perception event topic is missing"
+require_grep "inspection.allowed_classes: \[person\]" "${PERCEPTION_PACKAGE}/config/tracking_phase5_validation.yaml" "Phase 5 validation perception allowlist is not explicit"
+require_grep "inspection.allowed_classes: \[person\]" "src/robot_tasks/config/visual_inspection_phase5_validation.yaml" "Phase 5 validation task allowlist is not explicit"
+require_grep "MarkProcessed" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "Phase 5 completion feedback is not connected to TargetManager"
+require_grep "INSPECTION_REQUIRED" "src/robot_tasks/src/visual_inspection_task_node.cpp" "visual inspection task does not consume Phase 5 events"
+require_grep "/navigate_sequence" "src/robot_tasks/config/visual_inspection.yaml" "visual inspection task does not use the existing navigation adapter"
+if rg -n 'cmd_vel|safety_event|PERSON_(NEAR|TOO_CLOSE|IN_DANGER_ZONE)' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
+  fail "robot_perception contains out-of-scope control or Phase 6 safety integration"
 fi
-pass "robot_perception stays within the Phase 4 target-management scope"
+pass "robot_perception emits semantic Phase 5 events without control or Phase 6 safety behavior"
 
 pass "factory patrol world, config assets, map note, demo entry, scripts, and docs are present"

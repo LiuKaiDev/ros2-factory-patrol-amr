@@ -46,8 +46,19 @@ TOPICS=(
 )
 
 DETECTOR_MODE="${FACTORY_PATROL_DETECTOR_MODE:-false}"
+VISUAL_INSPECTION_MODE="${FACTORY_PATROL_VISUAL_INSPECTION_MODE:-false}"
 if [[ "${DETECTOR_MODE}" == "true" ]]; then
   TOPICS+=("/perception/detections_2d" "/perception/debug_image")
+fi
+if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
+  TOPICS+=(
+    "/perception/events"
+    "/inspection/observation_pose"
+    "/inspection/observation_marker"
+    "/inspection/status"
+    "/navigate_sequence/current_goal"
+    "/nav2_cmd_vel"
+  )
 fi
 
 check_managed_target() {
@@ -367,6 +378,12 @@ if [[ "${DETECTOR_MODE}" == "true" ]]; then
   echo "[factory-topic-check] Delegating Phase 3 detector-chain validation..."
   bash scripts/check_factory_patrol_detector_runtime.sh || failures=$((failures + 1))
   check_managed_target || failures=$((failures + 1))
+fi
+
+if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
+  echo
+  echo "[factory-topic-check] Delegating Phase 5 visual inspection validation..."
+  bash scripts/check_factory_patrol_visual_inspection_runtime.sh || failures=$((failures + 1))
 fi
 
 echo

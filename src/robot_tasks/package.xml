@@ -25,8 +25,11 @@
   <depend>robot_interfaces_fleet</depend>
   <depend>robot_interfaces_mission</depend>
   <depend>robot_interfaces_navigation</depend>
+  <depend>robot_interfaces_perception</depend>
   <depend>robot_interfaces_site</depend>
   <depend>robot_navigation</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
   <depend>behaviortree_cpp</depend>
 
   <test_depend>ament_lint_auto</test_depend>

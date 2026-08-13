@@ -13,6 +13,7 @@
 - 实现 `cmd_vel` mux、安全门控和 `/safety_state` 状态反馈。
 - 提供 odom、TF、scan、safety state 等运行时 topic 检查脚本。
 - 提供多点巡检、临时障碍物和定位恢复等 demo / validation 入口，便于验证巡检流程和运行时状态。
+- 提供基于 RGB-D 目标确认事件的静态视觉巡检任务，由 `robot_tasks` 通过现有 Nav2 适配器导航到 1.2 m 观察位。
 <!-- Phase 5B demo workflows -->
 
 ## 当前状态
@@ -102,6 +103,19 @@ source install/setup.bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
 ```
 
+Phase 5 视觉巡检启动：
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/run_factory_patrol_demo.sh --phase5
+```
+
+该模式的控制链路保持为
+`robot_tasks -> /navigate_sequence -> Nav2 -> /nav2_cmd_vel -> 现有 mux / safety gate -> /cmd_vel`。
+`robot_perception` 只发布 `/perception/events`，不发布速度命令。默认巡检类别为
+`chair`；`--phase5` 为仿真中已有的静态 person 目标显式加载独立验证 profile，
+不会把 `person` 变成默认靠近目标。
+
 ## 启动 Factory Patrol Demo
 
 默认基线场景：
@@ -160,6 +174,9 @@ bash scripts/check_factory_patrol_assets.sh
 bash scripts/check_factory_patrol_runtime_topics.sh
 FACTORY_PATROL_DETECTOR_MODE=true bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/check_factory_patrol_target_manager_runtime.sh
+FACTORY_PATROL_DETECTOR_MODE=true FACTORY_PATROL_VISUAL_INSPECTION_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/check_factory_patrol_visual_inspection_runtime.sh
 ```
 
 更多脚本说明见 [scripts/README.md](scripts/README.md)。Validation Scripts 的完整列表也放在该文档中。
@@ -192,7 +209,7 @@ src/
   robot_teleop/         # virtual RC、cmd_vel mux 和 safety gate
   robot_tasks/          # 巡检任务入口
   robot_perception/     # RGB-D 几何、可替换 2D 检测与目标管理
-  robot_interfaces_perception/ # 稳定 3D 感知目标接口
+  robot_interfaces_perception/ # 稳定 3D 感知目标和语义事件接口
   robot_interfaces*/    # 自定义消息和接口
 
 docs/                   # 项目文档

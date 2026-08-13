@@ -113,6 +113,26 @@ Visualization Manager:
         History Policy: Keep Last
         Depth: 5
     - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: Inspection Observation Pose
+      Topic:
+        Value: /inspection/observation_pose
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Shape: Arrow
+      Color: 255; 80; 20
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Inspection Observation Marker
+      Marker Topic:
+        Value: /inspection/observation_marker
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+    - Class: rviz_default_plugins/Pose
       Enabled: false
       Name: Mission Current Goal
       Topic:

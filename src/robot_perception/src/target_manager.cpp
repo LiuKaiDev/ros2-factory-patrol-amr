@@ -59,6 +59,13 @@ TargetManager::TargetManager(TargetManagerConfig config) : config_(config) {
     if (config_.lost_frames == 0U) {
         throw std::invalid_argument("lost_frames must be positive");
     }
+    lost_retirement_frames_ = config_.lost_retirement_frames == 0U
+                                  ? config_.lost_frames * 2U
+                                  : config_.lost_retirement_frames;
+    if (lost_retirement_frames_ < config_.lost_frames) {
+        throw std::invalid_argument(
+            "lost_retirement_frames must be zero or at least lost_frames");
+    }
     if (!std::isfinite(config_.max_match_distance) || config_.max_match_distance <= 0.0) {
         throw std::invalid_argument("max_match_distance must be positive and finite");
     }
@@ -162,16 +169,14 @@ void TargetManager::AgeUnmatchedTargets(const std::vector<bool>& matched_targets
 }
 
 void TargetManager::RemoveExpiredTargets(const std::int64_t update_timestamp_ns) {
-    const std::size_t lost_retirement_frames = config_.lost_frames * 2U;
     targets_.erase(std::remove_if(targets_.begin(), targets_.end(),
-                                  [this, lost_retirement_frames,
-                                   update_timestamp_ns](const ManagedTarget& target) {
+                                  [this, update_timestamp_ns](const ManagedTarget& target) {
                                       if (target.state == TrackingState::kLost) {
-                                          return target.missed_frames > lost_retirement_frames;
+                                          return target.missed_frames > lost_retirement_frames_;
                                       }
                                       return target.state == TrackingState::kProcessed &&
                                              CooldownExpired(target, update_timestamp_ns) &&
-                                             target.missed_frames > lost_retirement_frames;
+                                             target.missed_frames > lost_retirement_frames_;
                                   }),
                    targets_.end());
 }
@@ -260,14 +265,17 @@ const std::vector<ManagedTarget>& TargetManager::Update(
     return targets_;
 }
 
-bool TargetManager::MarkProcessed(const std::uint32_t target_id, const std::int64_t timestamp_ns) {
+bool TargetManager::MarkProcessed(const std::uint32_t target_id,
+                                  const std::int64_t timestamp_ns,
+                                  const bool allow_lost) {
     if (timestamp_ns < 0) {
         return false;
     }
     const auto target = std::find_if(
         targets_.begin(), targets_.end(),
         [target_id](const ManagedTarget& candidate) { return candidate.target_id == target_id; });
-    if (target == targets_.end() || target->state == TrackingState::kLost ||
+    if (target == targets_.end() ||
+        (target->state == TrackingState::kLost && !allow_lost) ||
         timestamp_ns < target->last_observation_ns) {
         return false;
     }

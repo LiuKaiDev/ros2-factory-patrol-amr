@@ -31,8 +31,15 @@ target_include_directories(target_manager PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+add_library(inspection_event_policy src/inspection_event_policy.cpp)
+target_include_directories(inspection_event_policy PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(inspection_event_policy target_manager)
+
 add_executable(geometry_validation_node src/geometry_validation_node.cpp)
-target_link_libraries(geometry_validation_node depth_projector target_manager)
+target_link_libraries(
+  geometry_validation_node depth_projector target_manager inspection_event_policy)
 ament_target_dependencies(geometry_validation_node
   geometry_msgs
   builtin_interfaces
@@ -46,7 +53,7 @@ ament_target_dependencies(geometry_validation_node
   visualization_msgs
   vision_msgs)
 
-install(TARGETS depth_projector target_manager geometry_validation_node
+install(TARGETS depth_projector target_manager inspection_event_policy geometry_validation_node
   EXPORT export_robot_perception
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -71,6 +78,8 @@ if(BUILD_TESTING)
   ament_target_dependencies(depth_projector_test geometry_msgs sensor_msgs)
   ament_add_gtest(target_manager_test test/target_manager_test.cpp)
   target_link_libraries(target_manager_test target_manager)
+  ament_add_gtest(inspection_event_policy_test test/inspection_event_policy_test.cpp)
+  target_link_libraries(inspection_event_policy_test inspection_event_policy)
   ament_add_pytest_test(detection_utils_test test/test_detection_utils.py)
 endif()
 

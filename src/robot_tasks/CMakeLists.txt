@@ -19,8 +19,11 @@ find_package(robot_interfaces_facility REQUIRED)
 find_package(robot_interfaces_fleet REQUIRED)
 find_package(robot_interfaces_mission REQUIRED)
 find_package(robot_interfaces_navigation REQUIRED)
+find_package(robot_interfaces_perception REQUIRED)
 find_package(robot_interfaces_site REQUIRED)
 find_package(robot_navigation REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
 
 add_library(robot_tasks_mission_profile
@@ -82,6 +85,15 @@ target_link_libraries(
   robot_tasks_mission_profile
   behaviortree_cpp::behaviortree_cpp)
 
+add_library(robot_tasks_visual_inspection
+  src/observation_pose_planner.cpp
+  src/visual_inspection_mission.cpp)
+target_include_directories(robot_tasks_visual_inspection PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(robot_tasks_visual_inspection
+  geometry_msgs robot_interfaces_perception)
+
 add_executable(navigate_sequence_server_node src/navigate_sequence_server_node.cpp)
 ament_target_dependencies(navigate_sequence_server_node
   rclcpp rclcpp_action geometry_msgs nav_msgs nav2_msgs std_msgs std_srvs robot_interfaces robot_interfaces_core)
@@ -96,6 +108,12 @@ target_link_libraries(site_config_manager_node robot_tasks_mission_profile)
 ament_target_dependencies(site_config_manager_node
   rclcpp robot_interfaces robot_interfaces_site robot_navigation)
 
+add_executable(visual_inspection_task_node src/visual_inspection_task_node.cpp)
+target_link_libraries(visual_inspection_task_node robot_tasks_visual_inspection)
+ament_target_dependencies(visual_inspection_task_node
+  geometry_msgs rclcpp rclcpp_action robot_interfaces robot_interfaces_perception
+  std_msgs tf2_ros visualization_msgs)
+
 install(TARGETS robot_tasks_mission_profile
   EXPORT export_robot_tasks_mission_profile
   ARCHIVE DESTINATION lib
@@ -108,7 +126,13 @@ install(TARGETS robot_tasks_behavior_trees
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 
+install(TARGETS robot_tasks_visual_inspection
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+
 install(TARGETS navigate_sequence_server_node mission_runner_node site_config_manager_node
+  visual_inspection_task_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/
@@ -197,6 +221,10 @@ if(BUILD_TESTING)
   target_link_libraries(facility_workflow_test robot_tasks_mission_profile)
   ament_add_gtest(station_sequence_workflow_test test/station_sequence_workflow_test.cpp)
   target_link_libraries(station_sequence_workflow_test robot_tasks_mission_profile)
+  ament_add_gtest(observation_pose_planner_test test/observation_pose_planner_test.cpp)
+  target_link_libraries(observation_pose_planner_test robot_tasks_visual_inspection)
+  ament_add_gtest(visual_inspection_mission_test test/visual_inspection_mission_test.cpp)
+  target_link_libraries(visual_inspection_mission_test robot_tasks_visual_inspection)
 endif()
 
 ament_export_include_directories(include)

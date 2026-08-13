@@ -3,11 +3,12 @@ geometry_validation_node:
     objects_3d_topic: /perception/objects_3d
     tracking.confirm_frames: 3
     tracking.lost_frames: 5
-    tracking.lost_retirement_frames: 0
-    tracking.max_match_distance: 0.5
+    tracking.lost_retirement_frames: 300
+    tracking.max_match_distance: 1.0
     tracking.ema_alpha: 0.4
-    tracking.processed_cooldown_sec: 10.0
+    tracking.processed_cooldown_sec: 120.0
     inspection.enabled: true
-    inspection.allowed_classes: [chair]
+    inspection.allowed_classes: [person]
     inspection.min_confidence: 0.5
     inspection.event_topic: /perception/events
+    roi_ratio: 0.15

@@ -31,6 +31,7 @@ enum class TrackingState : std::uint8_t {
 struct TargetManagerConfig {
     std::size_t confirm_frames = 3U;
     std::size_t lost_frames = 5U;
+    std::size_t lost_retirement_frames = 0U;
     double max_match_distance = 0.5;
     double ema_alpha = 0.4;
     double processed_cooldown_sec = 10.0;
@@ -57,7 +58,8 @@ public:
 
     const std::vector<ManagedTarget>& Update(const std::vector<TargetObservation>& observations,
                                              std::int64_t update_timestamp_ns);
-    bool MarkProcessed(std::uint32_t target_id, std::int64_t timestamp_ns);
+    bool MarkProcessed(std::uint32_t target_id, std::int64_t timestamp_ns,
+                       bool allow_lost = false);
 
     const std::vector<ManagedTarget>& targets() const { return targets_; }
     static bool IsValidObservation(const TargetObservation& observation);
@@ -76,6 +78,7 @@ private:
     std::vector<ManagedTarget> targets_;
     std::uint64_t next_target_id_ = 1U;
     std::int64_t last_update_timestamp_ns_ = -1;
+    std::size_t lost_retirement_frames_ = 0U;
 };
 
 const char* TrackingStateName(TrackingState state);

@@ -19,7 +19,9 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rmw/qos_profiles.h"
 #include "robot_interfaces_perception/msg/detected_object3_d.hpp"
+#include "robot_interfaces_perception/msg/perception_event.hpp"
 #include "robot_perception/depth_projector.hpp"
+#include "robot_perception/inspection_event_policy.hpp"
 #include "robot_perception/target_manager.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
@@ -51,6 +53,8 @@ class GeometryValidationNode final : public rclcpp::Node {
         declare_parameter<std::string>("marker_topic", "/perception/markers");
     objects_3d_topic_ = declare_parameter<std::string>(
         "objects_3d_topic", "/perception/objects_3d");
+    event_topic_ =
+        declare_parameter<std::string>("inspection.event_topic", "/perception/events");
     detection_topic_ = declare_parameter<std::string>(
         "detection_topic", "/perception/detections_2d");
     geometry_input_mode_ =
@@ -81,12 +85,16 @@ class GeometryValidationNode final : public rclcpp::Node {
         declare_parameter<std::int64_t>("tracking.confirm_frames", 3);
     const auto lost_frames =
         declare_parameter<std::int64_t>("tracking.lost_frames", 5);
-    if (confirm_frames <= 0 || lost_frames <= 0) {
+    const auto lost_retirement_frames =
+        declare_parameter<std::int64_t>("tracking.lost_retirement_frames", 0);
+    if (confirm_frames <= 0 || lost_frames <= 0 || lost_retirement_frames < 0) {
       throw std::invalid_argument(
-          "tracking.confirm_frames and tracking.lost_frames must be positive");
+          "tracking frame counts must be positive, with retirement zero or positive");
     }
     tracking_config.confirm_frames = static_cast<std::size_t>(confirm_frames);
     tracking_config.lost_frames = static_cast<std::size_t>(lost_frames);
+    tracking_config.lost_retirement_frames =
+        static_cast<std::size_t>(lost_retirement_frames);
     tracking_config.max_match_distance =
         declare_parameter<double>("tracking.max_match_distance", 0.5);
     tracking_config.ema_alpha =
@@ -94,6 +102,17 @@ class GeometryValidationNode final : public rclcpp::Node {
     tracking_config.processed_cooldown_sec =
         declare_parameter<double>("tracking.processed_cooldown_sec", 10.0);
     target_manager_ = std::make_unique<TargetManager>(tracking_config);
+
+    InspectionEventPolicyConfig inspection_config;
+    inspection_config.enabled =
+        declare_parameter<bool>("inspection.enabled", true);
+    inspection_config.allowed_classes =
+        declare_parameter<std::vector<std::string>>(
+            "inspection.allowed_classes", {"chair"});
+    inspection_config.min_confidence =
+        declare_parameter<double>("inspection.min_confidence", 0.5);
+    inspection_event_policy_ =
+        std::make_unique<InspectionEventPolicy>(inspection_config);
 
     bbox_.center_u = declare_parameter<double>("synthetic_bbox.center_u", 320.0);
     bbox_.center_v = declare_parameter<double>("synthetic_bbox.center_v", 240.0);
@@ -143,6 +162,15 @@ class GeometryValidationNode final : public rclcpp::Node {
     objects_3d_pub_ =
         create_publisher<robot_interfaces_perception::msg::DetectedObject3D>(
             objects_3d_topic_, 10);
+    const auto event_qos = rclcpp::QoS(10).reliable().transient_local();
+    event_pub_ = create_publisher<
+        robot_interfaces_perception::msg::PerceptionEvent>(event_topic_, event_qos);
+    event_sub_ = create_subscription<
+        robot_interfaces_perception::msg::PerceptionEvent>(
+        event_topic_, event_qos,
+        [this](const robot_interfaces_perception::msg::PerceptionEvent::SharedPtr event) {
+          HandlePerceptionEvent(*event);
+        });
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
@@ -425,7 +453,61 @@ class GeometryValidationNode final : public rclcpp::Node {
       objects_3d_pub_->publish(message);
       marker_pub_->publish(BuildManagedPointMarker(message));
       marker_pub_->publish(BuildManagedTextMarker(message));
+      if (inspection_event_policy_->ShouldEmit(target)) {
+        PublishInspectionRequired(target, update_stamp);
+      }
     }
+  }
+
+  void PublishInspectionRequired(
+      const ManagedTarget& target,
+      const builtin_interfaces::msg::Time& update_stamp) {
+    robot_interfaces_perception::msg::PerceptionEvent event;
+    event.header.stamp = update_stamp;
+    event.header.frame_id = target_frame_;
+    event.target_id = target.target_id;
+    event.event_type = robot_interfaces_perception::msg::PerceptionEvent::INSPECTION_REQUIRED;
+    event.class_name = target.class_name;
+    event.target_pose.header = event.header;
+    event.target_pose.pose.position.x = target.filtered_position.x;
+    event.target_pose.pose.position.y = target.filtered_position.y;
+    event.target_pose.pose.position.z = target.filtered_position.z;
+    event.target_pose.pose.orientation.w = 1.0;
+    event.confidence = static_cast<float>(target.confidence);
+    event.severity = robot_interfaces_perception::msg::PerceptionEvent::SEVERITY_INFO;
+    event_pub_->publish(event);
+    RCLCPP_INFO(
+        get_logger(),
+        "inspection event emitted once: target=%u class=%s confidence=%.3f map=(%.3f, %.3f, %.3f)",
+        target.target_id, target.class_name.c_str(), target.confidence,
+        target.filtered_position.x, target.filtered_position.y,
+        target.filtered_position.z);
+  }
+
+  void HandlePerceptionEvent(
+      const robot_interfaces_perception::msg::PerceptionEvent& event) {
+    if (event.event_type !=
+        robot_interfaces_perception::msg::PerceptionEvent::INSPECTION_COMPLETED) {
+      return;
+    }
+    auto timestamp = rclcpp::Time(event.header.stamp).nanoseconds();
+    const auto target = std::find_if(
+        target_manager_->targets().begin(), target_manager_->targets().end(),
+        [&event](const ManagedTarget& candidate) {
+          return candidate.target_id == event.target_id;
+        });
+    if (target != target_manager_->targets().end()) {
+      timestamp = std::max(timestamp, target->last_observation_ns);
+    }
+    if (!target_manager_->MarkProcessed(event.target_id, timestamp, true)) {
+      RCLCPP_WARN(
+          get_logger(), "could not mark inspection target %u PROCESSED",
+          event.target_id);
+      return;
+    }
+    RCLCPP_INFO(
+        get_logger(), "inspection target %u marked PROCESSED after task completion",
+        event.target_id);
   }
 
   visualization_msgs::msg::Marker BuildManagedPointMarker(
@@ -519,6 +601,7 @@ class GeometryValidationNode final : public rclcpp::Node {
   std::string map_point_topic_;
   std::string marker_topic_;
   std::string objects_3d_topic_;
+  std::string event_topic_;
   std::string detection_topic_;
   std::string geometry_input_mode_;
   std::string marker_namespace_;
@@ -538,6 +621,7 @@ class GeometryValidationNode final : public rclcpp::Node {
 
   std::unique_ptr<DepthProjector> projector_;
   std::unique_ptr<TargetManager> target_manager_;
+  std::unique_ptr<InspectionEventPolicy> inspection_event_policy_;
   message_filters::Subscriber<sensor_msgs::msg::Image> rgb_sub_;
   message_filters::Subscriber<vision_msgs::msg::Detection2DArray> detection_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> depth_sub_;
@@ -551,6 +635,10 @@ class GeometryValidationNode final : public rclcpp::Node {
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
   rclcpp::Publisher<
       robot_interfaces_perception::msg::DetectedObject3D>::SharedPtr objects_3d_pub_;
+  rclcpp::Publisher<
+      robot_interfaces_perception::msg::PerceptionEvent>::SharedPtr event_pub_;
+  rclcpp::Subscription<
+      robot_interfaces_perception::msg::PerceptionEvent>::SharedPtr event_sub_;
 };
 
 }  // namespace robot_perception

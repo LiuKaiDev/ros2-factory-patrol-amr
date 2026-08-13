@@ -23,6 +23,8 @@ def generate_launch_description():
     label_scale = LaunchConfiguration("label_scale")
     world_file = LaunchConfiguration("world_file")
     world_name = LaunchConfiguration("world_name")
+    cmd_vel_default_source = LaunchConfiguration("cmd_vel_default_source")
+    manual_takeover = LaunchConfiguration("manual_takeover")
     simulation_models = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "models"]
     )
@@ -45,6 +47,8 @@ def generate_launch_description():
             DeclareLaunchArgument("label_scale", default_value="0.55"),
             DeclareLaunchArgument("world_file", default_value=default_world_file),
             DeclareLaunchArgument("world_name", default_value="indoor_room"),
+            DeclareLaunchArgument("cmd_vel_default_source", default_value="teleop"),
+            DeclareLaunchArgument("manual_takeover", default_value="true"),
             SetEnvironmentVariable(
                 "GZ_SIM_RESOURCE_PATH",
                 [
@@ -138,13 +142,13 @@ def generate_launch_description():
             Node(
                 package="robot_teleop",
                 executable="cmd_vel_mux_node",
-                parameters=[{"default_source": "teleop"}],
+                parameters=[{"default_source": cmd_vel_default_source}],
                 output="screen",
             ),
             Node(
                 package="robot_teleop",
                 executable="virtual_rc_node",
-                parameters=[{"manual_takeover": True}],
+                parameters=[{"manual_takeover": manual_takeover}],
                 output="screen",
             ),
             Node(

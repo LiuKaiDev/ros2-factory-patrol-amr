@@ -1,6 +1,7 @@
 """ROS adapter for replaceable 2D object detector backends."""
 
 from pathlib import Path
+import math
 import os
 import time
 
@@ -26,6 +27,9 @@ class DetectorNode(Node):
         device = self.declare_parameter("device", "auto").value
         allowed_classes = list(self.declare_parameter("allowed_classes", ["person"]).value)
         nms_threshold = float(self.declare_parameter("nms_threshold", 0.5).value)
+        max_inference_rate_hz = float(
+            self.declare_parameter("max_inference_rate_hz", 0.0).value
+        )
         self._debug_enabled = bool(self.declare_parameter("debug_image_enabled", True).value)
         image_topic = self.declare_parameter("image_topic", "/camera/color/image_raw").value
         detection_topic = self.declare_parameter(
@@ -37,7 +41,13 @@ class DetectorNode(Node):
 
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("confidence_threshold must be in [0, 1]")
+        if not math.isfinite(max_inference_rate_hz) or max_inference_rate_hz < 0.0:
+            raise ValueError("max_inference_rate_hz must be finite and nonnegative")
         self._confidence = confidence
+        self._min_inference_period = (
+            0.0 if max_inference_rate_hz == 0.0 else 1.0 / max_inference_rate_hz
+        )
+        self._last_inference_start = None
         self._allowed_classes = allowed_classes
         self._bridge = CvBridge()
         self._latency_total_ms = 0.0
@@ -77,6 +87,13 @@ class DetectorNode(Node):
         )
 
     def _on_image(self, message):
+        now = time.monotonic()
+        if (
+            self._last_inference_start is not None
+            and now - self._last_inference_start < self._min_inference_period
+        ):
+            return
+        self._last_inference_start = now
         try:
             image = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
         except Exception as error:

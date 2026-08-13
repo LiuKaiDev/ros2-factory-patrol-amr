@@ -44,6 +44,36 @@ flowchart LR
 | `robot_experiments` | benchmark runner、参考路径和指标输出基础设施。 |
 | `robot_interfaces*` | msg / srv / action 接口，按 core、navigation、mission、facility、fleet、business、site 等领域拆分。 |
 
+## Visual Inspection Mission
+
+Phase 5 adds a semantic perception-to-task path without giving perception any
+navigation or velocity authority:
+
+```text
+robot_perception TargetManager (CONFIRMED allowlisted target)
+  -> /perception/events (INSPECTION_REQUIRED, target pose in map)
+  -> robot_tasks visual_inspection_task_node
+  -> observation pose planner
+  -> existing /navigate_sequence action
+  -> Nav2 NavigateToPose
+  -> /nav2_cmd_vel
+  -> existing cmd_vel mux / Safety Gate
+  -> /cmd_vel
+```
+
+`robot_tasks` owns goal validation, observation-pose planning, action lifecycle,
+and completion/failure decisions. It emits `INSPECTION_COMPLETED` only after the
+existing navigation adapter reports success. `robot_perception` consumes that
+semantic completion and calls its own `TargetManager::MarkProcessed`; task code
+does not access perception process memory. Perception has no `/cmd_vel` or
+`/nav2_cmd_vel` publisher.
+
+The Factory Patrol simulator uses the existing combined
+`cmd_vel_mux_node` implementation, which applies the repository's watchdog,
+estop, runtime safety stop, and speed-limit gate before publishing `/cmd_vel`.
+Phase 5 selects its existing `nav2` input only when visual inspection is
+enabled; no mux or Safety Gate behavior is changed.
+
 ## Current / Planned Boundary
 
 | Area | Current | Planned / TBD |

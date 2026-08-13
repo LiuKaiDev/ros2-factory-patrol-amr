@@ -8,6 +8,7 @@ find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DetectedObject3D.msg"
+  "msg/PerceptionEvent.msg"
   DEPENDENCIES geometry_msgs std_msgs
 )
 
