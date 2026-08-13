@@ -18,6 +18,7 @@ def generate_launch_description():
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     detector_model_path = LaunchConfiguration("detector_model_path")
     perception_debug_image = LaunchConfiguration("perception_debug_image")
+    perception_tracking_params = LaunchConfiguration("perception_tracking_params")
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
@@ -38,6 +39,9 @@ def generate_launch_description():
     )
     perception_launch = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "launch", "perception.launch.py"]
+    )
+    default_tracking_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
     )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
@@ -78,6 +82,9 @@ def generate_launch_description():
             DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
             DeclareLaunchArgument("detector_model_path", default_value=""),
             DeclareLaunchArgument("perception_debug_image", default_value="true"),
+            DeclareLaunchArgument(
+                "perception_tracking_params", default_value=default_tracking_params
+            ),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
@@ -141,6 +148,7 @@ def generate_launch_description():
                     "geometry_input_mode": geometry_input_mode,
                     "model_path": detector_model_path,
                     "debug_image_enabled": perception_debug_image,
+                    "tracking_params_file": perception_tracking_params,
                 }.items(),
             ),
             Node(

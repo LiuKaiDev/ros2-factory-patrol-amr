@@ -10,9 +10,13 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     params_file = LaunchConfiguration("params_file")
+    tracking_params_file = LaunchConfiguration("tracking_params_file")
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     default_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "depth.yaml"]
+    )
+    default_tracking_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
     )
 
     return LaunchDescription(
@@ -27,6 +31,9 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("params_file", default_value=default_params),
+            DeclareLaunchArgument(
+                "tracking_params_file", default_value=default_tracking_params
+            ),
             DeclareLaunchArgument(
                 "geometry_input_mode",
                 default_value="synthetic",
@@ -46,6 +53,7 @@ def generate_launch_description():
                 executable="geometry_validation_node",
                 parameters=[
                     params_file,
+                    tracking_params_file,
                     {
                         "use_sim_time": use_sim_time,
                         "geometry_input_mode": geometry_input_mode,

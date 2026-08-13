@@ -48,6 +48,7 @@ SIM_LAUNCH="src/robot_simulation/launch/sim.launch.py"
 ROBOT_XACRO="src/robot_description/urdf/robot.urdf.xacro"
 SHOWCASE_RVIZ="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 PERCEPTION_PACKAGE="src/robot_perception"
+PERCEPTION_INTERFACES="src/robot_interfaces_perception"
 SCENARIO_DOC="docs/simulation_scenarios.md"
 ARCH_DOC="docs/architecture.md"
 README_FILE="README.md"
@@ -57,18 +58,26 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "${ROBOT_XACRO}" "${SHOWCASE_RVIZ}" "${PERCEPTION_PACKAGE}/CMakeLists.txt" \
   "${PERCEPTION_PACKAGE}/package.xml" "${PERCEPTION_PACKAGE}/config/depth.yaml" \
   "${PERCEPTION_PACKAGE}/config/detector.yaml" \
+  "${PERCEPTION_PACKAGE}/config/tracking.yaml" \
   "${PERCEPTION_PACKAGE}/launch/geometry_validation.launch.py" \
   "${PERCEPTION_PACKAGE}/launch/perception.launch.py" \
   "${PERCEPTION_PACKAGE}/robot_perception/detector_backend.py" \
   "${PERCEPTION_PACKAGE}/robot_perception/detector_node.py" \
   "${PERCEPTION_PACKAGE}/test/test_detection_utils.py" \
   "${PERCEPTION_PACKAGE}/test/depth_projector_test.cpp" \
+  "${PERCEPTION_PACKAGE}/test/target_manager_test.cpp" \
+  "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" \
+  "${PERCEPTION_PACKAGE}/src/target_manager.cpp" \
+  "${PERCEPTION_INTERFACES}/CMakeLists.txt" \
+  "${PERCEPTION_INTERFACES}/package.xml" \
+  "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" \
   "src/robot_simulation/models/person_standing/model.sdf" \
   "src/robot_simulation/models/person_standing/LICENSE" \
   "src/robot_simulation/models/person_standing/ATTRIBUTION.md" \
   "src/robot_simulation/models/person_standing/meshes/standing.dae" \
   "scripts/prepare_phase3_detector_model.sh" \
   "scripts/check_factory_patrol_detector_runtime.sh" \
+  "scripts/check_factory_patrol_target_manager_runtime.sh" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
@@ -139,6 +148,7 @@ require_grep "GZ_SIM_RESOURCE_PATH" "${SIM_LAUNCH}" "Gazebo model resource path 
 require_grep "/camera/color/image_raw" "${SHOWCASE_RVIZ}" "Factory Patrol RViz RGB display is missing"
 require_grep "/perception/markers" "${SHOWCASE_RVIZ}" "Factory Patrol RViz geometry marker is missing"
 require_grep "/perception/debug_image" "${SHOWCASE_RVIZ}" "Factory Patrol RViz detector debug image is missing"
+require_grep "Managed Targets" "${SHOWCASE_RVIZ}" "Factory Patrol RViz managed-target display is missing"
 require_grep "perception.launch.py" "${DEMO_LAUNCH}" "Factory Patrol launch does not include perception"
 require_grep "geometry_input_mode" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose geometry input mode"
 require_grep "use_detector" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose detector enablement"
@@ -161,6 +171,8 @@ require_grep "/perception/geometry/map_point" "${SCENARIO_DOC}" "simulation docs
 require_grep "ApproximateTime" "${SCENARIO_DOC}" "simulation docs do not document Phase 2 synchronization"
 require_grep "/perception/detections_2d" "${SCENARIO_DOC}" "simulation docs do not document Phase 3 detections"
 require_grep "OpenCV Zoo" "${SCENARIO_DOC}" "simulation docs do not document detector model setup"
+require_grep "/perception/objects_3d" "${SCENARIO_DOC}" "simulation docs do not document Phase 4 managed targets"
+require_grep "TENTATIVE" "${SCENARIO_DOC}" "simulation docs do not document target lifecycle"
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
@@ -172,9 +184,17 @@ require_grep "ApproximateTime" "${PERCEPTION_PACKAGE}/src/geometry_validation_no
 require_grep "class DetectorBackend" "${PERCEPTION_PACKAGE}/robot_perception/detector_backend.py" "replaceable detector backend is missing"
 require_grep "vision_msgs" "${PERCEPTION_PACKAGE}/package.xml" "standard 2D detection interface dependency is missing"
 require_grep "geometry_input_mode" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "synthetic/detector geometry selection is missing"
-if rg -n 'cmd_vel|TargetManager|target_id|objects_3d|perception/events|safety_event' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
-  fail "robot_perception contains out-of-scope control or Phase 4+ implementation"
+require_grep "class TargetManager" "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" "TargetManager class is missing"
+require_grep "max_match_distance" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager association configuration is missing"
+require_grep "ema_alpha" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager EMA configuration is missing"
+require_grep "robot_interfaces_perception" "${PERCEPTION_PACKAGE}/package.xml" "managed target interface dependency is missing"
+require_grep "DetectedObject3D.msg" "${PERCEPTION_INTERFACES}/CMakeLists.txt" "managed target interface is not generated"
+require_grep "uint32 target_id" "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" "managed target ID field is missing"
+require_grep "uint8 tracking_state" "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" "managed lifecycle field is missing"
+require_grep "/perception/objects_3d" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "managed target topic is missing"
+if rg -n 'cmd_vel|perception/events|safety_event|VisualInspectionTask|PERSON_(NEAR|TOO_CLOSE|IN_DANGER_ZONE)' "${ROOT_DIR}/${PERCEPTION_PACKAGE}" >/dev/null; then
+  fail "robot_perception contains out-of-scope control, mission, or safety integration"
 fi
-pass "robot_perception stays within the Phase 3 detector and geometry scope"
+pass "robot_perception stays within the Phase 4 target-management scope"
 
 pass "factory patrol world, config assets, map note, demo entry, scripts, and docs are present"

@@ -50,6 +50,7 @@ bash scripts/check_factory_patrol_demo_workflows.sh
 bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/prepare_phase3_detector_model.sh
 bash scripts/check_factory_patrol_detector_runtime.sh
+bash scripts/check_factory_patrol_target_manager_runtime.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -63,6 +64,9 @@ IDs, and odom TF connectivity diagnostics.
 official OpenCV Zoo YOLOX-S model into the user cache. Normal ROS launch never
 downloads weights. With the detector-mode demo running,
 `check_factory_patrol_detector_runtime.sh` validates the real 2D-to-3D chain.
+`check_factory_patrol_target_manager_runtime.sh` reuses that live detector,
+depth, CameraInfo, and TF graph to validate stable IDs, lifecycle transitions,
+duplicate suppression, markers, and raw-versus-filtered position statistics.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 

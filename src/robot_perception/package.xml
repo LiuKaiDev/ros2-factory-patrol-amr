@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_perception</name>
   <version>0.1.0</version>
-  <description>Replaceable 2D detection and timestamped RGB-D geometry for the Factory Patrol AMR.</description>
+  <description>Replaceable 2D detection, RGB-D geometry, and managed targets for the Factory Patrol AMR.</description>
   <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
   <license>MIT</license>
 
@@ -15,6 +15,7 @@
   <depend>geometry_msgs</depend>
   <depend>message_filters</depend>
   <depend>rclcpp</depend>
+  <depend>robot_interfaces_perception</depend>
   <depend>sensor_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>

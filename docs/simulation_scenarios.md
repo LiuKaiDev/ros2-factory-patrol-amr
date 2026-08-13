@@ -365,7 +365,8 @@ COCO classes. It consumes RGB images and publishes the standard
   -> ApproximateTime with depth + CameraInfo
   -> existing central-ROI median DepthProjector
   -> camera PointStamped + observation-time TF
-  -> map PointStamped + sphere/text RViz markers
+  -> map PointStamped
+  -> TargetManager + managed sphere/text RViz markers
 ```
 
 The detector copies the source image header to both `Detection2DArray` and
@@ -384,7 +385,8 @@ Phase 3 topics:
 | `/perception/debug_image` | `sensor_msgs/msg/Image` | optional RGB boxes/labels; `camera_color_optical_frame` |
 | `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | valid median-depth projection; optical frame |
 | `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | observation-time TF result; `map` |
-| `/perception/markers` | `visualization_msgs/msg/Marker` | sphere plus class/confidence/depth/map-position text |
+| `/perception/markers` | `visualization_msgs/msg/Marker` | managed target ID/class/state/filtered-position markers in detector mode |
+| `/perception/objects_3d` | `robot_interfaces_perception/msg/DetectedObject3D` | Phase 4 managed map-frame target; one message per retained target per update |
 
 Detector parameters are in `src/robot_perception/config/detector.yaml`:
 
@@ -457,9 +459,138 @@ Inference latency is measured around actual backend inference and logged as
 current and running-average milliseconds. The runtime validator requires a
 real `person` detection and the resulting camera/map points and text marker;
 it does not synthesize detections. Detector failures and empty scenes yield no
-3D points. Phase 3 does not assign target IDs, track or stabilize objects,
-publish a custom 3D object contract, create perception events, alter mission or
-safety state, or publish any velocity command. Those remain outside this phase.
+new 3D observations. The detector and geometry contracts remain unchanged;
+Phase 4 consumes their valid map-frame result downstream. Perception events,
+mission behavior, safety integration, and velocity output remain absent.
+
+### Phase 4 Managed Targets
+
+Phase 4 adds a ROS-independent C++ `TargetManager` after the existing validated
+map-frame projection. Detector and OpenCV types remain upstream. Its generic
+input contains class name, confidence, finite map-frame XYZ, source observation
+timestamp, and depth validity. Invalid depth, empty class names, out-of-range
+confidence, non-finite positions, future-dated observations, and out-of-order
+update cycles are rejected without creating targets.
+
+```text
+Detection2DArray + depth + CameraInfo
+  -> existing DepthProjector
+  -> observation-time TF to map
+  -> generic 3D observations (one synchronized frame)
+  -> class-compatible 3D distance association
+  -> confirmation + lifecycle + EMA
+  -> /perception/objects_3d + /perception/markers
+```
+
+The lifecycle implemented in Phase 4 is:
+
+```text
+               confirm_frames matched observations
+TENTATIVE ----------------------------------------------> CONFIRMED
+    |                                                        |
+    +---------------- lost_frames misses --------------------+
+                                                             |
+                                                             v
+                                                            LOST
+
+TENTATIVE / CONFIRMED -- MarkProcessed() --> PROCESSED
+PROCESSED -- cooldown expires and object is observed --> TENTATIVE (same ID)
+```
+
+`confirm_frames` counts compatible matches; hits do not need to be exactly
+consecutive, and a dropout shorter than `lost_frames` preserves the target and
+its ID. At `lost_frames` missed synchronized detector cycles, a target becomes
+LOST. It remains matchable until the missed count exceeds twice
+`lost_frames`, then it is removed to bound memory. A matching LOST target is
+reacquired with the same ID; a previously confirmed target returns directly to
+CONFIRMED. IDs increase monotonically from 1 and are not recycled within the
+process lifetime.
+
+For each update, all same-class target/observation pairs inside the full 3D
+Euclidean `max_match_distance` are sorted by distance, then target ID, then
+observation order. Greedy selection enforces one target per observation and one
+observation per target. Additional same-class observations within the match
+radius of an accepted observation are suppressed as duplicates. This is a
+small deterministic spatial association policy, not appearance tracking,
+DeepSORT, ByteTrack, or ReID.
+
+The managed position is an exponential moving average:
+
+```text
+p_filtered = ema_alpha * p_new + (1 - ema_alpha) * p_previous
+```
+
+Raw latest position is retained internally for validation; the public managed
+position and markers use the filtered value. Confidence uses the latest matched
+detector confidence. Markers use stable IDs derived from `target_id`, display
+text such as `#12 person CONFIRMED`, and rely on `DELETEALL` plus bounded marker
+lifetime for clean LOST/removed-target updates.
+
+The minimal domain interface lives in `robot_interfaces_perception`, consistent
+with the repository's split custom-interface ownership. `DetectedObject3D.msg`
+contains a source-observation header, stable `target_id`, class, latest
+confidence, filtered map position, depth validity, and one of `TENTATIVE`,
+`CONFIRMED`, `LOST`, or `PROCESSED`. `PROCESSED` is currently reachable only
+through the C++ manager API; no mission consumer or ROS behavior API is added.
+During `processed_cooldown_sec`, matching observations update the retained
+target but do not create a new actionable identity. After cooldown, a matching
+observation re-enters TENTATIVE with the same ID.
+
+Tracking parameters are loaded from
+`src/robot_perception/config/tracking.yaml`:
+
+| Parameter | Default | Validation / behavior |
+| --- | --- | --- |
+| `tracking.confirm_frames` | `3` | positive matched-observation count |
+| `tracking.lost_frames` | `5` | positive missed synchronized cycles |
+| `tracking.max_match_distance` | `0.5` m | positive finite 3D match radius |
+| `tracking.ema_alpha` | `0.4` | finite value in `(0, 1]` |
+| `tracking.processed_cooldown_sec` | `10.0` s | nonnegative finite ROS-time duration |
+
+Validation commands:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+colcon test --packages-select robot_interfaces_perception robot_perception
+colcon test-result --verbose
+bash scripts/check_factory_patrol_assets.sh
+
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false \
+  use_detector:=true geometry_input_mode:=detector
+
+bash scripts/check_factory_patrol_detector_runtime.sh
+bash scripts/check_factory_patrol_target_manager_runtime.sh
+ros2 topic echo --once /perception/objects_3d
+```
+
+The Phase 4 runtime check uses the real Factory Patrol person detection and live
+RGB-D/TF graph. An isolated relay supplies real, empty, and one duplicated
+detection cycle to validate TENTATIVE, CONFIRMED, short dropout, LOST,
+same-ID reacquisition, and duplicate suppression without changing the world.
+It reports measured raw and EMA XYZ standard deviations and manager update
+latency when an executed run provides enough samples; it does not manufacture
+results.
+
+The Phase 4 WSL runtime validation on 2026-08-13 completed with one real
+Factory Patrol person target and stable `target_id=1`. It observed TENTATIVE,
+CONFIRMED, a short dropout, LOST, same-ID reacquisition, duplicate suppression,
+and managed markers. Across 15 paired stationary samples, both raw and filtered
+population standard deviations were `x=0.000000 m`, `y=0.000000 m`, and
+`z=0.000000 m`. This run therefore measured no EMA improvement because the raw
+projected position had no observable jitter. The isolated node logged a
+TargetManager update latency of `7.576 us`; detector inference remains a
+separate cost and was not included in that measurement.
+
+Known limitations: association has no velocity model or appearance information,
+all classes use one 3D radius, frame-count lifecycle behavior depends on
+synchronized detector cycles, and a removed target receives a new ID if later
+rediscovered. `DetectedObject3D` is published once per retained target rather
+than as an array. No Phase 5 mission, Nav2 approach goal, observation pose,
+perception event, Safety Gate input, Phase 6 proximity policy, or `/cmd_vel`
+publisher is implemented.
 
 Current / planned boundary:
 

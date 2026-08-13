@@ -42,12 +42,24 @@ TOPICS=(
   "/perception/geometry/camera_point"
   "/perception/geometry/map_point"
   "/perception/markers"
+  "/perception/objects_3d"
 )
 
 DETECTOR_MODE="${FACTORY_PATROL_DETECTOR_MODE:-false}"
 if [[ "${DETECTOR_MODE}" == "true" ]]; then
   TOPICS+=("/perception/detections_2d" "/perception/debug_image")
 fi
+
+check_managed_target() {
+  if timeout 30s ros2 topic echo --once --timeout 28 /perception/objects_3d \
+      --filter "m.header.frame_id == 'map' and (m.header.stamp.sec > 0 or m.header.stamp.nanosec > 0) and m.target_id > 0 and len(m.class_name) > 0 and 0.0 <= m.confidence <= 1.0 and m.depth_valid and m.tracking_state in (0, 1, 2, 3) and m.position.x == m.position.x and m.position.y == m.position.y and m.position.z == m.position.z" \
+      --no-arr >/dev/null 2>&1; then
+    echo "PASS: /perception/objects_3d publishes a finite managed map target"
+    return 0
+  fi
+  echo "FAIL: /perception/objects_3d did not publish a valid managed target" >&2
+  return 1
+}
 
 WARN_ONLY_TOPICS=(
   "/amr_simulation/demo_timeline"
@@ -339,6 +351,7 @@ echo "[factory-topic-check] Validating Phase 2 geometry outputs..."
 check_topic_type "/perception/geometry/camera_point" "geometry_msgs/msg/PointStamped" || failures=$((failures + 1))
 check_topic_type "/perception/geometry/map_point" "geometry_msgs/msg/PointStamped" || failures=$((failures + 1))
 check_topic_type "/perception/markers" "visualization_msgs/msg/Marker" || failures=$((failures + 1))
+check_topic_type "/perception/objects_3d" "robot_interfaces_perception/msg/DetectedObject3D" || failures=$((failures + 1))
 check_geometry_message "/perception/geometry/camera_point" "camera_color_optical_frame" || failures=$((failures + 1))
 check_geometry_message "/perception/geometry/map_point" "map" || failures=$((failures + 1))
 check_geometry_marker || failures=$((failures + 1))
@@ -353,6 +366,7 @@ if [[ "${DETECTOR_MODE}" == "true" ]]; then
   echo
   echo "[factory-topic-check] Delegating Phase 3 detector-chain validation..."
   bash scripts/check_factory_patrol_detector_runtime.sh || failures=$((failures + 1))
+  check_managed_target || failures=$((failures + 1))
 fi
 
 echo

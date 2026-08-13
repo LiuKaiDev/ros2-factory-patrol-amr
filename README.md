@@ -158,6 +158,8 @@ bash scripts/check_factory_patrol_assets.sh
 
 ```bash
 bash scripts/check_factory_patrol_runtime_topics.sh
+FACTORY_PATROL_DETECTOR_MODE=true bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/check_factory_patrol_target_manager_runtime.sh
 ```
 
 更多脚本说明见 [scripts/README.md](scripts/README.md)。Validation Scripts 的完整列表也放在该文档中。
@@ -189,7 +191,8 @@ src/
   robot_simulation/     # Gazebo world、RViz 和仿真节点
   robot_teleop/         # virtual RC、cmd_vel mux 和 safety gate
   robot_tasks/          # 巡检任务入口
-  robot_perception/     # RGB-D 几何投影与可替换 2D 目标检测
+  robot_perception/     # RGB-D 几何、可替换 2D 检测与目标管理
+  robot_interfaces_perception/ # 稳定 3D 感知目标接口
   robot_interfaces*/    # 自定义消息和接口
 
 docs/                   # 项目文档

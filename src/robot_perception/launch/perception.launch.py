@@ -14,11 +14,15 @@ def generate_launch_description():
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     model_path = LaunchConfiguration("model_path")
     debug_image_enabled = LaunchConfiguration("debug_image_enabled")
+    tracking_params_file = LaunchConfiguration("tracking_params_file")
     detector_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "detector.yaml"]
     )
     geometry_launch = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "launch", "geometry_validation.launch.py"]
+    )
+    default_tracking_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
     )
 
     return LaunchDescription(
@@ -29,6 +33,9 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_sim_map_tf", default_value="true"),
             DeclareLaunchArgument("model_path", default_value=""),
             DeclareLaunchArgument("debug_image_enabled", default_value="true"),
+            DeclareLaunchArgument(
+                "tracking_params_file", default_value=default_tracking_params
+            ),
             Node(
                 package="robot_perception",
                 executable="detector_node",
@@ -49,6 +56,7 @@ def generate_launch_description():
                     "use_sim_time": use_sim_time,
                     "publish_sim_map_tf": publish_sim_map_tf,
                     "geometry_input_mode": geometry_input_mode,
+                    "tracking_params_file": tracking_params_file,
                 }.items(),
             ),
         ]

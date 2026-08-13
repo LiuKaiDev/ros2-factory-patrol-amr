@@ -105,7 +105,7 @@ Visualization Manager:
         Depth: 5
     - Class: rviz_default_plugins/Marker
       Enabled: true
-      Name: Perception 3D Result
+      Name: Managed Targets
       Marker Topic:
         Value: /perception/markers
         Durability Policy: Volatile

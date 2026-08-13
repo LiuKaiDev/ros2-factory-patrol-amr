@@ -1,9 +1,12 @@
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -15,7 +18,9 @@
 #include "message_filters/synchronizer.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rmw/qos_profiles.h"
+#include "robot_interfaces_perception/msg/detected_object3_d.hpp"
 #include "robot_perception/depth_projector.hpp"
+#include "robot_perception/target_manager.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "tf2/exceptions.h"
@@ -44,6 +49,8 @@ class GeometryValidationNode final : public rclcpp::Node {
         declare_parameter<std::string>("map_point_topic", "/perception/geometry/map_point");
     marker_topic_ =
         declare_parameter<std::string>("marker_topic", "/perception/markers");
+    objects_3d_topic_ = declare_parameter<std::string>(
+        "objects_3d_topic", "/perception/objects_3d");
     detection_topic_ = declare_parameter<std::string>(
         "detection_topic", "/perception/detections_2d");
     geometry_input_mode_ =
@@ -68,6 +75,25 @@ class GeometryValidationNode final : public rclcpp::Node {
     }
     depth_config.min_valid_samples = static_cast<std::size_t>(min_valid_samples);
     projector_ = std::make_unique<DepthProjector>(depth_config);
+
+    TargetManagerConfig tracking_config;
+    const auto confirm_frames =
+        declare_parameter<std::int64_t>("tracking.confirm_frames", 3);
+    const auto lost_frames =
+        declare_parameter<std::int64_t>("tracking.lost_frames", 5);
+    if (confirm_frames <= 0 || lost_frames <= 0) {
+      throw std::invalid_argument(
+          "tracking.confirm_frames and tracking.lost_frames must be positive");
+    }
+    tracking_config.confirm_frames = static_cast<std::size_t>(confirm_frames);
+    tracking_config.lost_frames = static_cast<std::size_t>(lost_frames);
+    tracking_config.max_match_distance =
+        declare_parameter<double>("tracking.max_match_distance", 0.5);
+    tracking_config.ema_alpha =
+        declare_parameter<double>("tracking.ema_alpha", 0.4);
+    tracking_config.processed_cooldown_sec =
+        declare_parameter<double>("tracking.processed_cooldown_sec", 10.0);
+    target_manager_ = std::make_unique<TargetManager>(tracking_config);
 
     bbox_.center_u = declare_parameter<double>("synthetic_bbox.center_u", 320.0);
     bbox_.center_v = declare_parameter<double>("synthetic_bbox.center_v", 240.0);
@@ -114,6 +140,9 @@ class GeometryValidationNode final : public rclcpp::Node {
         create_publisher<geometry_msgs::msg::PointStamped>(camera_point_topic_, 10);
     map_point_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(map_point_topic_, 10);
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(marker_topic_, 10);
+    objects_3d_pub_ =
+        create_publisher<robot_interfaces_perception::msg::DetectedObject3D>(
+            objects_3d_topic_, 10);
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
@@ -143,8 +172,9 @@ class GeometryValidationNode final : public rclcpp::Node {
 
     RCLCPP_INFO(
         get_logger(),
-        "geometry validation ready: mode=%s, target_frame=%s, observation-time TF only",
-        geometry_input_mode_.c_str(), target_frame_.c_str());
+        "geometry validation ready: mode=%s, target_frame=%s, observation-time TF only, "
+        "managed_targets=%s",
+        geometry_input_mode_.c_str(), target_frame_.c_str(), objects_3d_topic_.c_str());
   }
 
  private:
@@ -185,7 +215,7 @@ class GeometryValidationNode final : public rclcpp::Node {
     ClearMarkers(depth->header.stamp);
     ProjectAndPublish(
         bbox_, "synthetic", 1.0, depth->header.stamp, *depth, *camera_info, 0U,
-        ground_truth_enabled_);
+        ground_truth_enabled_, true);
   }
 
   void HandleDetectorObservation(
@@ -209,8 +239,8 @@ class GeometryValidationNode final : public rclcpp::Node {
       return;
     }
 
-    ClearMarkers(detections->header.stamp);
-    std::size_t marker_index = 0U;
+    std::vector<TargetObservation> observations;
+    observations.reserve(detections->detections.size());
     for (const auto& detection : detections->detections) {
       if (detection.results.empty()) {
         continue;
@@ -225,26 +255,49 @@ class GeometryValidationNode final : public rclcpp::Node {
       bbox.center_v = detection.bbox.center.position.y;
       bbox.width = detection.bbox.size_x;
       bbox.height = detection.bbox.size_y;
-      ProjectAndPublish(
+      const auto observation = ProjectAndPublish(
           bbox, best->hypothesis.class_id, best->hypothesis.score,
-          detections->header.stamp, *depth, *camera_info, marker_index, false);
-      ++marker_index;
+          detections->header.stamp, *depth, *camera_info, 0U, false, false);
+      if (observation) {
+        observations.push_back(*observation);
+      }
     }
+
+    const auto update_start = std::chrono::steady_clock::now();
+    const auto& targets = target_manager_->Update(
+        observations, rclcpp::Time(detections->header.stamp).nanoseconds());
+    const auto update_end = std::chrono::steady_clock::now();
+    target_manager_latency_total_us_ +=
+        std::chrono::duration<double, std::micro>(update_end - update_start).count();
+    ++target_manager_update_count_;
+    if (target_manager_update_count_ == 1U ||
+        target_manager_update_count_ % 30U == 0U) {
+      RCLCPP_INFO(
+          get_logger(),
+          "TargetManager latency: current=%.3f us, average=%.3f us, "
+          "observations=%zu, retained_targets=%zu",
+          std::chrono::duration<double, std::micro>(update_end - update_start).count(),
+          target_manager_latency_total_us_ /
+              static_cast<double>(target_manager_update_count_),
+          observations.size(), targets.size());
+    }
+    PublishManagedTargets(targets, detections->header.stamp);
   }
 
-  void ProjectAndPublish(
+  std::optional<TargetObservation> ProjectAndPublish(
       const BoundingBox2D& bbox, const std::string& class_name,
       const double confidence, const builtin_interfaces::msg::Time& observation_stamp,
       const sensor_msgs::msg::Image& depth,
       const sensor_msgs::msg::CameraInfo& camera_info,
-      const std::size_t marker_index, const bool report_ground_truth) {
+      const std::size_t marker_index, const bool report_ground_truth,
+      const bool publish_raw_marker) {
     const auto result = projector_->Project(bbox, depth, camera_info);
     if (!result.valid()) {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 5000,
           "depth projection rejected observation: %s (valid samples=%zu)",
           ProjectionStatusName(result.status), result.valid_sample_count);
-      return;
+      return std::nullopt;
     }
 
     geometry_msgs::msg::PointStamped camera_point;
@@ -266,20 +319,31 @@ class GeometryValidationNode final : public rclcpp::Node {
         RCLCPP_WARN_THROTTLE(
             get_logger(), *get_clock(), 5000,
             "TF produced a non-finite map point; suppressing map output");
-        return;
+        return std::nullopt;
       }
       map_point_pub_->publish(map_point);
-      marker_pub_->publish(BuildPointMarker(map_point, marker_index));
-      marker_pub_->publish(BuildTextMarker(
-          map_point, marker_index, class_name, confidence, result.depth));
+      if (publish_raw_marker) {
+        marker_pub_->publish(BuildRawPointMarker(map_point, marker_index));
+        marker_pub_->publish(BuildRawTextMarker(
+            map_point, marker_index, class_name, confidence, result.depth));
+      }
       if (report_ground_truth) {
         ReportGroundTruthError(map_point);
       }
+      TargetObservation observation;
+      observation.class_name = class_name;
+      observation.confidence = confidence;
+      observation.position = {
+          map_point.point.x, map_point.point.y, map_point.point.z};
+      observation.timestamp_ns = rclcpp::Time(observation_stamp).nanoseconds();
+      observation.depth_valid = true;
+      return observation;
     } catch (const tf2::TransformException& error) {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 5000,
           "observation-time TF %s <- %s failed: %s; map output suppressed",
           target_frame_.c_str(), camera_frame_.c_str(), error.what());
+      return std::nullopt;
     }
   }
 
@@ -297,7 +361,7 @@ class GeometryValidationNode final : public rclcpp::Node {
     marker_pub_->publish(marker);
   }
 
-  visualization_msgs::msg::Marker BuildPointMarker(
+  visualization_msgs::msg::Marker BuildRawPointMarker(
       const geometry_msgs::msg::PointStamped& map_point,
       const std::size_t marker_index) const {
     visualization_msgs::msg::Marker marker;
@@ -319,11 +383,11 @@ class GeometryValidationNode final : public rclcpp::Node {
     return marker;
   }
 
-  visualization_msgs::msg::Marker BuildTextMarker(
+  visualization_msgs::msg::Marker BuildRawTextMarker(
       const geometry_msgs::msg::PointStamped& map_point,
       const std::size_t marker_index, const std::string& class_name,
       const double confidence, const double depth) const {
-    auto marker = BuildPointMarker(map_point, marker_index);
+    auto marker = BuildRawPointMarker(map_point, marker_index);
     marker.id = static_cast<std::int32_t>(marker_index * 2U + 1U);
     marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
     marker.pose.position.z += marker_scale_ * 1.5;
@@ -338,6 +402,94 @@ class GeometryValidationNode final : public rclcpp::Node {
         text, sizeof(text), "%s %.2f depth=%.2fm map=(%.2f, %.2f, %.2f)",
         class_name.c_str(), confidence, depth, map_point.point.x, map_point.point.y,
         map_point.point.z);
+    marker.text = text;
+    return marker;
+  }
+
+  void PublishManagedTargets(
+      const std::vector<ManagedTarget>& targets,
+      const builtin_interfaces::msg::Time& update_stamp) {
+    ClearMarkers(update_stamp);
+    for (const auto& target : targets) {
+      robot_interfaces_perception::msg::DetectedObject3D message;
+      message.header.stamp = rclcpp::Time(target.last_observation_ns);
+      message.header.frame_id = target_frame_;
+      message.target_id = target.target_id;
+      message.class_name = target.class_name;
+      message.confidence = static_cast<float>(target.confidence);
+      message.position.x = target.filtered_position.x;
+      message.position.y = target.filtered_position.y;
+      message.position.z = target.filtered_position.z;
+      message.depth_valid = target.depth_valid;
+      message.tracking_state = static_cast<std::uint8_t>(target.state);
+      objects_3d_pub_->publish(message);
+      marker_pub_->publish(BuildManagedPointMarker(message));
+      marker_pub_->publish(BuildManagedTextMarker(message));
+    }
+  }
+
+  visualization_msgs::msg::Marker BuildManagedPointMarker(
+      const robot_interfaces_perception::msg::DetectedObject3D& object) const {
+    visualization_msgs::msg::Marker marker;
+    marker.header = object.header;
+    marker.ns = marker_namespace_;
+    marker.id = static_cast<std::int32_t>(object.target_id * 2U);
+    marker.type = visualization_msgs::msg::Marker::SPHERE;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.position = object.position;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = marker_scale_;
+    marker.scale.y = marker_scale_;
+    marker.scale.z = marker_scale_;
+    marker.color.a = 1.0F;
+    switch (static_cast<TrackingState>(object.tracking_state)) {
+      case TrackingState::kTentative:
+        marker.color.r = 1.0F;
+        marker.color.g = 0.75F;
+        marker.color.b = 0.10F;
+        break;
+      case TrackingState::kConfirmed:
+        marker.color.r = 0.10F;
+        marker.color.g = 0.95F;
+        marker.color.b = 0.35F;
+        break;
+      case TrackingState::kLost:
+        marker.color.r = 0.65F;
+        marker.color.g = 0.65F;
+        marker.color.b = 0.65F;
+        marker.color.a = 0.65F;
+        break;
+      case TrackingState::kProcessed:
+        marker.color.r = 0.20F;
+        marker.color.g = 0.60F;
+        marker.color.b = 1.0F;
+        break;
+    }
+    marker.lifetime = rclcpp::Duration::from_seconds(marker_lifetime_sec_);
+    return marker;
+  }
+
+  visualization_msgs::msg::Marker BuildManagedTextMarker(
+      const robot_interfaces_perception::msg::DetectedObject3D& object) const {
+    auto marker = BuildManagedPointMarker(object);
+    marker.id = static_cast<std::int32_t>(object.target_id * 2U + 1U);
+    marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    marker.pose.position.z += marker_scale_ * 1.5;
+    marker.scale.x = 0.0;
+    marker.scale.y = 0.0;
+    marker.scale.z = marker_scale_;
+    marker.color.r = 1.0F;
+    marker.color.g = 1.0F;
+    marker.color.b = 1.0F;
+    marker.color.a = 1.0F;
+    char text[224];
+    std::snprintf(
+        text, sizeof(text),
+        "#%u %s %s confidence=%.2f depth=%s map=(%.2f, %.2f, %.2f)",
+        object.target_id, object.class_name.c_str(),
+        TrackingStateName(static_cast<TrackingState>(object.tracking_state)),
+        object.confidence, object.depth_valid ? "valid" : "invalid",
+        object.position.x, object.position.y, object.position.z);
     marker.text = text;
     return marker;
   }
@@ -366,6 +518,7 @@ class GeometryValidationNode final : public rclcpp::Node {
   std::string camera_point_topic_;
   std::string map_point_topic_;
   std::string marker_topic_;
+  std::string objects_3d_topic_;
   std::string detection_topic_;
   std::string geometry_input_mode_;
   std::string marker_namespace_;
@@ -380,8 +533,11 @@ class GeometryValidationNode final : public rclcpp::Node {
   double ground_truth_y_ = 0.0;
   double ground_truth_z_ = 0.0;
   std::size_t last_sample_count_ = 0U;
+  std::size_t target_manager_update_count_ = 0U;
+  double target_manager_latency_total_us_ = 0.0;
 
   std::unique_ptr<DepthProjector> projector_;
+  std::unique_ptr<TargetManager> target_manager_;
   message_filters::Subscriber<sensor_msgs::msg::Image> rgb_sub_;
   message_filters::Subscriber<vision_msgs::msg::Detection2DArray> detection_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> depth_sub_;
@@ -393,6 +549,8 @@ class GeometryValidationNode final : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr camera_point_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr map_point_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+  rclcpp::Publisher<
+      robot_interfaces_perception::msg::DetectedObject3D>::SharedPtr objects_3d_pub_;
 };
 
 }  // namespace robot_perception
