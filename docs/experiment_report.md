@@ -133,6 +133,134 @@ Runtime topics observed during Factory Patrol simulation validation included
 `/global_costmap/costmap`, `/local_costmap/costmap`,
 `/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
 
+## Phase 8: Perception And Mission Evaluation
+
+Phase 8 extends `robot_experiments` with quantitative probes for the existing
+perception, inspection, Nav2, and Safety Gate chain. It does not change the
+robot behavior or add a perception algorithm. All outputs from this benchmark
+must be labeled **Gazebo / WSL simulation results** and are not physical robot
+performance guarantees.
+
+Run the standard headless profile after building and sourcing the workspace:
+
+```bash
+bash scripts/run_factory_patrol_benchmarks.sh
+```
+
+The command validates assets and the detector model, then produces a
+timestamped JSON artifact and a compact performance-table CSV under
+`src/robot_experiments/results/`. A failed prerequisite or profile stops the
+suite; incomplete profiles are not merged into a final result.
+The runner defaults to DDS domain base `140` and increments the domain for
+every profile launch so stale WSL ROS processes and Fast DDS participants do
+not contaminate later trials; set `FACTORY_PATROL_BENCHMARK_DOMAIN_ID` to choose
+a different unused range. It also assigns a unique Gazebo Transport partition
+per profile; override `FACTORY_PATROL_BENCHMARK_GZ_PARTITION` only when
+deliberate cross-process Gazebo communication is required.
+
+### Method
+
+| Metric | Definition | Clock |
+| --- | --- | --- |
+| Detector processing | OpenCV-DNN `infer()` call duration | monotonic wall duration inside detector |
+| Detector message age | source image stamp to detection callback receipt | ROS simulation clock |
+| 3D localization | Euclidean `P_est - P_gt` at near/medium/far center-ray fixture positions | observation data |
+| Position stability | population x/y/z standard deviation for raw and TargetManager EMA points sharing an observation stamp | observation data |
+| Detection to action | benchmark receipt at first person detection, confirmation, inspection event, and navigation goal | ROS simulation clock |
+| STOP response | perception safety condition header stamp to the first gated zero `/cmd_vel` with active upstream Nav2 intent | ROS simulation clock |
+| Mission success | detected, confirmed, event, goal, Nav2 success, completion event, and `PROCESSED` | per clean launch trial |
+| Invalid depth | controlled invalid depth input with no same-stamp valid map projection | ROS simulation clock |
+
+Percentiles use nearest rank: sort the samples and select
+`ceil(percentile / 100 * count)`. Standard deviation is population standard
+deviation. Outliers are retained. The first five detector diagnostic samples
+are explicitly recorded as warmup exclusions; diagnostic sampling gaps and
+fixture-settle exclusions are counted in JSON rather than silently dropped.
+
+The standard WSL CPU profile collects 30 detector samples after warmup, 10
+geometry samples at each of three ranges, five independently reset visual
+inspection missions, 10 STOP transitions, and 20 invalid-depth cases. Each
+mission restarts the launch so TargetManager, cooldown, and task state begin
+cleanly. Safety trials alternate the existing Gazebo fixtures while keeping a
+Nav2 goal active. A 20-second post-completion observation window counts late
+duplicate task triggers instead of stopping as soon as the first mission wins.
+An inspection mission start is the task node's `REQUESTED: observation pose
+planned` status. Extra perception events that the active task ignores and Nav2
+retries are retained as separate raw counts, but are not mislabeled as new
+mission starts. GUI and RViz remain disabled to reduce, but not conceal,
+resource contention.
+
+### Result Policy
+
+The JSON records the git revision and dirty-state fingerprint, branch, ROS
+distro, world, camera, detector backend/model/device, tracking and safety
+parameters, sample counts, exclusions, failure categories, and observed
+CameraInfo/TF diagnostic faults. The CSV is derived from that JSON. Only a
+small reviewed JSON/CSV pair is committed; temporary launch logs remain under
+`/tmp` only when `KEEP_FACTORY_PATROL_BENCHMARK_LOGS=true` is set.
+
+### WSL Simulation Result (2026-08-15)
+
+Curated artifacts:
+
+- `src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json`
+- `src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv`
+
+Environment: ROS 2 Jazzy, `factory_patrol.sdf`, headless Gazebo, no RViz,
+simulation time, OpenCV YOLOX on the actual CPU device, 640x640 detector input,
+640x480 RGB-D at 15 Hz, confidence threshold 0.45. The JSON records commit
+`bfb59f9` plus the dirty-tree fingerprint because the result is committed with
+the Phase 8 implementation.
+
+| Metric | Count | Mean | P50 | P95 | Max | Unit |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Detector processing | 30 | 526.189 | 519.714 | 568.830 | 656.778 | ms |
+| 3D localization error | 30 | 0.02045 | 0.01645 | 0.05239 | 0.07075 | m |
+| Detection to confirmation | 5 | 1.970 | 2.023 | 2.405 | 2.405 | s |
+| Confirmation to inspection event | 5 | 0.000 | 0.000 | 0.000 | 0.000 | s |
+| Inspection event to Nav2 goal | 5 | 0.080 | 0.002 | 0.385 | 0.385 | s |
+| Detection to Nav2 goal | 5 | 2.050 | 2.034 | 2.790 | 2.790 | s |
+| Safety STOP response | 10 | 0.1806 | 0.173 | 0.214 | 0.214 | s |
+
+Localization RMSE was `0.02351 m`. The medium and far fixture mean errors were
+`0.01645 m` and `0.01612 m`; the near fixture retained RGB-D render-transition
+samples after the predefined three-sample settle exclusion and had `0.02879 m`
+mean and `0.07075 m` max error. Nine settle samples were excluded by policy;
+no measured sample was removed after inspection.
+
+For the primary stationary target (`32` paired observations), raw x/y/z
+standard deviations were `0.00161 / 0.00167 / 0.00540 m`; EMA values were
+`0.00181 / 0.00197 / 0.00607 m`. EMA was slightly worse on all three axes in
+this run, so no stability improvement is claimed. Two target IDs were observed
+during the continuous detector profile, so ID stability was not perfect.
+
+All five end-to-end inspection trials succeeded (`5/5`, success rate `1.0`),
+with zero categorized failures and zero false mission starts. Exactly five
+missions started for five intended trials. Three additional inspection-required
+events were emitted for newly assigned target IDs while a task was active and
+were ignored by the task node; they did not start missions. Inspection event to
+completion averaged `6.339 s` (P50 `6.364 s`, P95/max `6.682 s`). The benchmark
+did not collect final physical standoff error, so no value is claimed for it.
+
+The repeated STOP test kept a nonzero Nav2 request and required final
+`/cmd_vel` to be zero. The separate speed-limit sample clamped an upstream
+`0.35 m/s` request to `0.15 m/s` in `0.226 s`. Invalid-depth rejection was
+`20/20` with zero false-valid projections.
+
+Thirteen non-OK diagnostic samples reported `perception/tf: observation-time
+TF intermittently unavailable` across three mission trials. All recovered and
+succeeded; no CameraInfo fault sample was observed. Detector warmup excluded
+five recorded samples, six detector diagnostic sampling gaps were counted, and
+one Nav2-inactive setup goal was excluded before the Safety trial began. The
+runner isolated every profile by DDS domain and Gazebo partition and left no
+Phase 8 partition process after the final run.
+
+Interpretation: detector time is CPU-bound in this WSL/OpenCV-DNN setup;
+geometry includes RGB-D rendering and simulated odom/map alignment; action
+latency includes detector frame cadence and ROS event propagation; safety time
+includes perception propagation and the existing final Safety Gate. Historical
+Phase 2/3/6 smoke observations remain context, not aggregate samples.
+
 ## Result Policy
 
 - Keep `TBD` until the run is real and repeatable.

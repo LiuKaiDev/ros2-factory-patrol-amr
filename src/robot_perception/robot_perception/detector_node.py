@@ -62,6 +62,8 @@ class DetectorNode(Node):
         if diagnostics_latency_warn_ms <= 0.0 or diagnostics_latency_error_ms <= diagnostics_latency_warn_ms:
             raise ValueError("diagnostic latency thresholds are inconsistent")
         self._confidence = confidence
+        self._input_size = input_size
+        self._requested_device = device
         self._min_inference_period = (
             0.0 if max_inference_rate_hz == 0.0 else 1.0 / max_inference_rate_hz
         )
@@ -158,6 +160,12 @@ class DetectorNode(Node):
             message=message,
             values=[
                 self._value("backend", self._backend_name),
+                self._value(
+                    "device",
+                    self._backend.device if self._backend is not None else self._requested_device,
+                ),
+                self._value("input_size", self._input_size),
+                self._value("confidence_threshold", self._confidence),
                 self._value("model_path", self._model_path),
                 self._value("model_error", self._model_error),
                 self._value("inference_count", self._inference_count),

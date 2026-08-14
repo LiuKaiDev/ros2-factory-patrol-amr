@@ -1,0 +1,1127 @@
+#!/usr/bin/env python3
+"""ROS 2 probes and result merger for Factory Patrol Phase 8 benchmarks."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import math
+from pathlib import Path
+import struct
+import sys
+import threading
+import time
+
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from geometry_msgs.msg import PointStamped, PoseStamped, Twist
+from nav2_msgs.action import NavigateToPose
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
+from robot_experiments.benchmark_metrics import (
+    PerformanceRow,
+    false_task_trigger_count,
+    summarize,
+    summarize_xyz,
+    utc_timestamp,
+    write_json,
+    write_performance_csv,
+)
+from robot_interfaces_perception.msg import (
+    DetectedObject3D,
+    PerceptionEvent,
+    PerceptionSafetyEvent,
+)
+from ros_gz_interfaces.msg import Entity
+from ros_gz_interfaces.srv import SetEntityPose
+from sensor_msgs.msg import CameraInfo, Image
+from std_msgs.msg import String
+from vision_msgs.msg import Detection2DArray
+
+
+TRANSIENT_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST,
+    depth=20,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+)
+
+
+def stamp_ns(header) -> int:
+    return header.stamp.sec * 1_000_000_000 + header.stamp.nanosec
+
+
+def point_tuple(point) -> tuple[float, float, float]:
+    return (float(point.x), float(point.y), float(point.z))
+
+
+def duration_sec(start_ns: int, end_ns: int) -> float:
+    value = (end_ns - start_ns) / 1.0e9
+    if value < 0.0:
+        raise ValueError("ROS-clock benchmark duration became negative")
+    return value
+
+
+class ThreadedProbe(Node):
+    def __init__(self, name: str):
+        super().__init__(
+            name,
+            parameter_overrides=[Parameter("use_sim_time", value=True)],
+        )
+        self.lock = threading.RLock()
+
+    def wait_until(self, description, predicate, timeout_sec: float):
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            with self.lock:
+                result = predicate()
+            if result is not None and result is not False:
+                return result
+            time.sleep(0.05)
+        raise TimeoutError(f"timeout waiting for {description}")
+
+    def wait_for_graph(self, topics: list[str], timeout_sec: float = 30.0):
+        def ready():
+            missing = [name for name in topics if self.count_publishers(name) == 0]
+            return True if not missing else None
+
+        self.wait_until("benchmark topic publishers", ready, timeout_sec)
+
+
+class DetectorMissionProbe(ThreadedProbe):
+    def __init__(self):
+        super().__init__("factory_patrol_phase8_detector_mission_probe")
+        self.detector_samples: list[dict] = []
+        self.detector_metadata: dict[str, str] = {}
+        self.last_inference_count = 0
+        self.diagnostic_gaps = 0
+        self.camera_tf_faults: set[tuple] = set()
+        self.raw_points: dict[int, list[tuple[float, float, float]]] = {}
+        self.filtered_points: dict[int, dict[int, tuple[float, float, float]]] = {}
+        self.target_ids: set[int] = set()
+        self.first_detection_receipt_ns: int | None = None
+        self.first_detection_stamp_ns: int | None = None
+        self.confirmation_receipt_ns: int | None = None
+        self.confirmation_stamp_ns: int | None = None
+        self.inspection_event_receipt_ns: int | None = None
+        self.inspection_event_stamp_ns: int | None = None
+        self.nav_goal_receipt_ns: int | None = None
+        self.nav_goal_stamp_ns: int | None = None
+        self.completion_receipt_ns: int | None = None
+        self.completion_stamp_ns: int | None = None
+        self.processed_receipt_ns: int | None = None
+        self.target_position: tuple[float, float, float] | None = None
+        self.required_events = 0
+        self.completed_events = 0
+        self.mission_starts = 0
+        self.accepted_goals = 0
+        self.succeeded = False
+        self.failed_status = ""
+        self.create_subscription(
+            DiagnosticArray, "/perception/diagnostics", self.on_diagnostics, 50
+        )
+        self.create_subscription(
+            Detection2DArray, "/perception/detections_2d", self.on_detections, 30
+        )
+        self.create_subscription(
+            PointStamped, "/perception/geometry/map_point", self.on_raw, 30
+        )
+        self.create_subscription(
+            DetectedObject3D,
+            "/perception/objects_3d",
+            self.on_target,
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
+            PerceptionEvent, "/perception/events", self.on_event, TRANSIENT_QOS
+        )
+        self.create_subscription(
+            String, "/inspection/status", self.on_status, TRANSIENT_QOS
+        )
+        self.create_subscription(
+            PoseStamped,
+            "/navigate_sequence/current_goal",
+            self.on_goal,
+            TRANSIENT_QOS,
+        )
+
+    def receipt_ns(self) -> int:
+        return self.get_clock().now().nanoseconds
+
+    def on_diagnostics(self, message: DiagnosticArray):
+        receipt = self.receipt_ns()
+        with self.lock:
+            for status in message.status:
+                values = {item.key: item.value for item in status.values}
+                if status.name == "perception/detector":
+                    try:
+                        count = int(values.get("inference_count", "0"))
+                        latency = float(values.get("last_latency_ms", "nan"))
+                    except ValueError:
+                        continue
+                    for key in (
+                        "backend",
+                        "model_path",
+                        "device",
+                        "input_size",
+                        "confidence_threshold",
+                    ):
+                        if key in values:
+                            self.detector_metadata[key] = values[key]
+                    if count > self.last_inference_count and math.isfinite(latency):
+                        if self.last_inference_count and count > self.last_inference_count + 1:
+                            self.diagnostic_gaps += count - self.last_inference_count - 1
+                        self.detector_samples.append(
+                            {
+                                "inference_count": count,
+                                "processing_duration_ms": latency,
+                                "diagnostic_receipt_ros_ns": receipt,
+                            }
+                        )
+                        self.last_inference_count = count
+                if (
+                    status.name in ("perception/camera", "perception/tf")
+                    and status.level != DiagnosticStatus.OK
+                ):
+                    self.camera_tf_faults.add(
+                        (status.name, message.header.stamp.sec, message.header.stamp.nanosec, status.message)
+                    )
+
+    def on_detections(self, message: Detection2DArray):
+        person = any(
+            detection.results
+            and detection.results[0].hypothesis.class_id == "person"
+            for detection in message.detections
+        )
+        if not person:
+            return
+        receipt = self.receipt_ns()
+        with self.lock:
+            if self.first_detection_receipt_ns is None:
+                self.first_detection_receipt_ns = receipt
+                self.first_detection_stamp_ns = stamp_ns(message.header)
+
+    def on_raw(self, message: PointStamped):
+        values = point_tuple(message.point)
+        if message.header.frame_id == "map" and all(math.isfinite(value) for value in values):
+            with self.lock:
+                self.raw_points.setdefault(stamp_ns(message.header), []).append(values)
+
+    def on_target(self, message: DetectedObject3D):
+        if message.class_name != "person" or not message.depth_valid:
+            return
+        receipt = self.receipt_ns()
+        key = stamp_ns(message.header)
+        values = point_tuple(message.position)
+        with self.lock:
+            self.target_ids.add(int(message.target_id))
+            if message.tracking_state in (
+                DetectedObject3D.TENTATIVE,
+                DetectedObject3D.CONFIRMED,
+            ) and all(math.isfinite(value) for value in values):
+                self.filtered_points.setdefault(key, {})[int(message.target_id)] = values
+            if (
+                message.tracking_state == DetectedObject3D.CONFIRMED
+                and self.confirmation_receipt_ns is None
+            ):
+                self.confirmation_receipt_ns = receipt
+                self.confirmation_stamp_ns = key
+            if message.tracking_state == DetectedObject3D.PROCESSED:
+                self.processed_receipt_ns = receipt
+
+    def on_event(self, message: PerceptionEvent):
+        if message.class_name != "person":
+            return
+        receipt = self.receipt_ns()
+        with self.lock:
+            if message.event_type == PerceptionEvent.INSPECTION_REQUIRED:
+                self.required_events += 1
+                if self.inspection_event_receipt_ns is None:
+                    self.inspection_event_receipt_ns = receipt
+                    self.inspection_event_stamp_ns = stamp_ns(message.header)
+                    self.target_position = point_tuple(message.target_pose.pose.position)
+            elif message.event_type == PerceptionEvent.INSPECTION_COMPLETED:
+                self.completed_events += 1
+                self.completion_receipt_ns = receipt
+                self.completion_stamp_ns = stamp_ns(message.header)
+
+    def on_status(self, message: String):
+        receipt = self.receipt_ns()
+        with self.lock:
+            if message.data.startswith("REQUESTED: observation pose planned for target "):
+                self.mission_starts += 1
+            elif message.data.startswith("NAVIGATING: inspection goal accepted"):
+                self.accepted_goals += 1
+            elif message.data.startswith("SUCCEEDED:"):
+                self.succeeded = True
+                if self.completion_receipt_ns is None:
+                    self.completion_receipt_ns = receipt
+            elif message.data.startswith("FAILED:"):
+                self.failed_status = message.data
+
+    def on_goal(self, message: PoseStamped):
+        with self.lock:
+            if self.nav_goal_receipt_ns is None:
+                self.nav_goal_receipt_ns = self.receipt_ns()
+                self.nav_goal_stamp_ns = stamp_ns(message.header)
+
+    def paired_positions(self):
+        observations_per_id: dict[int, int] = {}
+        for targets in self.filtered_points.values():
+            for target_id in targets:
+                observations_per_id[target_id] = observations_per_id.get(target_id, 0) + 1
+        if not observations_per_id:
+            return None, []
+        primary_id = max(observations_per_id, key=lambda item: (observations_per_id[item], -item))
+        pairs = []
+        for key in sorted(set(self.raw_points) & set(self.filtered_points)):
+            filtered = self.filtered_points[key].get(primary_id)
+            if filtered is None:
+                continue
+            raw = min(
+                self.raw_points[key],
+                key=lambda point: sum((point[index] - filtered[index]) ** 2 for index in range(3)),
+            )
+            pairs.append(
+                {"stamp_ns": key, "target_id": primary_id, "raw": raw, "filtered": filtered}
+            )
+        return primary_id, pairs
+
+    def detector_result(self, warmup: int, measured: int, timeout_sec: float):
+        self.wait_for_graph(
+            [
+                "/perception/diagnostics",
+                "/perception/detections_2d",
+                "/perception/geometry/map_point",
+                "/perception/objects_3d",
+            ]
+        )
+        required_count = warmup + measured
+        self.wait_until(
+            f"{required_count} observed inference diagnostics",
+            lambda: len(self.detector_samples) >= required_count,
+            timeout_sec,
+        )
+        selected = copy.deepcopy(self.detector_samples[:required_count])
+        warmup_data = selected[:warmup]
+        measured_data = selected[warmup:]
+        latencies = [sample["processing_duration_ms"] for sample in measured_data]
+        stability_target_id, paired = self.paired_positions()
+        if len(paired) < 2:
+            raise RuntimeError("fewer than two paired raw/EMA person positions were observed")
+        message_ages = []
+        if (
+            self.first_detection_receipt_ns is not None
+            and self.first_detection_stamp_ns is not None
+            and self.first_detection_receipt_ns >= self.first_detection_stamp_ns
+        ):
+            message_ages.append(
+                duration_sec(self.first_detection_stamp_ns, self.first_detection_receipt_ns) * 1000.0
+            )
+        return {
+            "schema_version": 1,
+            "profile": "detector",
+            "valid": True,
+            "clock_policy": {
+                "processing_duration": "Python time.perf_counter inside detector inference callback",
+                "message_age": "ROS simulation timestamp to benchmark callback ROS-clock receipt",
+            },
+            "metadata": self.detector_metadata,
+            "metrics": {
+                "detector_processing_ms": summarize(latencies),
+                "detector_message_age_ms": summarize(message_ages) if message_ages else None,
+                "position_stability_raw_m": summarize_xyz([item["raw"] for item in paired]),
+                "position_stability_ema_m": summarize_xyz([item["filtered"] for item in paired]),
+                "target_id_stability": {
+                    "observations": len(paired),
+                    "stability_target_id": stability_target_id,
+                    "unique_ids": len(self.target_ids),
+                    "ids": sorted(self.target_ids),
+                },
+                "high_load_camera_tf_fault_count": len(self.camera_tf_faults),
+            },
+            "raw": {
+                "warmup_inferences": warmup_data,
+                "measured_inferences": measured_data,
+                "paired_positions": paired,
+                "camera_tf_faults": [list(item) for item in sorted(self.camera_tf_faults)],
+            },
+            "exclusions": {
+                "detector_warmup": len(warmup_data),
+                "diagnostic_sampling_gaps": self.diagnostic_gaps,
+            },
+        }
+
+    def mission_result(self, run_index: int, timeout_sec: float, duplicate_window: float):
+        self.wait_for_graph(
+            [
+                "/perception/detections_2d",
+                "/perception/objects_3d",
+                "/perception/events",
+                "/inspection/status",
+                "/navigate_sequence/current_goal",
+            ],
+            45.0,
+        )
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            with self.lock:
+                terminal = self.succeeded or bool(self.failed_status)
+            if terminal:
+                break
+            time.sleep(0.05)
+        with self.lock:
+            terminal = self.succeeded or bool(self.failed_status)
+        if terminal:
+            time.sleep(duplicate_window)
+
+        stages = {
+            "detection": self.first_detection_receipt_ns,
+            "confirmation": self.confirmation_receipt_ns,
+            "inspection_event": self.inspection_event_receipt_ns,
+            "nav2_goal": self.nav_goal_receipt_ns,
+            "completion": self.completion_receipt_ns,
+            "processed": self.processed_receipt_ns,
+        }
+        message_stages = {
+            "detection": self.first_detection_stamp_ns,
+            "confirmation": self.confirmation_stamp_ns,
+            "inspection_event": self.inspection_event_stamp_ns,
+            "nav2_goal": self.nav_goal_stamp_ns,
+            "completion": self.completion_stamp_ns,
+        }
+        success = bool(
+            self.succeeded
+            and self.processed_receipt_ns is not None
+            and self.completed_events >= 1
+            and all(stages[name] is not None for name in ("detection", "confirmation", "inspection_event", "nav2_goal"))
+        )
+        failure_reason = ""
+        if not success:
+            if self.first_detection_receipt_ns is None:
+                failure_reason = "detector_failed_to_confirm_target"
+            elif self.confirmation_receipt_ns is None:
+                failure_reason = "target_manager_confirmation_timeout"
+            elif self.inspection_event_receipt_ns is None:
+                failure_reason = "inspection_event_missing"
+            elif self.nav_goal_receipt_ns is None:
+                failure_reason = "nav2_goal_not_submitted"
+            elif self.failed_status:
+                failure_reason = "nav2_or_visual_mission_failed"
+            elif not terminal:
+                failure_reason = "mission_timeout"
+            elif self.processed_receipt_ns is None:
+                failure_reason = "target_not_processed"
+            else:
+                failure_reason = "mission_incomplete"
+
+        timings = None
+        if all(stages[name] is not None for name in ("detection", "confirmation", "inspection_event", "nav2_goal")):
+            timings = {
+                "detection_to_confirmation_sec": duration_sec(stages["detection"], stages["confirmation"]),
+                "confirmation_to_event_sec": duration_sec(stages["confirmation"], stages["inspection_event"]),
+                "event_to_nav2_goal_sec": duration_sec(stages["inspection_event"], stages["nav2_goal"]),
+                "detection_to_nav2_goal_sec": duration_sec(stages["detection"], stages["nav2_goal"]),
+            }
+            if stages["completion"] is not None:
+                timings["event_to_completion_sec"] = duration_sec(
+                    stages["inspection_event"], stages["completion"]
+                )
+
+        false_triggers = false_task_trigger_count(self.mission_starts, 1)
+        return {
+            "schema_version": 1,
+            "profile": "mission",
+            "run_index": run_index,
+            "valid": True,
+            "success": success,
+            "failure_reason": failure_reason,
+            "failure_detail": self.failed_status,
+            "clock_policy": "stage latency uses benchmark callback receipts on one ROS simulation clock; source headers are retained but not mixed because the navigation adapter header uses system time",
+            "stage_receipt_ros_ns": stages,
+            "stage_message_ros_ns": message_stages,
+            "timings": timings,
+            "counts": {
+                "physical_targets": 1,
+                "inspection_required_events": self.required_events,
+                "inspection_missions_started": self.mission_starts,
+                "accepted_navigation_goals": self.accepted_goals,
+                "inspection_completed_events": self.completed_events,
+                "false_task_triggers": false_triggers,
+                "unique_target_ids": len(self.target_ids),
+            },
+            "target_position": self.target_position,
+            "diagnostic_faults": [list(item) for item in sorted(self.camera_tf_faults)],
+        }
+
+
+class GeometryProbe(ThreadedProbe):
+    def __init__(self):
+        super().__init__("factory_patrol_phase8_geometry_probe")
+        self.points: list[tuple[int, tuple[float, float, float]]] = []
+        self.pose_confirmations: list[str] = []
+        self.create_subscription(
+            PointStamped, "/perception/geometry/map_point", self.on_point, 50
+        )
+        self.set_pose = self.create_client(SetEntityPose, "/world/factory_patrol/set_pose")
+
+    def on_point(self, message: PointStamped):
+        values = point_tuple(message.point)
+        if message.header.frame_id == "map" and all(math.isfinite(value) for value in values):
+            with self.lock:
+                self.points.append((stamp_ns(message.header), values))
+
+    def move_target(self, model_x: float, expected_x: float):
+        if not self.set_pose.wait_for_service(timeout_sec=20.0):
+            raise RuntimeError("Gazebo set_pose service is unavailable")
+        request = SetEntityPose.Request()
+        request.entity.name = "phase2_geometry_validation_target"
+        request.entity.type = Entity.MODEL
+        request.pose.position.x = model_x
+        request.pose.position.y = 0.0
+        request.pose.position.z = 0.66
+        request.pose.orientation.w = 1.0
+        future = self.set_pose.call_async(request)
+
+        def confirmation():
+            if future.done():
+                response = future.result()
+                if response.success:
+                    return "service_response"
+                raise RuntimeError("Gazebo rejected geometry fixture pose")
+            if self.points and abs(self.points[-1][1][0] - expected_x) <= 0.15:
+                return "rgbd_observation_without_service_response"
+            return None
+
+        method = self.wait_until(
+            "Gazebo geometry fixture pose response or RGB-D position confirmation",
+            confirmation,
+            45.0,
+        )
+        self.pose_confirmations.append(method)
+
+    def run(self, conditions: list[dict], sample_count: int, settle_count: int, timeout_sec: float):
+        self.wait_for_graph(["/perception/geometry/map_point"])
+        raw_conditions = []
+        all_errors = []
+        all_axis = {"dx": [], "dy": [], "dz": []}
+        for condition in conditions:
+            ground_truth = tuple(float(value) for value in condition["ground_truth"])
+            self.move_target(float(condition["model_x"]), ground_truth[0])
+            with self.lock:
+                start = len(self.points)
+            self.wait_until(
+                f"geometry samples for {condition['name']}",
+                lambda: len(self.points) >= start + settle_count + sample_count,
+                timeout_sec,
+            )
+            with self.lock:
+                selected = copy.deepcopy(
+                    self.points[start + settle_count : start + settle_count + sample_count]
+                )
+            samples = []
+            for message_stamp, estimate in selected:
+                axis = [estimate[index] - ground_truth[index] for index in range(3)]
+                error = math.sqrt(sum(value * value for value in axis))
+                samples.append(
+                    {
+                        "stamp_ns": message_stamp,
+                        "estimate": estimate,
+                        "ground_truth": ground_truth,
+                        "axis_error_m": axis,
+                        "error_m": error,
+                    }
+                )
+                all_errors.append(error)
+                for label, value in zip(("dx", "dy", "dz"), axis):
+                    all_axis[label].append(value)
+            raw_conditions.append(
+                {
+                    "name": condition["name"],
+                    "target_distance_m": ground_truth[0],
+                    "ground_truth": ground_truth,
+                    "excluded_settle_samples": settle_count,
+                    "samples": samples,
+                    "error_m": summarize([item["error_m"] for item in samples], include_rmse=True),
+                }
+            )
+        return {
+            "schema_version": 1,
+            "profile": "geometry",
+            "valid": True,
+            "fixture": "phase2_geometry_validation_target center ray/front face",
+            "metrics": {
+                "localization_error_m": summarize(all_errors, include_rmse=True),
+                "axis_error_m": {label: summarize(values, include_rmse=True) for label, values in all_axis.items()},
+                "distance_range_m": [
+                    min(item["target_distance_m"] for item in raw_conditions),
+                    max(item["target_distance_m"] for item in raw_conditions),
+                ],
+            },
+            "conditions": raw_conditions,
+            "fixture_pose_confirmations": self.pose_confirmations,
+            "exclusions": {"fixture_settle_samples": settle_count * len(conditions)},
+        }
+
+
+class InvalidDepthProbe(ThreadedProbe):
+    def __init__(self):
+        super().__init__("factory_patrol_phase8_invalid_depth_probe")
+        self.false_output_stamps: set[int] = set()
+        self.rgb_pub = self.create_publisher(Image, "/phase8_invalid/rgb", qos_profile_sensor_data)
+        self.depth_pub = self.create_publisher(Image, "/phase8_invalid/depth", qos_profile_sensor_data)
+        self.info_pub = self.create_publisher(
+            CameraInfo, "/phase8_invalid/camera_info", qos_profile_sensor_data
+        )
+        self.create_subscription(
+            PointStamped, "/phase8_invalid/map_point", self.on_output, 20
+        )
+
+    def on_output(self, message: PointStamped):
+        with self.lock:
+            self.false_output_stamps.add(stamp_ns(message.header))
+
+    def graph_ready(self):
+        return (
+            self.rgb_pub.get_subscription_count() > 0
+            and self.depth_pub.get_subscription_count() > 0
+            and self.info_pub.get_subscription_count() > 0
+        )
+
+    def publish_case(self, value: float, stamp):
+        frame = "camera_color_optical_frame"
+        rgb = Image()
+        rgb.header.stamp = stamp
+        rgb.header.frame_id = frame
+        rgb.height = 20
+        rgb.width = 20
+        rgb.encoding = "rgb8"
+        rgb.step = 60
+        rgb.data = [0] * (rgb.step * rgb.height)
+        depth = Image()
+        depth.header = copy.deepcopy(rgb.header)
+        depth.height = 20
+        depth.width = 20
+        depth.encoding = "32FC1"
+        depth.is_bigendian = False
+        depth.step = 80
+        depth.data = list(struct.pack("<" + "f" * 400, *([value] * 400)))
+        info = CameraInfo()
+        info.header = copy.deepcopy(rgb.header)
+        info.height = 20
+        info.width = 20
+        info.k = [20.0, 0.0, 10.0, 0.0, 20.0, 10.0, 0.0, 0.0, 1.0]
+        for _ in range(3):
+            self.rgb_pub.publish(rgb)
+            self.depth_pub.publish(depth)
+            self.info_pub.publish(info)
+            time.sleep(0.03)
+
+    def run(self, cases: int, settle_sec: float, timeout_sec: float):
+        self.wait_until("invalid-depth probe subscribers", self.graph_ready, timeout_sec)
+        self.wait_until(
+            "active simulation clock",
+            lambda: True if self.get_clock().now().nanoseconds > 0 else None,
+            timeout_sec,
+        )
+        invalid_values = [0.0, math.nan, math.inf, 0.1, 9.0]
+        presented = []
+        for index in range(cases):
+            stamp = self.get_clock().now().to_msg()
+            key = stamp.sec * 1_000_000_000 + stamp.nanosec
+            if key == 0:
+                raise RuntimeError("simulation clock is not active for invalid-depth benchmark")
+            value = invalid_values[index % len(invalid_values)]
+            presented.append({"case": index + 1, "stamp_ns": key, "value": str(value)})
+            self.publish_case(value, stamp)
+            time.sleep(0.05)
+        time.sleep(settle_sec)
+        false_valid = sum(1 for item in presented if item["stamp_ns"] in self.false_output_stamps)
+        rejected = cases - false_valid
+        return {
+            "schema_version": 1,
+            "profile": "invalid_depth",
+            "valid": True,
+            "method": "controlled synchronized RGB/32FC1/CameraInfo inputs; valid projection output with a presented stamp counts false-valid",
+            "metrics": {
+                "invalid_cases": cases,
+                "correctly_rejected": rejected,
+                "false_valid_outputs": false_valid,
+                "rejection_rate": rejected / cases,
+            },
+            "raw": presented,
+        }
+
+
+class SafetyProbe(ThreadedProbe):
+    def __init__(self):
+        super().__init__("factory_patrol_phase8_safety_probe")
+        self.events: list[tuple[int, PerceptionSafetyEvent]] = []
+        self.states: list[tuple[int, str]] = []
+        self.upstream: list[tuple[int, float, float]] = []
+        self.final: list[tuple[int, float, float]] = []
+        self.create_subscription(
+            PerceptionSafetyEvent, "/perception/safety_event", self.on_event, 30
+        )
+        self.create_subscription(String, "/safety/state", self.on_state, 30)
+        self.create_subscription(Twist, "/nav2_cmd_vel", self.on_upstream, 50)
+        self.create_subscription(Twist, "/cmd_vel", self.on_final, 50)
+        self.set_pose = self.create_client(SetEntityPose, "/world/factory_patrol/set_pose")
+        self.nav = ActionClient(self, NavigateToPose, "/navigate_to_pose")
+        self.startup_goal_rejections = 0
+        self.navigation_goal_refreshes = 0
+        self.set_pose_response_timeouts = 0
+        self.fixture_move_retries = 0
+        self.pending_pose_futures = []
+
+    def on_event(self, message):
+        with self.lock:
+            self.events.append((self.get_clock().now().nanoseconds, message))
+
+    def on_state(self, message):
+        with self.lock:
+            self.states.append((self.get_clock().now().nanoseconds, message.data))
+
+    def on_upstream(self, message):
+        with self.lock:
+            self.upstream.append((self.get_clock().now().nanoseconds, message.linear.x, message.angular.z))
+
+    def on_final(self, message):
+        with self.lock:
+            self.final.append((self.get_clock().now().nanoseconds, message.linear.x, message.angular.z))
+
+    def move(self, name: str, x: float, y: float, z: float = 0.0):
+        if not self.set_pose.wait_for_service(timeout_sec=15.0):
+            raise RuntimeError("Gazebo set_pose service is unavailable")
+        request = SetEntityPose.Request()
+        request.entity.name = name
+        request.entity.type = Entity.MODEL
+        request.pose.position.x = x
+        request.pose.position.y = y
+        request.pose.position.z = z
+        request.pose.orientation.z = math.sin(math.pi / 4.0)
+        request.pose.orientation.w = math.cos(math.pi / 4.0)
+        future = self.set_pose.call_async(request)
+        self.pending_pose_futures = [item for item in self.pending_pose_futures if not item.done()]
+        self.pending_pose_futures.append(future)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if future.done():
+                if not future.result().success:
+                    raise RuntimeError(f"Gazebo rejected pose for {name}")
+                return
+            time.sleep(0.05)
+        self.set_pose_response_timeouts += 1
+
+    def move_until_event(self, moves, predicate, description: str, *, attempts: int = 3, event_timeout: float = 30.0):
+        last_error = None
+        for attempt in range(attempts):
+            start = len(self.events)
+            for move in moves:
+                self.move(*move)
+            try:
+                return self.find_event(start, predicate, event_timeout)
+            except TimeoutError as error:
+                last_error = error
+                if attempt + 1 < attempts:
+                    self.fixture_move_retries += 1
+        raise TimeoutError(f"{description} was not confirmed after {attempts} fixture attempts") from last_error
+
+    def send_goal(self, target_x: float = 4.2):
+        if not self.nav.wait_for_server(timeout_sec=40.0):
+            raise RuntimeError("Nav2 action is unavailable")
+        deadline = time.monotonic() + 60.0
+        while time.monotonic() < deadline:
+            goal = NavigateToPose.Goal()
+            goal.pose.header.frame_id = "map"
+            goal.pose.header.stamp = self.get_clock().now().to_msg()
+            goal.pose.pose.position.x = target_x
+            goal.pose.pose.orientation.w = 1.0
+            future = self.nav.send_goal_async(goal)
+            handle = self.wait_until(
+                "Nav2 benchmark goal response",
+                lambda: future.result() if future.done() else None,
+                15.0,
+            )
+            if handle.accepted:
+                return handle
+            self.startup_goal_rejections += 1
+            time.sleep(1.0)
+        raise RuntimeError("Nav2 did not accept a safety benchmark goal after startup grace")
+
+    def find_event(self, start: int, predicate, timeout_sec: float = 45.0):
+        return self.wait_until(
+            "perception safety event",
+            lambda: next(
+                ((receipt, event) for receipt, event in self.events[start:] if predicate(event)),
+                None,
+            ),
+            timeout_sec,
+        )
+
+    def motion_after(self, after_ns: int, above_limit: bool = False, timeout_sec: float = 25.0):
+        threshold = 0.1501 if above_limit else 0.02
+        return self.wait_until(
+            "active upstream Nav2 command",
+            lambda: next(
+                (sample for sample in self.upstream if sample[0] >= after_ns and abs(sample[1]) > threshold),
+                None,
+            ),
+            timeout_sec,
+        )
+
+    def ensure_motion(self, after_ns: int, goal_handle, next_goal_x: float, *, above_limit: bool = False):
+        try:
+            return self.motion_after(after_ns, above_limit=above_limit, timeout_sec=10.0), goal_handle, next_goal_x
+        except TimeoutError:
+            goal_handle.cancel_goal_async()
+            goal_handle = self.send_goal(next_goal_x)
+            self.navigation_goal_refreshes += 1
+            following_goal_x = 4.2 if next_goal_x == 0.0 else 0.0
+            return (
+                self.motion_after(
+                    self.get_clock().now().nanoseconds,
+                    above_limit=above_limit,
+                    timeout_sec=25.0,
+                ),
+                goal_handle,
+                following_goal_x,
+            )
+
+    def final_after(self, after_ns: int, predicate):
+        return self.wait_until(
+            "gated final velocity",
+            lambda: next((sample for sample in self.final if sample[0] >= after_ns and predicate(sample)), None),
+            20.0,
+        )
+
+    def run(self, runs: int, timeout_sec: float):
+        self.wait_for_graph(
+            ["/perception/safety_event", "/safety/state", "/nav2_cmd_vel", "/cmd_vel"],
+            45.0,
+        )
+        self.move_until_event(
+            [
+                ("phase6_person_safety_target", 0.0, 0.0, -2.0),
+                ("phase3_person_detection_target", 3.2, 0.75),
+            ],
+            lambda event: event.event_type == PerceptionSafetyEvent.CLEAR,
+            "initial CLEAR state",
+            event_timeout=45.0,
+        )
+        goal_handle = self.send_goal()
+        next_goal_x = 0.0
+
+        speed_receipt, speed_event = self.move_until_event(
+            [("phase3_person_detection_target", 2.8, 0.75)],
+            lambda event: event.event_type == PerceptionSafetyEvent.PERSON_NEAR,
+            "SPEED_LIMITED state",
+        )
+        speed_upstream, goal_handle, next_goal_x = self.ensure_motion(
+            speed_receipt, goal_handle, next_goal_x, above_limit=True
+        )
+        speed_final = self.final_after(
+            speed_receipt,
+            lambda sample: abs(sample[1]) <= 0.1501 and abs(sample[1]) > 0.01,
+        )
+        speed_condition_ns = stamp_ns(speed_event.header)
+        speed_result = {
+            "response_sec": duration_sec(speed_condition_ns, speed_final[0]),
+            "upstream_linear_mps": speed_upstream[1],
+            "upstream_angular_radps": speed_upstream[2],
+            "final_linear_mps": speed_final[1],
+            "final_angular_radps": speed_final[2],
+        }
+
+        stop_results = []
+        for run_index in range(1, runs + 1):
+            clear_receipt, _ = self.move_until_event(
+                [
+                    ("phase6_person_safety_target", 0.0, 0.0, -2.0),
+                    ("phase3_person_detection_target", 3.2, 0.75),
+                ],
+                lambda event: event.event_type == PerceptionSafetyEvent.CLEAR,
+                f"CLEAR state before STOP run {run_index}",
+            )
+            upstream, goal_handle, next_goal_x = self.ensure_motion(
+                clear_receipt, goal_handle, next_goal_x
+            )
+
+            stop_receipt, event = self.move_until_event(
+                [
+                    ("phase3_person_detection_target", 0.0, 0.0, -2.0),
+                    ("phase6_person_safety_target", 1.3, 0.0),
+                ],
+                lambda candidate: candidate.event_type == PerceptionSafetyEvent.PERSON_TOO_CLOSE,
+                f"STOP state for run {run_index}",
+                event_timeout=45.0,
+            )
+            final = self.final_after(
+                stop_receipt,
+                lambda sample: abs(sample[1]) <= 1.0e-6 and abs(sample[2]) <= 1.0e-6,
+            )
+            condition_ns = stamp_ns(event.header)
+            stop_results.append(
+                {
+                    "run": run_index,
+                    "response_sec": duration_sec(condition_ns, final[0]),
+                    "condition_stamp_ros_ns": condition_ns,
+                    "event_receipt_ros_ns": stop_receipt,
+                    "upstream_linear_mps": upstream[1],
+                    "upstream_angular_radps": upstream[2],
+                    "final_linear_mps": final[1],
+                    "final_angular_radps": final[2],
+                    "measured_distance_m": float(event.distance_m),
+                }
+            )
+        goal_handle.cancel_goal_async()
+        responses = [item["response_sec"] for item in stop_results]
+        return {
+            "schema_version": 1,
+            "profile": "safety",
+            "valid": True,
+            "clock_policy": "safety condition header stamp to final /cmd_vel benchmark receipt, both ROS simulation clock",
+            "metrics": {
+                "stop_response_sec": summarize(responses),
+                "speed_limit_response": speed_result,
+            },
+            "raw": {"stop_runs": stop_results},
+            "exclusions": {
+                "nav2_inactive_startup_goal_rejections": self.startup_goal_rejections,
+                "navigation_goal_refreshes": self.navigation_goal_refreshes,
+                "set_pose_response_timeouts_confirmed_by_perception": self.set_pose_response_timeouts,
+                "fixture_move_retries": self.fixture_move_retries,
+            },
+        }
+
+
+def spin_probe(node: ThreadedProbe, callback):
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    thread = threading.Thread(target=executor.spin, daemon=True)
+    thread.start()
+    try:
+        return callback()
+    finally:
+        executor.shutdown()
+        thread.join(timeout=3.0)
+        node.destroy_node()
+
+
+def run_profile(args):
+    rclpy.init(args=None)
+    try:
+        if args.profile == "detector":
+            node = DetectorMissionProbe()
+            result = spin_probe(
+                node,
+                lambda: node.detector_result(args.warmup, args.samples, args.timeout),
+            )
+        elif args.profile == "mission":
+            node = DetectorMissionProbe()
+            result = spin_probe(
+                node,
+                lambda: node.mission_result(args.run_index, args.timeout, args.duplicate_window),
+            )
+        elif args.profile == "geometry":
+            node = GeometryProbe()
+            conditions = json.loads(args.conditions)
+            result = spin_probe(
+                node,
+                lambda: node.run(conditions, args.samples, args.settle_samples, args.timeout),
+            )
+        elif args.profile == "invalid_depth":
+            node = InvalidDepthProbe()
+            result = spin_probe(
+                node,
+                lambda: node.run(args.samples, args.settle_sec, args.timeout),
+            )
+        elif args.profile == "safety":
+            node = SafetyProbe()
+            result = spin_probe(node, lambda: node.run(args.samples, args.timeout))
+        else:
+            raise ValueError(f"unsupported profile: {args.profile}")
+    except Exception as error:
+        failure = {
+            "schema_version": 1,
+            "profile": args.profile,
+            "valid": False,
+            "error": f"{type(error).__name__}: {error}",
+            "timestamp": utc_timestamp(),
+        }
+        write_json(args.output, failure)
+        print(f"FAIL: {failure['error']}", file=sys.stderr)
+        return 1
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
+    result["timestamp"] = utc_timestamp()
+    write_json(args.output, result)
+    print(f"PASS: {args.profile} benchmark wrote {args.output}")
+    return 0
+
+
+def metric_row(name: str, summary: dict | None, unit: str) -> PerformanceRow:
+    if not summary:
+        return PerformanceRow(name, "N/A", "N/A", "N/A", "N/A", "N/A", unit)
+    return PerformanceRow(
+        name,
+        summary["count"],
+        summary["mean"],
+        summary["p50"],
+        summary["p95"],
+        summary["max"],
+        unit,
+    )
+
+
+def merge_results(args):
+    documents = [json.loads(Path(name).read_text(encoding="utf-8")) for name in args.inputs]
+    invalid = [document for document in documents if not document.get("valid", False)]
+    if invalid:
+        raise RuntimeError(
+            "cannot merge invalid profile results: "
+            + ", ".join(f"{item.get('profile')}: {item.get('error')}" for item in invalid)
+        )
+    by_profile: dict[str, list[dict]] = {}
+    for document in documents:
+        by_profile.setdefault(document["profile"], []).append(document)
+    for required in ("detector", "geometry", "mission", "safety", "invalid_depth"):
+        if required not in by_profile:
+            raise RuntimeError(f"required benchmark profile is missing: {required}")
+
+    detector = by_profile["detector"][0]
+    geometry = by_profile["geometry"][0]
+    safety = by_profile["safety"][0]
+    invalid_depth = by_profile["invalid_depth"][0]
+    missions = sorted(by_profile["mission"], key=lambda item: item["run_index"])
+    timing_names = (
+        "detection_to_confirmation_sec",
+        "confirmation_to_event_sec",
+        "event_to_nav2_goal_sec",
+        "detection_to_nav2_goal_sec",
+        "event_to_completion_sec",
+    )
+    timing_summaries = {}
+    for name in timing_names:
+        samples = [item["timings"][name] for item in missions if item.get("timings") and name in item["timings"]]
+        timing_summaries[name] = summarize(samples) if samples else None
+    successes = sum(1 for item in missions if item["success"])
+    failure_reasons: dict[str, int] = {}
+    for item in missions:
+        if not item["success"]:
+            reason = item["failure_reason"] or "unclassified"
+            failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+    false_triggers = sum(item["counts"]["false_task_triggers"] for item in missions)
+    high_load_faults = detector["metrics"]["high_load_camera_tf_fault_count"] + sum(
+        len(item["diagnostic_faults"]) for item in missions
+    )
+    metadata = json.loads(args.metadata)
+    result = {
+        "schema_version": 1,
+        "experiment": "Factory Patrol Phase 8 perception and mission evaluation",
+        "timestamp": utc_timestamp(),
+        "scope": "Gazebo / WSL simulation results; not physical robot guarantees",
+        "valid": True,
+        "metadata": metadata,
+        "detector": detector,
+        "geometry": geometry,
+        "position_stability": {
+            "raw_m": detector["metrics"]["position_stability_raw_m"],
+            "ema_m": detector["metrics"]["position_stability_ema_m"],
+        },
+        "detection_to_action": timing_summaries,
+        "safety": safety,
+        "mission": {
+            "total_runs": len(missions),
+            "successes": successes,
+            "failures": len(missions) - successes,
+            "success_rate": successes / len(missions),
+            "failure_reasons": failure_reasons,
+            "runs": missions,
+        },
+        "false_task_triggers": {
+            "physical_targets_per_run": 1,
+            "intended_mission_triggers": len(missions),
+            "false_triggers": false_triggers,
+        },
+        "invalid_depth": invalid_depth,
+        "high_load_observation": {
+            "camera_or_tf_non_ok_diagnostic_count": high_load_faults,
+            "note": "Counts observed diagnostic samples; no sample was silently excluded.",
+        },
+        "statistics_policy": {
+            "percentile": "nearest rank: sorted[ceil(p/100*n)-1]",
+            "standard_deviation": "population",
+            "outliers": "retained",
+        },
+        "limitations": [
+            "Gazebo / WSL simulation only",
+            "CPU OpenCV-DNN detector; no CUDA, TensorRT, or ONNX Runtime optimization",
+            "geometry error includes simulated RGB-D and odom/map alignment",
+            "mission and P95 sample counts are reported and should not be generalized",
+        ],
+    }
+    write_json(args.output, result)
+    rows = [
+        metric_row("detector_processing_latency", detector["metrics"]["detector_processing_ms"], "ms"),
+        metric_row("localization_error", geometry["metrics"]["localization_error_m"], "m"),
+        metric_row("detection_to_confirmation", timing_summaries["detection_to_confirmation_sec"], "s"),
+        metric_row("confirmation_to_event", timing_summaries["confirmation_to_event_sec"], "s"),
+        metric_row("event_to_nav2_goal", timing_summaries["event_to_nav2_goal_sec"], "s"),
+        metric_row("detection_to_nav2_goal", timing_summaries["detection_to_nav2_goal_sec"], "s"),
+        metric_row("safety_stop_response", safety["metrics"]["stop_response_sec"], "s"),
+        PerformanceRow("mission_success_rate", len(missions), successes / len(missions), "N/A", "N/A", "N/A", "ratio"),
+        PerformanceRow("invalid_depth_rejection_rate", invalid_depth["metrics"]["invalid_cases"], invalid_depth["metrics"]["rejection_rate"], "N/A", "N/A", "N/A", "ratio"),
+    ]
+    write_performance_csv(args.csv, rows)
+    print(f"PASS: merged benchmark JSON={args.output}")
+    print(f"PASS: merged benchmark CSV={args.csv}")
+    return 0
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    profile = subparsers.add_parser("profile")
+    profile.add_argument("--profile", required=True, choices=("detector", "geometry", "mission", "safety", "invalid_depth"))
+    profile.add_argument("--output", required=True)
+    profile.add_argument("--samples", type=int, default=10)
+    profile.add_argument("--warmup", type=int, default=0)
+    profile.add_argument("--timeout", type=float, default=120.0)
+    profile.add_argument("--run-index", type=int, default=1)
+    profile.add_argument("--duplicate-window", type=float, default=5.0)
+    profile.add_argument("--settle-samples", type=int, default=3)
+    profile.add_argument("--settle-sec", type=float, default=2.0)
+    profile.add_argument("--conditions", default="[]")
+    merge = subparsers.add_parser("merge")
+    merge.add_argument("--input", dest="inputs", action="append", required=True)
+    merge.add_argument("--output", required=True)
+    merge.add_argument("--csv", required=True)
+    merge.add_argument("--metadata", required=True)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if args.command == "profile":
+        return run_profile(args)
+    try:
+        return merge_results(args)
+    except Exception as error:
+        print(f"FAIL: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

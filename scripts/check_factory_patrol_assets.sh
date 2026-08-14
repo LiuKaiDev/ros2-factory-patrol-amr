@@ -52,6 +52,8 @@ PERCEPTION_INTERFACES="src/robot_interfaces_perception"
 SCENARIO_DOC="docs/simulation_scenarios.md"
 ARCH_DOC="docs/architecture.md"
 README_FILE="README.md"
+EXPERIMENT_DOC="docs/experiment_report.md"
+EXPERIMENT_PACKAGE="src/robot_experiments"
 
 for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZONES_FILE}" "${ROUTE_FILE}" \
   "${MAP_README}" "${DEMO_LAUNCH}" "${RUN_SCRIPT}" "${SIM_LAUNCH}" \
@@ -109,7 +111,12 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "scripts/check_factory_patrol_perception_diagnostics_runtime.sh" \
   "scripts/perception_safety_runtime_probe.py" \
   "scripts/perception_diagnostics_runtime_probe.py" \
-  "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
+  "scripts/run_factory_patrol_benchmarks.sh" \
+  "${EXPERIMENT_PACKAGE}/config/factory_patrol_benchmark.yaml" \
+  "${EXPERIMENT_PACKAGE}/robot_experiments/benchmark_metrics.py" \
+  "${EXPERIMENT_PACKAGE}/scripts/factory_patrol_benchmark" \
+  "${EXPERIMENT_PACKAGE}/test/test_benchmark_metrics.py" \
+  "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}" "${EXPERIMENT_DOC}"; do
   require_file "${file}"
 done
 
@@ -220,6 +227,8 @@ require_grep "/perception/diagnostics" "${SCENARIO_DOC}" "simulation docs do not
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
+require_grep "run_factory_patrol_benchmarks.sh" "${EXPERIMENT_DOC}" "experiment docs do not document the Phase 8 runner"
+require_grep "nearest rank" "${EXPERIMENT_DOC}" "experiment docs do not define benchmark percentiles"
 
 require_grep "class DepthProjector" "${PERCEPTION_PACKAGE}/include/robot_perception/depth_projector.hpp" "DepthProjector class is missing"
 require_grep "32FC1" "${PERCEPTION_PACKAGE}/src/depth_projector.cpp" "32FC1 depth support is missing"
@@ -230,6 +239,10 @@ require_grep "vision_msgs" "${PERCEPTION_PACKAGE}/package.xml" "standard 2D dete
 require_grep "geometry_input_mode" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "synthetic/detector geometry selection is missing"
 require_grep "diagnostic_msgs::msg::DiagnosticArray" "${PERCEPTION_PACKAGE}/src/perception_diagnostics_node.cpp" "standard perception diagnostics output is missing"
 require_grep "perception/pipeline" "${PERCEPTION_PACKAGE}/src/perception_diagnostics_node.cpp" "perception pipeline health aggregation is missing"
+require_grep '"device",' "${PERCEPTION_PACKAGE}/robot_perception/detector_node.py" "detector diagnostics do not report the actual device"
+require_grep "warmup_samples" "${EXPERIMENT_PACKAGE}/config/factory_patrol_benchmark.yaml" "Phase 8 detector warmup policy is missing"
+require_grep "percentile_nearest_rank" "${EXPERIMENT_PACKAGE}/robot_experiments/benchmark_metrics.py" "Phase 8 statistics helper is missing"
+require_grep "invalid_depth" "${EXPERIMENT_PACKAGE}/scripts/factory_patrol_benchmark" "Phase 8 invalid-depth profile is missing"
 require_grep "monitor_perception" "src/robot_utils/src/system_monitor_node.cpp" "system monitor perception integration is missing"
 require_grep "class TargetManager" "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" "TargetManager class is missing"
 require_grep "max_match_distance" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager association configuration is missing"
