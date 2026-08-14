@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -26,6 +27,11 @@ target_include_directories(depth_projector PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(depth_projector geometry_msgs sensor_msgs)
+
+add_library(perception_health src/perception_health.cpp)
+target_include_directories(perception_health PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
 add_library(target_manager src/target_manager.cpp)
 target_include_directories(target_manager PUBLIC
@@ -48,7 +54,7 @@ target_link_libraries(perception_safety_policy
 add_executable(geometry_validation_node src/geometry_validation_node.cpp)
 target_link_libraries(
   geometry_validation_node depth_projector target_manager inspection_event_policy
-  perception_safety_policy robot_navigation::robot_navigation_zone_catalog)
+  perception_health perception_safety_policy robot_navigation::robot_navigation_zone_catalog)
 ament_target_dependencies(geometry_validation_node
   geometry_msgs
   builtin_interfaces
@@ -62,7 +68,13 @@ ament_target_dependencies(geometry_validation_node
   visualization_msgs
   vision_msgs)
 
-install(TARGETS depth_projector target_manager inspection_event_policy perception_safety_policy geometry_validation_node
+add_executable(perception_diagnostics_node src/perception_diagnostics_node.cpp)
+target_link_libraries(perception_diagnostics_node perception_health)
+ament_target_dependencies(perception_diagnostics_node
+  diagnostic_msgs geometry_msgs rclcpp robot_interfaces_perception sensor_msgs tf2_ros vision_msgs)
+
+install(TARGETS depth_projector perception_health target_manager inspection_event_policy perception_safety_policy
+  geometry_validation_node perception_diagnostics_node
   EXPORT export_robot_perception
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -92,10 +104,12 @@ if(BUILD_TESTING)
   ament_add_gtest(perception_safety_policy_test test/perception_safety_policy_test.cpp)
   target_link_libraries(perception_safety_policy_test
     perception_safety_policy robot_navigation::robot_navigation_zone_catalog)
+  ament_add_gtest(perception_health_test test/perception_health_test.cpp)
+  target_link_libraries(perception_health_test perception_health)
   ament_add_pytest_test(detection_utils_test test/test_detection_utils.py)
 endif()
 
 ament_export_targets(export_robot_perception HAS_LIBRARY_TARGET)
 ament_export_dependencies(
-  builtin_interfaces geometry_msgs robot_interfaces_perception sensor_msgs vision_msgs)
+  builtin_interfaces diagnostic_msgs geometry_msgs robot_interfaces_perception sensor_msgs vision_msgs)
 ament_package()

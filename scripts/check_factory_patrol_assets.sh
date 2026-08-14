@@ -58,6 +58,7 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "${ROBOT_XACRO}" "${SHOWCASE_RVIZ}" "${PERCEPTION_PACKAGE}/CMakeLists.txt" \
   "${PERCEPTION_PACKAGE}/package.xml" "${PERCEPTION_PACKAGE}/config/depth.yaml" \
   "${PERCEPTION_PACKAGE}/config/detector.yaml" \
+  "${PERCEPTION_PACKAGE}/config/diagnostics.yaml" \
   "${PERCEPTION_PACKAGE}/config/tracking.yaml" \
   "${PERCEPTION_PACKAGE}/config/safety.yaml" \
   "${PERCEPTION_PACKAGE}/config/safety_zones.yaml" \
@@ -71,12 +72,16 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "${PERCEPTION_PACKAGE}/test/target_manager_test.cpp" \
   "${PERCEPTION_PACKAGE}/test/inspection_event_policy_test.cpp" \
   "${PERCEPTION_PACKAGE}/test/perception_safety_policy_test.cpp" \
+  "${PERCEPTION_PACKAGE}/test/perception_health_test.cpp" \
+  "${PERCEPTION_PACKAGE}/include/robot_perception/perception_health.hpp" \
   "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" \
   "${PERCEPTION_PACKAGE}/include/robot_perception/inspection_event_policy.hpp" \
   "${PERCEPTION_PACKAGE}/include/robot_perception/perception_safety_policy.hpp" \
   "${PERCEPTION_PACKAGE}/src/target_manager.cpp" \
   "${PERCEPTION_PACKAGE}/src/inspection_event_policy.cpp" \
   "${PERCEPTION_PACKAGE}/src/perception_safety_policy.cpp" \
+  "${PERCEPTION_PACKAGE}/src/perception_health.cpp" \
+  "${PERCEPTION_PACKAGE}/src/perception_diagnostics_node.cpp" \
   "${PERCEPTION_INTERFACES}/CMakeLists.txt" \
   "${PERCEPTION_INTERFACES}/package.xml" \
   "${PERCEPTION_INTERFACES}/msg/DetectedObject3D.msg" \
@@ -101,7 +106,9 @@ for file in "${WORLD_FILE}" "${INDUSTRIAL_WORLD_FILE}" "${STATIONS_FILE}" "${ZON
   "scripts/check_factory_patrol_target_manager_runtime.sh" \
   "scripts/check_factory_patrol_visual_inspection_runtime.sh" \
   "scripts/check_factory_patrol_perception_safety_runtime.sh" \
+  "scripts/check_factory_patrol_perception_diagnostics_runtime.sh" \
   "scripts/perception_safety_runtime_probe.py" \
+  "scripts/perception_diagnostics_runtime_probe.py" \
   "${SCENARIO_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
@@ -181,6 +188,8 @@ require_grep "geometry_input_mode" "${DEMO_LAUNCH}" "Factory Patrol launch does 
 require_grep "use_detector" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose detector enablement"
 require_grep "use_visual_inspection" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose visual inspection"
 require_grep "use_perception_safety" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose perception safety"
+require_grep "use_perception_diagnostics" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose perception diagnostics"
+require_grep "use_perception_system_monitor" "${DEMO_LAUNCH}" "Factory Patrol launch does not expose perception system monitoring"
 require_grep "visual_inspection_task_node" "${DEMO_LAUNCH}" "Factory Patrol launch does not start the visual inspection task"
 require_grep "navigate_sequence_server_node" "${DEMO_LAUNCH}" "Factory Patrol launch does not use the existing navigation adapter"
 require_grep "robot_perception" "${DEMO_LAUNCH}" "Factory Patrol launch does not reference robot_perception"
@@ -207,6 +216,7 @@ require_grep "TENTATIVE" "${SCENARIO_DOC}" "simulation docs do not document targ
 require_grep "INSPECTION_REQUIRED" "${SCENARIO_DOC}" "simulation docs do not document Phase 5 events"
 require_grep "standoff_distance" "${SCENARIO_DOC}" "simulation docs do not document Phase 5 standoff"
 require_grep "/perception/safety_event" "${SCENARIO_DOC}" "simulation docs do not document the Phase 6 safety event"
+require_grep "/perception/diagnostics" "${SCENARIO_DOC}" "simulation docs do not document Phase 7 diagnostics"
 require_grep "factory_patrol" "${ARCH_DOC}" "architecture docs do not mention factory patrol"
 require_grep "Factory Patrol" "${README_FILE}" "README does not mention Factory Patrol"
 require_grep "check_factory_patrol_assets.sh" "${README_FILE}" "README does not mention factory check script"
@@ -218,6 +228,9 @@ require_grep "ApproximateTime" "${PERCEPTION_PACKAGE}/src/geometry_validation_no
 require_grep "class DetectorBackend" "${PERCEPTION_PACKAGE}/robot_perception/detector_backend.py" "replaceable detector backend is missing"
 require_grep "vision_msgs" "${PERCEPTION_PACKAGE}/package.xml" "standard 2D detection interface dependency is missing"
 require_grep "geometry_input_mode" "${PERCEPTION_PACKAGE}/src/geometry_validation_node.cpp" "synthetic/detector geometry selection is missing"
+require_grep "diagnostic_msgs::msg::DiagnosticArray" "${PERCEPTION_PACKAGE}/src/perception_diagnostics_node.cpp" "standard perception diagnostics output is missing"
+require_grep "perception/pipeline" "${PERCEPTION_PACKAGE}/src/perception_diagnostics_node.cpp" "perception pipeline health aggregation is missing"
+require_grep "monitor_perception" "src/robot_utils/src/system_monitor_node.cpp" "system monitor perception integration is missing"
 require_grep "class TargetManager" "${PERCEPTION_PACKAGE}/include/robot_perception/target_manager.hpp" "TargetManager class is missing"
 require_grep "max_match_distance" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager association configuration is missing"
 require_grep "ema_alpha" "${PERCEPTION_PACKAGE}/config/tracking.yaml" "TargetManager EMA configuration is missing"

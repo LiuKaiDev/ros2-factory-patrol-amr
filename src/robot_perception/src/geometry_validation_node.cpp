@@ -24,6 +24,7 @@
 #include "robot_perception/depth_projector.hpp"
 #include "robot_perception/inspection_event_policy.hpp"
 #include "robot_perception/perception_safety_policy.hpp"
+#include "robot_perception/perception_health.hpp"
 #include "robot_perception/target_manager.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
@@ -367,7 +368,13 @@ class GeometryValidationNode final : public rclcpp::Node {
           observations.size(), targets.size());
     }
     PublishManagedTargets(targets, detections->header.stamp);
-    EvaluateAndPublishSafety(targets, detections->header.stamp);
+    if (HasValidSafetyObservation(detections->detections.size(), observations.size())) {
+      EvaluateAndPublishSafety(targets, detections->header.stamp);
+    } else {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "detector input has no valid projected observations; no fresh perception safety event published");
+    }
   }
 
   std::optional<TargetObservation> ProjectAndPublish(

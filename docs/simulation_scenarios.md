@@ -1041,3 +1041,69 @@ probe therefore uses the existing Gazebo set-pose service to position the
 visual-only person fixture and keeps one Nav2 goal active to provide real
 upstream command intent; it does not claim that a physically moving world-model
 robot approached the person during this smoke test.
+
+### Phase 7 Perception Diagnostics and Recovery
+
+Phase 7 adds an optional, low-frequency health stream. Enable it in the Factory
+Patrol profile with:
+
+```bash
+bash scripts/run_factory_patrol_demo.sh --phase7
+```
+
+The standard `diagnostic_msgs/msg/DiagnosticArray` topic is
+`/perception/diagnostics`. The published status names are:
+
+| Status | Observed condition |
+| --- | --- |
+| `perception/camera_rgb` | RGB receipt age and optical-frame ID |
+| `perception/camera_depth` | Depth receipt age and optical-frame ID |
+| `perception/camera_info` | CameraInfo receipt age, frame, and nonzero intrinsics |
+| `perception/detector` | Detector model availability, exceptions, consecutive failures, and latency |
+| `perception/tf` | Observation-time `map <- camera_color_optical_frame` lookup results |
+| `perception/depth_quality` | Global invalid depth ratio; zero, NaN, Inf, and out-of-range values are invalid |
+| `perception/pipeline` | Worst component level and component summary |
+
+The defaults in `robot_perception/config/diagnostics.yaml` are a 10 s startup
+grace, camera warning/error ages of 0.5/1.5 s, depth limits of 0.2/8.0 m, and
+invalid-depth ratio warning/error thresholds of 0.25/0.60. Detector latency
+warning/error thresholds are 1200/3000 ms in `config/detector.yaml`. These are
+simulation defaults and should be calibrated for a deployed camera and detector.
+Diagnostics are informational
+at WARN; a fresh component ERROR is aggregated by the existing
+`system_monitor_node` and follows the existing `fault_supervisor_node` error
+path. A stale perception diagnostic stream is reported as WARN and does not by
+itself request an emergency stop.
+
+The Phase 7 Factory Patrol simulation sets `monitor_base_system:=false` because
+that Gazebo profile does not run the hardware chassis-state publisher. The
+parameter defaults to `true`, so normal hardware and mock bringup monitoring is
+unchanged; the Phase 7 profile still propagates perception ERROR through the
+same system-health and fault-supervisor path.
+
+Missing or invalid detector/depth/TF observations suppress new geometry and
+safety events. In particular, detector mode does not emit a fresh CLEAR event
+when a frame has no detections or all projections are invalid. The existing
+Safety Gate event timeout may remove only the perception restriction; chassis,
+watchdog, localization, scan, and other safety conditions remain authoritative.
+
+Run the deterministic fault-injection probe in an isolated ROS graph with:
+
+```bash
+bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
+```
+
+For a live Factory Patrol instance, the existing topic checker includes the
+Phase 7 statuses when `FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true`:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_PERCEPTION_SAFETY_MODE=true \
+FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+```
+
+The known Phase 6 simulation limitation remains: the freely settling Gazebo
+world pose and integrated odometry are not a claim of exact physical robot
+motion. Phase 7 reports that condition through existing health inputs; it does
+not change navigation or mission behavior.

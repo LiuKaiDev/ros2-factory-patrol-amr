@@ -7,10 +7,12 @@ import time
 
 import cv2
 from cv_bridge import CvBridge
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
+from std_msgs.msg import Header
 from vision_msgs.msg import Detection2DArray
 
 from robot_perception.detection_utils import filter_detections, to_detection_array
@@ -30,6 +32,16 @@ class DetectorNode(Node):
         max_inference_rate_hz = float(
             self.declare_parameter("max_inference_rate_hz", 0.0).value
         )
+        diagnostics_rate_hz = float(self.declare_parameter("diagnostics_rate_hz", 2.0).value)
+        diagnostics_output_timeout_sec = float(
+            self.declare_parameter("diagnostics_output_timeout_sec", 3.0).value
+        )
+        diagnostics_latency_warn_ms = float(
+            self.declare_parameter("diagnostics_latency_warn_ms", 1200.0).value
+        )
+        diagnostics_latency_error_ms = float(
+            self.declare_parameter("diagnostics_latency_error_ms", 3000.0).value
+        )
         self._debug_enabled = bool(self.declare_parameter("debug_image_enabled", True).value)
         image_topic = self.declare_parameter("image_topic", "/camera/color/image_raw").value
         detection_topic = self.declare_parameter(
@@ -43,12 +55,28 @@ class DetectorNode(Node):
             raise ValueError("confidence_threshold must be in [0, 1]")
         if not math.isfinite(max_inference_rate_hz) or max_inference_rate_hz < 0.0:
             raise ValueError("max_inference_rate_hz must be finite and nonnegative")
+        if not math.isfinite(diagnostics_rate_hz) or diagnostics_rate_hz <= 0.0:
+            raise ValueError("diagnostics_rate_hz must be finite and positive")
+        if diagnostics_output_timeout_sec <= 0.0:
+            raise ValueError("diagnostics_output_timeout_sec must be positive")
+        if diagnostics_latency_warn_ms <= 0.0 or diagnostics_latency_error_ms <= diagnostics_latency_warn_ms:
+            raise ValueError("diagnostic latency thresholds are inconsistent")
         self._confidence = confidence
         self._min_inference_period = (
             0.0 if max_inference_rate_hz == 0.0 else 1.0 / max_inference_rate_hz
         )
         self._last_inference_start = None
+        self._last_image_receipt = None
+        self._last_output_receipt = None
+        self._last_latency_ms = 0.0
+        self._consecutive_failures = 0
+        self._model_error = ""
+        self._model_path = model_path
+        self._diagnostics_output_timeout_sec = diagnostics_output_timeout_sec
+        self._diagnostics_latency_warn_ms = diagnostics_latency_warn_ms
+        self._diagnostics_latency_error_ms = diagnostics_latency_error_ms
         self._allowed_classes = allowed_classes
+        self._backend_name = backend_name
         self._bridge = CvBridge()
         self._latency_total_ms = 0.0
         self._inference_count = 0
@@ -59,6 +87,7 @@ class DetectorNode(Node):
                 cache_root / "robot_perception" / "models" /
                 "object_detection_yolox_2022nov.onnx"
             )
+        self._model_path = model_path
         try:
             if backend_name != "opencv_yolox":
                 raise ValueError(f"unsupported detector backend: {backend_name}")
@@ -70,11 +99,13 @@ class DetectorNode(Node):
                 f"model={model_path}, classes={allowed_classes}"
             )
         except Exception as error:
+            self._model_error = str(error)
             self.get_logger().error(
                 f"detector disabled after model initialization failure: {error}"
             )
 
         self._detection_pub = self.create_publisher(Detection2DArray, detection_topic, 10)
+        self._diagnostics_pub = self.create_publisher(DiagnosticArray, "/perception/diagnostics", 10)
         self._debug_pub = self.create_publisher(Image, debug_topic, 2)
         image_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -85,9 +116,64 @@ class DetectorNode(Node):
         self._image_sub = self.create_subscription(
             Image, image_topic, self._on_image, image_qos
         )
+        self._diagnostics_timer = self.create_timer(
+            1.0 / diagnostics_rate_hz, self._publish_diagnostics
+        )
+
+    @staticmethod
+    def _value(key, value):
+        return KeyValue(key=key, value=str(value))
+
+    def _publish_diagnostics(self):
+        now = self.get_clock().now()
+        level = DiagnosticStatus.OK
+        message = "detector nominal"
+        if self._backend is None:
+            level = DiagnosticStatus.ERROR
+            message = "model/backend unavailable"
+        elif self._consecutive_failures >= 3:
+            level = DiagnosticStatus.ERROR
+            message = "repeated inference failures"
+        elif self._last_latency_ms >= self._diagnostics_latency_error_ms:
+            level = DiagnosticStatus.ERROR
+            message = "inference latency high"
+        elif self._last_latency_ms >= self._diagnostics_latency_warn_ms:
+            level = DiagnosticStatus.WARN
+            message = "inference latency elevated"
+        elif (
+            self._last_image_receipt is not None
+            and self._last_output_receipt is not None
+            and (now.nanoseconds - self._last_output_receipt.nanoseconds) / 1e9
+            > self._diagnostics_output_timeout_sec
+        ):
+            level = DiagnosticStatus.WARN
+            message = "detector output inactive"
+        elif self._last_image_receipt is not None and self._last_output_receipt is None:
+            level = DiagnosticStatus.WARN
+            message = "detector has not produced output"
+        status = DiagnosticStatus(
+            name="perception/detector",
+            hardware_id="factory_patrol_detector",
+            level=level,
+            message=message,
+            values=[
+                self._value("backend", self._backend_name),
+                self._value("model_path", self._model_path),
+                self._value("model_error", self._model_error),
+                self._value("inference_count", self._inference_count),
+                self._value("consecutive_failures", self._consecutive_failures),
+                self._value("last_latency_ms", f"{self._last_latency_ms:.3f}"),
+                self._value("last_output_age_sec", "inf" if self._last_output_receipt is None else
+                            f"{(now.nanoseconds - self._last_output_receipt.nanoseconds) / 1e9:.3f}"),
+            ],
+        )
+        self._diagnostics_pub.publish(
+            DiagnosticArray(header=Header(stamp=now.to_msg()), status=[status])
+        )
 
     def _on_image(self, message):
         now = time.monotonic()
+        self._last_image_receipt = self.get_clock().now()
         if (
             self._last_inference_start is not None
             and now - self._last_inference_start < self._min_inference_period
@@ -98,6 +184,7 @@ class DetectorNode(Node):
             image = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
         except Exception as error:
             self.get_logger().error(f"RGB conversion failed: {error}")
+            self._consecutive_failures += 1
             return
 
         detections = []
@@ -109,9 +196,12 @@ class DetectorNode(Node):
                     raw, image.shape[1], image.shape[0], self._confidence,
                     self._allowed_classes,
                 )
+                self._consecutive_failures = 0
             except Exception as error:
                 self.get_logger().error(f"inference failed; publishing no detections: {error}")
+                self._consecutive_failures += 1
             latency_ms = (time.perf_counter() - start) * 1000.0
+            self._last_latency_ms = latency_ms
             self._latency_total_ms += latency_ms
             self._inference_count += 1
             if self._inference_count == 1 or self._inference_count % 30 == 0:
@@ -121,7 +211,9 @@ class DetectorNode(Node):
                     f"detections={len(detections)}"
                 )
 
-        self._detection_pub.publish(to_detection_array(detections, message.header))
+        detection_message = to_detection_array(detections, message.header)
+        self._detection_pub.publish(detection_message)
+        self._last_output_receipt = self.get_clock().now()
         if self._debug_enabled:
             debug = image.copy()
             for item in detections:

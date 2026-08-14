@@ -1,0 +1,23 @@
+perception_diagnostics_node:
+  ros__parameters:
+    update_rate_hz: 2.0
+    startup_grace_sec: 10.0
+    camera_stale_warn_sec: 0.5
+    camera_stale_error_sec: 1.5
+    detector_required: false
+    detector_stale_error_sec: 3.0
+    tf_failure_warn_count: 2
+    tf_failure_error_count: 5
+    depth_invalid_ratio_warn: 0.25
+    depth_invalid_ratio_error: 0.60
+    depth_min_m: 0.2
+    depth_max_m: 8.0
+    rgb_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/color/camera_info
+    detections_topic: /perception/detections_2d
+    camera_point_topic: /perception/geometry/camera_point
+    objects_topic: /perception/objects_3d
+    safety_event_topic: /perception/safety_event
+    camera_frame: camera_color_optical_frame
+    target_frame: map

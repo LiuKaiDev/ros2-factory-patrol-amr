@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
+#include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
 #include "diagnostic_updater/diagnostic_updater.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -37,28 +40,44 @@ class SystemMonitorNode final : public rclcpp::Node {
     low_battery_voltage_ = declare_parameter<double>("low_battery_voltage", 22.0);
     critical_battery_voltage_ = declare_parameter<double>("critical_battery_voltage", 20.0);
     publish_period_ms_ = declare_parameter<int>("publish_period_ms", 200);
+    monitor_base_system_ = declare_parameter<bool>("monitor_base_system", true);
+    monitor_perception_ = declare_parameter<bool>("monitor_perception", false);
+    perception_diagnostics_topic_ = declare_parameter<std::string>(
+      "perception_diagnostics_topic", "/perception/diagnostics");
+    perception_diagnostics_timeout_ms_ = declare_parameter<int>(
+      "perception_diagnostics_timeout_ms", 3000);
+    perception_startup_grace_ms_ = declare_parameter<int>(
+      "perception_startup_grace_ms", 5000);
+    monitor_start_stamp_ = now();
 
     diagnostics_.setHardwareID("robot");
     diagnostics_.setPeriod(static_cast<double>(std::max(50, publish_period_ms_)) / 1000.0);
-    diagnostics_.add("system/chassis", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-      FillDiagnosticStatus(CheckChassis(), stat);
-    });
-    diagnostics_.add("system/battery", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-      FillDiagnosticStatus(CheckBattery(), stat);
-    });
-    diagnostics_.add(
-        "system/emergency_stop", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-          FillDiagnosticStatus(CheckEmergencyStop(), stat);
-        });
-    diagnostics_.add("system/scan", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-      FillDiagnosticStatus(CheckTopicFreshness("system/scan", scan_seen_, scan_stamp_), stat);
-    });
-    diagnostics_.add("system/imu", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-      FillDiagnosticStatus(CheckTopicFreshness("system/imu", imu_seen_, imu_stamp_), stat);
-    });
-    diagnostics_.add("system/odom", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
-      FillDiagnosticStatus(CheckTopicFreshness("system/odom", odom_seen_, odom_stamp_), stat);
-    });
+    if (monitor_base_system_) {
+      diagnostics_.add("system/chassis", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckChassis(), stat);
+      });
+      diagnostics_.add("system/battery", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckBattery(), stat);
+      });
+      diagnostics_.add(
+          "system/emergency_stop", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+            FillDiagnosticStatus(CheckEmergencyStop(), stat);
+          });
+      diagnostics_.add("system/scan", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckTopicFreshness("system/scan", scan_seen_, scan_stamp_), stat);
+      });
+      diagnostics_.add("system/imu", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckTopicFreshness("system/imu", imu_seen_, imu_stamp_), stat);
+      });
+      diagnostics_.add("system/odom", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckTopicFreshness("system/odom", odom_seen_, odom_stamp_), stat);
+      });
+    }
+    if (monitor_perception_) {
+      diagnostics_.add("system/perception", [this](diagnostic_updater::DiagnosticStatusWrapper& stat) {
+        FillDiagnosticStatus(CheckPerception(), stat);
+      });
+    }
     health_pub_ = create_publisher<robot_interfaces::msg::RobotState>("/system_health", 10);
 
     chassis_sub_ = create_subscription<robot_interfaces::msg::ChassisState>(
@@ -88,6 +107,19 @@ class SystemMonitorNode final : public rclcpp::Node {
           odom_seen_ = true;
           odom_stamp_ = now();
         });
+    if (monitor_perception_) {
+      perception_diagnostics_sub_ = create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
+        perception_diagnostics_topic_, 10,
+        [this](diagnostic_msgs::msg::DiagnosticArray::SharedPtr message) {
+          for (const auto & status : message->status) {
+            if (status.name.rfind("perception/", 0) == 0) {
+              perception_statuses_[status.name] = status;
+              perception_status_stamps_[status.name] = now();
+            }
+          }
+          perception_seen_ = !perception_statuses_.empty();
+        });
+    }
 
     const auto period = std::chrono::milliseconds(std::max(50, publish_period_ms_));
     timer_ = create_wall_timer(period, [this]() { PublishHealth(); });
@@ -172,15 +204,57 @@ class SystemMonitorNode final : public rclcpp::Node {
         fresh ? "fresh" : "stale");
   }
 
+  diagnostic_msgs::msg::DiagnosticStatus CheckPerception() const {
+    if (!monitor_perception_) {
+      return MakeStatus("system/perception", diagnostic_msgs::msg::DiagnosticStatus::OK, "disabled");
+    }
+    const auto since_start = (now() - monitor_start_stamp_).nanoseconds() / 1000000;
+    if (!perception_seen_ && since_start < perception_startup_grace_ms_) {
+      return MakeStatus(
+          "system/perception", diagnostic_msgs::msg::DiagnosticStatus::OK,
+          "startup grace", {MakeKeyValue("topic", perception_diagnostics_topic_)});
+    }
+    if (!perception_seen_) {
+      return MakeStatus(
+          "system/perception", diagnostic_msgs::msg::DiagnosticStatus::WARN,
+          "perception diagnostics missing", {MakeKeyValue("topic", perception_diagnostics_topic_)});
+    }
+    std::uint8_t worst = diagnostic_msgs::msg::DiagnosticStatus::OK;
+    std::string message = "perception nominal";
+    std::vector<diagnostic_msgs::msg::KeyValue> values;
+    for (const auto & [name, status] : perception_statuses_) {
+      const auto stamp = perception_status_stamps_.at(name);
+      const auto age_ms = (now() - stamp).nanoseconds() / 1000000;
+      const bool stale = age_ms > perception_diagnostics_timeout_ms_;
+      const auto normalized = stale ||
+        status.level == diagnostic_msgs::msg::DiagnosticStatus::STALE
+        ? diagnostic_msgs::msg::DiagnosticStatus::WARN : status.level;
+      const auto component_message = stale ? "diagnostics stale" : status.message;
+      values.push_back(MakeKeyValue(name, component_message));
+      if (normalized > worst) {
+        message = name + "=" + component_message;
+      }
+      worst = std::max(worst, normalized);
+    }
+    return MakeStatus("system/perception", worst, message, values);
+  }
+
   std::vector<diagnostic_msgs::msg::DiagnosticStatus> BuildStatuses() const {
-    return {
-        CheckChassis(),
-        CheckBattery(),
-        CheckEmergencyStop(),
-        CheckTopicFreshness("system/scan", scan_seen_, scan_stamp_),
-        CheckTopicFreshness("system/imu", imu_seen_, imu_stamp_),
-        CheckTopicFreshness("system/odom", odom_seen_, odom_stamp_),
-    };
+    auto statuses = std::vector<diagnostic_msgs::msg::DiagnosticStatus>{};
+    if (monitor_base_system_) {
+      statuses = {
+          CheckChassis(),
+          CheckBattery(),
+          CheckEmergencyStop(),
+          CheckTopicFreshness("system/scan", scan_seen_, scan_stamp_),
+          CheckTopicFreshness("system/imu", imu_seen_, imu_stamp_),
+          CheckTopicFreshness("system/odom", odom_seen_, odom_stamp_),
+      };
+    }
+    if (monitor_perception_) {
+      statuses.push_back(CheckPerception());
+    }
+    return statuses;
   }
 
   void FillDiagnosticStatus(
@@ -240,6 +314,11 @@ class SystemMonitorNode final : public rclcpp::Node {
   double low_battery_voltage_ = 22.0;
   double critical_battery_voltage_ = 20.0;
   int publish_period_ms_ = 200;
+  bool monitor_base_system_ = true;
+  bool monitor_perception_ = false;
+  std::string perception_diagnostics_topic_ = "/perception/diagnostics";
+  int perception_diagnostics_timeout_ms_ = 3000;
+  int perception_startup_grace_ms_ = 5000;
   bool chassis_seen_ = false;
   bool emergency_seen_ = false;
   bool scan_seen_ = false;
@@ -253,6 +332,10 @@ class SystemMonitorNode final : public rclcpp::Node {
   rclcpp::Time scan_stamp_{0, 0, RCL_ROS_TIME};
   rclcpp::Time imu_stamp_{0, 0, RCL_ROS_TIME};
   rclcpp::Time odom_stamp_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time monitor_start_stamp_{0, 0, RCL_ROS_TIME};
+  bool perception_seen_ = false;
+  std::map<std::string, diagnostic_msgs::msg::DiagnosticStatus> perception_statuses_;
+  std::map<std::string, rclcpp::Time> perception_status_stamps_;
   diagnostic_updater::Updater diagnostics_;
   rclcpp::Publisher<robot_interfaces::msg::RobotState>::SharedPtr health_pub_;
   rclcpp::Subscription<robot_interfaces::msg::ChassisState>::SharedPtr chassis_sub_;
@@ -260,6 +343,7 @@ class SystemMonitorNode final : public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr perception_diagnostics_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 

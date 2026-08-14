@@ -48,6 +48,7 @@ TOPICS=(
 DETECTOR_MODE="${FACTORY_PATROL_DETECTOR_MODE:-false}"
 VISUAL_INSPECTION_MODE="${FACTORY_PATROL_VISUAL_INSPECTION_MODE:-false}"
 PERCEPTION_SAFETY_MODE="${FACTORY_PATROL_PERCEPTION_SAFETY_MODE:-false}"
+PERCEPTION_DIAGNOSTICS_MODE="${FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE:-false}"
 if [[ "${DETECTOR_MODE}" == "true" ]]; then
   TOPICS+=("/perception/detections_2d" "/perception/debug_image")
 fi
@@ -58,6 +59,9 @@ if [[ "${PERCEPTION_SAFETY_MODE}" == "true" ]]; then
     "/safety/reason"
     "/nav2_cmd_vel"
   )
+fi
+if [[ "${PERCEPTION_DIAGNOSTICS_MODE}" == "true" ]]; then
+  TOPICS+=("/perception/diagnostics" "/system_health" "/fault_supervisor/state" "/diagnostics")
 fi
 if [[ "${PERCEPTION_SAFETY_MODE}" == "true" && "${VISUAL_INSPECTION_MODE}" != "true" ]]; then
   for index in "${!TOPICS[@]}"; do
@@ -201,6 +205,26 @@ check_camera_frame() {
   fi
   echo "FAIL: ${topic} expected frame_id=camera_color_optical_frame, got ${frame:-none}" >&2
   return 1
+}
+
+check_perception_diagnostics() {
+  local sample
+  if ! sample="$(timeout 10s ros2 topic echo --once --timeout 8 /perception/diagnostics \
+      --filter "any(s.name == 'perception/pipeline' for s in m.status)" 2>/dev/null)"; then
+    echo "FAIL: /perception/diagnostics did not publish a DiagnosticArray" >&2
+    return 1
+  fi
+  local missing=0
+  for name in perception/camera_rgb perception/camera_depth perception/camera_info \
+    perception/detector perception/tf perception/depth_quality perception/pipeline; do
+    if grep -q "name: ${name}" <<<"${sample}"; then
+      echo "PASS: /perception/diagnostics contains ${name}"
+    else
+      echo "FAIL: /perception/diagnostics missing ${name}" >&2
+      missing=$((missing + 1))
+    fi
+  done
+  [[ "${missing}" -eq 0 ]]
 }
 
 first_marker_frame() {
@@ -371,6 +395,14 @@ check_camera_info || failures=$((failures + 1))
 check_camera_frame "/camera/color/image_raw" || failures=$((failures + 1))
 check_camera_frame "/camera/depth/image_raw" || failures=$((failures + 1))
 check_camera_frame "/camera/color/camera_info" || failures=$((failures + 1))
+
+if [[ "${PERCEPTION_DIAGNOSTICS_MODE}" == "true" ]]; then
+  echo
+  echo "[factory-topic-check] Validating Phase 7 perception diagnostics..."
+  check_topic_type "/perception/diagnostics" "diagnostic_msgs/msg/DiagnosticArray" || failures=$((failures + 1))
+  check_perception_diagnostics || failures=$((failures + 1))
+  check_topic_type "/system_health" "robot_interfaces/msg/RobotState" || failures=$((failures + 1))
+fi
 
 echo
 echo "[factory-topic-check] Validating Phase 2 geometry outputs..."

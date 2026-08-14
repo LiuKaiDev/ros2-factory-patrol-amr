@@ -53,6 +53,7 @@ bash scripts/check_factory_patrol_detector_runtime.sh
 bash scripts/check_factory_patrol_target_manager_runtime.sh
 bash scripts/check_factory_patrol_visual_inspection_runtime.sh
 bash scripts/check_factory_patrol_perception_safety_runtime.sh
+bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -81,6 +82,11 @@ person safety policy, Nav2, and the existing combined mux/Safety Gate.
 visual-only person fixture through distance and map-zone cases, then compares
 real `/nav2_cmd_vel` intent with final `/cmd_vel`, measures STOP response time,
 and verifies recovery without sending any Twist from perception.
+
+`run_factory_patrol_demo.sh --phase7` adds the standard perception diagnostic
+stream and existing system health/fault supervision. The Phase 7 runtime check
+injects camera, depth-quality, observation-time TF, and detector faults and
+verifies recovery without publishing velocity or synthetic safety events.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 

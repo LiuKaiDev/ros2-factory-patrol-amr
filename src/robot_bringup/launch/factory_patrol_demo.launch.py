@@ -17,6 +17,9 @@ def generate_launch_description():
     use_detector = LaunchConfiguration("use_detector")
     use_visual_inspection = LaunchConfiguration("use_visual_inspection")
     use_perception_safety = LaunchConfiguration("use_perception_safety")
+    use_perception_diagnostics = LaunchConfiguration("use_perception_diagnostics")
+    use_perception_system_monitor = LaunchConfiguration("use_perception_system_monitor")
+    perception_diagnostics_params = LaunchConfiguration("perception_diagnostics_params")
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     detector_model_path = LaunchConfiguration("detector_model_path")
     perception_debug_image = LaunchConfiguration("perception_debug_image")
@@ -63,6 +66,9 @@ def generate_launch_description():
     default_safety_zones = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
     )
+    default_perception_diagnostics_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "diagnostics.yaml"]
+    )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
     )
@@ -101,6 +107,11 @@ def generate_launch_description():
             DeclareLaunchArgument("use_detector", default_value="false"),
             DeclareLaunchArgument("use_visual_inspection", default_value="false"),
             DeclareLaunchArgument("use_perception_safety", default_value="false"),
+            DeclareLaunchArgument("use_perception_diagnostics", default_value="false"),
+            DeclareLaunchArgument("use_perception_system_monitor", default_value="false"),
+            DeclareLaunchArgument(
+                "perception_diagnostics_params", default_value=default_perception_diagnostics_params
+            ),
             DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
             DeclareLaunchArgument("detector_model_path", default_value=""),
             DeclareLaunchArgument("perception_debug_image", default_value="true"),
@@ -199,6 +210,8 @@ def generate_launch_description():
                         ["'", use_nav2, "' == 'false'"]
                     ),
                     "detector_enabled": use_detector,
+                    "diagnostics_enabled": use_perception_diagnostics,
+                    "diagnostics_params_file": perception_diagnostics_params,
                     "geometry_input_mode": geometry_input_mode,
                     "model_path": detector_model_path,
                     "debug_image_enabled": perception_debug_image,
@@ -207,6 +220,43 @@ def generate_launch_description():
                     "safety_params_file": perception_safety_params,
                     "safety_zones_file": perception_safety_zones,
                 }.items(),
+            ),
+            Node(
+                package="robot_utils",
+                executable="system_monitor_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "monitor_base_system": False,
+                        "monitor_perception": True,
+                        "perception_diagnostics_topic": "/perception/diagnostics",
+                        "perception_diagnostics_timeout_ms": 3000,
+                        "perception_startup_grace_ms": 12000,
+                    }
+                ],
+                output="screen",
+            ),
+            Node(
+                package="diagnostic_aggregator",
+                executable="aggregator_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    PathJoinSubstitution(
+                        [FindPackageShare("robot_utils"), "config", "diagnostic_aggregator.yaml"]
+                    ),
+                    {"use_sim_time": use_sim_time},
+                ],
+                output="screen",
+            ),
+            Node(
+                package="robot_utils",
+                executable="fault_supervisor_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    {"use_sim_time": use_sim_time, "auto_clear": True, "startup_grace_ms": 3000}
+                ],
+                output="screen",
             ),
             Node(
                 package="robot_tasks",

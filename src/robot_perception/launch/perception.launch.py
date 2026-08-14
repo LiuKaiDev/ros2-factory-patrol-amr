@@ -10,6 +10,8 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     detector_enabled = LaunchConfiguration("detector_enabled")
+    diagnostics_enabled = LaunchConfiguration("diagnostics_enabled")
+    diagnostics_params_file = LaunchConfiguration("diagnostics_params_file")
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     model_path = LaunchConfiguration("model_path")
@@ -33,11 +35,18 @@ def generate_launch_description():
     default_safety_zones = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
     )
+    default_diagnostics_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "diagnostics.yaml"]
+    )
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("detector_enabled", default_value="false"),
+            DeclareLaunchArgument("diagnostics_enabled", default_value="false"),
+            DeclareLaunchArgument(
+                "diagnostics_params_file", default_value=default_diagnostics_params
+            ),
             DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
             DeclareLaunchArgument("publish_sim_map_tf", default_value="true"),
             DeclareLaunchArgument("model_path", default_value=""),
@@ -63,6 +72,19 @@ def generate_launch_description():
                         "model_path": model_path,
                         "debug_image_enabled": debug_image_enabled,
                         "max_inference_rate_hz": max_inference_rate_hz,
+                    },
+                ],
+                output="screen",
+            ),
+            Node(
+                package="robot_perception",
+                executable="perception_diagnostics_node",
+                condition=IfCondition(diagnostics_enabled),
+                parameters=[
+                    diagnostics_params_file,
+                    {
+                        "use_sim_time": use_sim_time,
+                        "detector_required": detector_enabled,
                     },
                 ],
                 output="screen",
