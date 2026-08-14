@@ -52,6 +52,7 @@ bash scripts/prepare_phase3_detector_model.sh
 bash scripts/check_factory_patrol_detector_runtime.sh
 bash scripts/check_factory_patrol_target_manager_runtime.sh
 bash scripts/check_factory_patrol_visual_inspection_runtime.sh
+bash scripts/check_factory_patrol_perception_safety_runtime.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -73,6 +74,13 @@ With the explicit Phase 5 validation profiles loaded,
 task-owned Nav2 approach, observation standoff and yaw, robot motion,
 completion feedback, the target's `PROCESSED` state, and the unchanged
 mux/Safety Gate velocity path.
+
+`run_factory_patrol_demo.sh --phase6` starts the live detector, the managed
+person safety policy, Nav2, and the existing combined mux/Safety Gate.
+`check_factory_patrol_perception_safety_runtime.sh` moves the existing
+visual-only person fixture through distance and map-zone cases, then compares
+real `/nav2_cmd_vel` intent with final `/cmd_vel`, measures STOP response time,
+and verifies recovery without sending any Twist from perception.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 

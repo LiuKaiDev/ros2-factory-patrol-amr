@@ -90,6 +90,7 @@ The unified state names are:
 | `COMMUNICATION_LOST` | 80 | Publish zero `/cmd_vel`. |
 | `CHASSIS_FAULT` | 70 | Publish zero `/cmd_vel`. |
 | `LOCALIZATION_LOST` | 60 | Publish zero `/cmd_vel`. |
+| `STOP` (perception) | 55 | Publish zero `/cmd_vel`. |
 | `SENSOR_STALE` | 50 | Publish zero `/cmd_vel`. |
 | `MANUAL_TAKEOVER` | 40 | Keep the command selected by the mux/twist_mux chain. |
 | `SPEED_LIMITED` | 30 | Clamp command to the configured low-speed limit. |
@@ -113,6 +114,7 @@ The gate subscribes to:
 | `/chassis/state` | `robot_interfaces/msg/ChassisState` | Chassis connectivity and fault-code input. |
 | `/manual_takeover/state` | `std_msgs/msg/Bool` | Manual takeover input. |
 | `/safety_state` | `robot_interfaces/msg/SafetyState` | Existing dynamic speed-limit / safety-stop input kept for compatibility. |
+| `/perception/safety_event` | `robot_interfaces_perception/msg/PerceptionSafetyEvent` | Phase 6 person-derived `CLEAR`, `SPEED_LIMITED`, or `STOP` contribution. |
 
 Default Phase 4B parameters:
 
@@ -188,10 +190,37 @@ and confirm whether `/cmd_vel` is zeroed by the Phase 4B policy.
 No Phase 5B document claims the safety-state transitions have passed in Gazebo
 until runtime topic logs are collected.
 
-## Phase 6 Final Safety Notes
+## Phase 6 Perception Safety Policy
 
-Phase 6 keeps the safety behavior unchanged and documents the validation
-boundary. Static checks confirm that the expected files, topics, and policy
-strings are present. Runtime checks only confirm topic presence after bringup;
-they do not prove emergency-stop latency, real chassis fault handling, or field
-safety performance.
+Phase 6 extends both existing final gate paths. It does not replace either
+`twist_mux`, the Factory Patrol mux, or Nav2. The perception contribution is:
+
+| Condition | Event | Gate state | Final policy |
+| --- | --- | --- | --- |
+| no eligible person or distance `> 3.0 m` | `CLEAR` | no perception restriction | preserve all other safety inputs |
+| `1.5 m <= distance <= 3.0 m` | `PERSON_NEAR` | `SPEED_LIMITED` | clamp to `0.15 m/s`, `0.4 rad/s` |
+| distance `< 1.5 m` | `PERSON_TOO_CLOSE` | `STOP` | zero final `/cmd_vel` |
+| person in configured map danger zone | `PERSON_IN_DANGER_ZONE` | `STOP` | zero final `/cmd_vel` regardless of distance |
+
+The person distance is map-frame planar XY distance from the observation-time
+robot pose. The policy waits for TargetManager `CONFIRMED` state; an observed
+`PROCESSED` person remains safety-eligible because mission completion must not
+disable person safety. Multiple persons resolve to the most restrictive result,
+then shortest distance and target ID provide deterministic tie breaking.
+
+Restrictions enter immediately. A less restrictive result must be observed
+three times. STOP remains latched until distance exceeds `1.7 m`, and
+SPEED_LIMITED remains latched until distance exceeds `3.2 m`. `LOST`, absent,
+or stale targets participate only through this bounded three-observation
+recovery. Malformed input cannot publish a false CLEAR.
+
+Gate subscribers accept only valid, ordered, non-future events from
+`robot_perception`. An event older than `1.5 s` in ROS/simulation time removes
+only the perception-derived contribution. It never clears estop, localization,
+chassis, scan, watchdog, or legacy safety conditions. This avoids an ancient
+latched perception STOP while preserving the existing project safety
+philosophy.
+
+Diagnostics use `/safety/state` and `/safety/reason`; perception reasons are
+`PERCEPTION_PERSON_NEAR`, `PERCEPTION_PERSON_TOO_CLOSE`, and
+`PERCEPTION_PERSON_IN_DANGER_ZONE`.

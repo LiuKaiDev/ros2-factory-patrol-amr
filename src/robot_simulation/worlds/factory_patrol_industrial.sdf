@@ -94,6 +94,25 @@
       <static>true</static>
     </include>
 
+    <!-- Phase 6 close-range validation fixture. The licensed person mesh is
+         scaled to remain fully visible inside the camera vertical FOV below
+         the 1.5 m STOP threshold and is hidden until the runtime probe moves it. -->
+    <model name="phase6_person_safety_target">
+      <static>true</static>
+      <pose>0 0 -2 0 0 1.5708</pose>
+      <link name="link">
+        <visual name="visual">
+          <pose>0 0 0.02 0.04 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://person_standing/meshes/standing.dae</uri>
+              <scale>0.40 0.40 0.40</scale>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+
     <!-- Phase 2 visual-only target. Center-ray/front-face P_gt: [2.70, 0.00, 0.495]. -->
     <model name="phase2_geometry_validation_target">
       <static>true</static>

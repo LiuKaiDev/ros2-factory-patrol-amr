@@ -16,6 +16,8 @@ def generate_launch_description():
     debug_image_enabled = LaunchConfiguration("debug_image_enabled")
     max_inference_rate_hz = LaunchConfiguration("max_inference_rate_hz")
     tracking_params_file = LaunchConfiguration("tracking_params_file")
+    safety_params_file = LaunchConfiguration("safety_params_file")
+    safety_zones_file = LaunchConfiguration("safety_zones_file")
     detector_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "detector.yaml"]
     )
@@ -24,6 +26,12 @@ def generate_launch_description():
     )
     default_tracking_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
+    )
+    default_safety_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety.yaml"]
+    )
+    default_safety_zones = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
     )
 
     return LaunchDescription(
@@ -37,6 +45,12 @@ def generate_launch_description():
             DeclareLaunchArgument("max_inference_rate_hz", default_value="0.0"),
             DeclareLaunchArgument(
                 "tracking_params_file", default_value=default_tracking_params
+            ),
+            DeclareLaunchArgument(
+                "safety_params_file", default_value=default_safety_params
+            ),
+            DeclareLaunchArgument(
+                "safety_zones_file", default_value=default_safety_zones
             ),
             Node(
                 package="robot_perception",
@@ -60,6 +74,8 @@ def generate_launch_description():
                     "publish_sim_map_tf": publish_sim_map_tf,
                     "geometry_input_mode": geometry_input_mode,
                     "tracking_params_file": tracking_params_file,
+                    "safety_params_file": safety_params_file,
+                    "safety_zones_file": safety_zones_file,
                 }.items(),
             ),
         ]

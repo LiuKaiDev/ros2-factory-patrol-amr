@@ -109,7 +109,7 @@ cleanup() {
 trap cleanup EXIT
 
 PYTHONUNBUFFERED=1 timeout 110s ros2 topic echo /perception/events --timeout 107 \
-  --qos-durability transient_local \
+  --qos-reliability reliable --qos-durability transient_local \
   --filter "m.class_name == 'person' and m.target_pose.header.frame_id == 'map' and m.target_id > 0 and m.event_type in ('INSPECTION_REQUIRED', 'INSPECTION_COMPLETED')" \
   --no-arr >"${event_log}" 2>/dev/null &
 event_echo_pid=$!
@@ -118,22 +118,22 @@ timeout 100s ros2 topic echo --once /perception/objects_3d --timeout 97 \
   --no-arr >"${processed_log}" 2>/dev/null &
 processed_echo_pid=$!
 PYTHONUNBUFFERED=1 timeout 100s ros2 topic echo --once /inspection/status --timeout 97 \
-  --qos-durability transient_local \
+  --qos-reliability reliable --qos-durability transient_local \
   --filter "m.data.startswith('SUCCEEDED:')" \
   >"${status_log}" 2>/dev/null &
 status_echo_pid=$!
 PYTHONUNBUFFERED=1 timeout 110s ros2 topic echo /inspection/status --timeout 107 \
-  --qos-durability transient_local \
+  --qos-reliability reliable --qos-durability transient_local \
   --filter "m.data.startswith(('REQUESTED:', 'NAVIGATING:', 'SUCCEEDED:', 'FAILED:'))" \
   >"${mission_status_log}" 2>/dev/null &
 mission_status_echo_pid=$!
 timeout 100s ros2 topic echo --once /inspection/observation_pose --timeout 97 \
-  --qos-durability transient_local \
+  --qos-reliability reliable --qos-durability transient_local \
   --filter "m.header.frame_id == 'map' and m.pose.position.x == m.pose.position.x and m.pose.position.y == m.pose.position.y and m.pose.orientation.w == m.pose.orientation.w" \
   --no-arr >"${observation_pose_log}" 2>/dev/null &
 observation_echo_pid=$!
 timeout 100s ros2 topic echo --once /navigate_sequence/current_goal --timeout 97 \
-  --qos-durability transient_local \
+  --qos-reliability reliable --qos-durability transient_local \
   --filter "m.header.frame_id == 'map'" --no-arr \
   >"${nav_goal_log}" 2>/dev/null &
 nav_goal_echo_pid=$!

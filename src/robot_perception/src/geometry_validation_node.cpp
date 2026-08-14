@@ -20,8 +20,10 @@
 #include "rmw/qos_profiles.h"
 #include "robot_interfaces_perception/msg/detected_object3_d.hpp"
 #include "robot_interfaces_perception/msg/perception_event.hpp"
+#include "robot_interfaces_perception/msg/perception_safety_event.hpp"
 #include "robot_perception/depth_projector.hpp"
 #include "robot_perception/inspection_event_policy.hpp"
+#include "robot_perception/perception_safety_policy.hpp"
 #include "robot_perception/target_manager.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
@@ -114,6 +116,55 @@ class GeometryValidationNode final : public rclcpp::Node {
     inspection_event_policy_ =
         std::make_unique<InspectionEventPolicy>(inspection_config);
 
+    PerceptionSafetyConfig safety_config;
+    safety_config.enabled = declare_parameter<bool>("safety.enabled", true);
+    safety_config.person_class =
+        declare_parameter<std::string>("safety.person_class", "person");
+    safety_config.person_slow_distance =
+        declare_parameter<double>("safety.person_slow_distance", 3.0);
+    safety_config.person_stop_distance =
+        declare_parameter<double>("safety.person_stop_distance", 1.5);
+    const auto clear_observations =
+        declare_parameter<std::int64_t>("safety.clear_observations", 3);
+    if (clear_observations <= 0) {
+      throw std::invalid_argument("safety.clear_observations must be positive");
+    }
+    safety_config.clear_observations =
+        static_cast<std::size_t>(clear_observations);
+    safety_config.stop_hysteresis =
+        declare_parameter<double>("safety.stop_hysteresis", 0.2);
+    safety_config.slow_hysteresis =
+        declare_parameter<double>("safety.slow_hysteresis", 0.2);
+    safety_config.max_target_age_sec =
+        declare_parameter<double>("safety.max_target_age_sec", 2.5);
+    safety_event_topic_ = declare_parameter<std::string>(
+        "safety.event_topic", "/perception/safety_event");
+    safety_robot_frame_ =
+        declare_parameter<std::string>("safety.robot_frame", "base_link");
+    safety_map_name_ =
+        declare_parameter<std::string>("safety.map_name", "factory_patrol");
+    safety_danger_zone_enabled_ =
+        declare_parameter<bool>("safety.danger_zone_enabled", false);
+    safety_zones_file_ =
+        declare_parameter<std::string>("safety.zones_file", "");
+    safety_policy_ = std::make_unique<PerceptionSafetyPolicy>(safety_config);
+    if (safety_danger_zone_enabled_) {
+      if (safety_zones_file_.empty()) {
+        throw std::invalid_argument(
+            "safety.zones_file is required when danger zones are enabled");
+      }
+      robot_navigation::ZoneCatalog zone_catalog(safety_zones_file_);
+      for (const auto& zone : zone_catalog.ForMap(safety_map_name_, false)) {
+        if (zone.type == "danger_zone") {
+          if (zone.frame_id != target_frame_) {
+            throw std::invalid_argument(
+                "perception danger zones must use the geometry target frame");
+          }
+          danger_zones_.push_back(zone);
+        }
+      }
+    }
+
     bbox_.center_u = declare_parameter<double>("synthetic_bbox.center_u", 320.0);
     bbox_.center_v = declare_parameter<double>("synthetic_bbox.center_v", 240.0);
     bbox_.width = declare_parameter<double>("synthetic_bbox.width", 80.0);
@@ -137,8 +188,10 @@ class GeometryValidationNode final : public rclcpp::Node {
     ground_truth_y_ = declare_parameter<double>("ground_truth.y", 0.0);
     ground_truth_z_ = declare_parameter<double>("ground_truth.z", 0.495);
 
-    if (camera_frame_.empty() || target_frame_.empty()) {
-      throw std::invalid_argument("camera_frame and target_frame must not be empty");
+    if (camera_frame_.empty() || target_frame_.empty() ||
+        safety_robot_frame_.empty() || safety_event_topic_.empty()) {
+      throw std::invalid_argument(
+          "camera, target, safety robot frames and safety event topic must not be empty");
     }
     if (geometry_input_mode_ != "synthetic" && geometry_input_mode_ != "detector") {
       throw std::invalid_argument(
@@ -165,6 +218,9 @@ class GeometryValidationNode final : public rclcpp::Node {
     const auto event_qos = rclcpp::QoS(10).reliable().transient_local();
     event_pub_ = create_publisher<
         robot_interfaces_perception::msg::PerceptionEvent>(event_topic_, event_qos);
+    safety_event_pub_ = create_publisher<
+        robot_interfaces_perception::msg::PerceptionSafetyEvent>(
+            safety_event_topic_, rclcpp::QoS(10).reliable());
     event_sub_ = create_subscription<
         robot_interfaces_perception::msg::PerceptionEvent>(
         event_topic_, event_qos,
@@ -201,8 +257,9 @@ class GeometryValidationNode final : public rclcpp::Node {
     RCLCPP_INFO(
         get_logger(),
         "geometry validation ready: mode=%s, target_frame=%s, observation-time TF only, "
-        "managed_targets=%s",
-        geometry_input_mode_.c_str(), target_frame_.c_str(), objects_3d_topic_.c_str());
+        "managed_targets=%s, perception_safety=%s",
+        geometry_input_mode_.c_str(), target_frame_.c_str(), objects_3d_topic_.c_str(),
+        safety_event_topic_.c_str());
   }
 
  private:
@@ -310,6 +367,7 @@ class GeometryValidationNode final : public rclcpp::Node {
           observations.size(), targets.size());
     }
     PublishManagedTargets(targets, detections->header.stamp);
+    EvaluateAndPublishSafety(targets, detections->header.stamp);
   }
 
   std::optional<TargetObservation> ProjectAndPublish(
@@ -459,6 +517,155 @@ class GeometryValidationNode final : public rclcpp::Node {
     }
   }
 
+  void EvaluateAndPublishSafety(
+      const std::vector<ManagedTarget>& targets,
+      const builtin_interfaces::msg::Time& update_stamp) {
+    Position3D robot_position;
+    try {
+      const auto transform = tf_buffer_->lookupTransform(
+          target_frame_, safety_robot_frame_, rclcpp::Time(update_stamp),
+          tf2::durationFromSec(tf_timeout_sec_));
+      robot_position = {
+          transform.transform.translation.x,
+          transform.transform.translation.y,
+          transform.transform.translation.z};
+    } catch (const tf2::TransformException& error) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "perception safety TF %s <- %s failed: %s; no safety event published",
+          target_frame_.c_str(), safety_robot_frame_.c_str(), error.what());
+      return;
+    }
+    if (!std::isfinite(robot_position.x) || !std::isfinite(robot_position.y) ||
+        !std::isfinite(robot_position.z)) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "perception safety robot pose is non-finite; no safety event published");
+      return;
+    }
+
+    std::vector<SafetyTarget> safety_targets;
+    safety_targets.reserve(targets.size());
+    for (const auto& target : targets) {
+      SafetyTarget safety_target;
+      safety_target.target_id = target.target_id;
+      safety_target.class_name = target.class_name;
+      safety_target.position = target.filtered_position;
+      safety_target.state = target.state;
+      safety_target.last_observation_ns = target.last_observation_ns;
+      safety_target.missed_frames = target.missed_frames;
+      safety_target.depth_valid = target.depth_valid;
+      safety_targets.push_back(std::move(safety_target));
+    }
+
+    const auto& decision = safety_policy_->Evaluate(
+        safety_targets, robot_position, danger_zones_,
+        rclcpp::Time(update_stamp).nanoseconds());
+    if (!decision.input_valid) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "perception safety input invalid; retaining policy state without publishing");
+      return;
+    }
+    PublishSafetyEvent(decision, update_stamp);
+    PublishSafetyMarkers(decision, robot_position, update_stamp);
+  }
+
+  void PublishSafetyEvent(
+      const PerceptionSafetyDecision& decision,
+      const builtin_interfaces::msg::Time& update_stamp) {
+    using SafetyEvent = robot_interfaces_perception::msg::PerceptionSafetyEvent;
+    SafetyEvent event;
+    event.header.stamp = update_stamp;
+    event.header.frame_id = target_frame_;
+    event.target_id = decision.target_id;
+    event.class_name = decision.class_name;
+    event.event_type = PerceptionSafetyReasonName(decision.reason);
+    event.safety_state = static_cast<std::uint8_t>(decision.level);
+    event.severity = decision.level == PerceptionSafetyLevel::kStop
+                         ? SafetyEvent::SEVERITY_CRITICAL
+                         : decision.level == PerceptionSafetyLevel::kSpeedLimited
+                               ? SafetyEvent::SEVERITY_WARNING
+                               : SafetyEvent::SEVERITY_INFO;
+    event.target_position.x = decision.target_position.x;
+    event.target_position.y = decision.target_position.y;
+    event.target_position.z = decision.target_position.z;
+    event.distance_m = static_cast<float>(decision.distance_m);
+    event.zone_id = decision.zone_id;
+    event.source = "robot_perception";
+    event.reason = "PERCEPTION_" + std::string(PerceptionSafetyReasonName(decision.reason));
+    safety_event_pub_->publish(event);
+  }
+
+  void PublishSafetyMarkers(
+      const PerceptionSafetyDecision& decision, const Position3D& robot_position,
+      const builtin_interfaces::msg::Time& update_stamp) {
+    for (std::size_t index = 0U; index < danger_zones_.size(); ++index) {
+      const auto& zone = danger_zones_[index];
+      visualization_msgs::msg::Marker marker;
+      marker.header.stamp = update_stamp;
+      marker.header.frame_id = target_frame_;
+      marker.ns = "perception_safety_zones";
+      marker.id = static_cast<std::int32_t>(index);
+      marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+      marker.action = visualization_msgs::msg::Marker::ADD;
+      marker.pose.orientation.w = 1.0;
+      marker.scale.x = 0.05;
+      marker.color.r = 0.95F;
+      marker.color.g = 0.15F;
+      marker.color.b = 0.10F;
+      marker.color.a = 0.90F;
+      for (std::size_t point = 0U; point < zone.polygon_x.size(); ++point) {
+        geometry_msgs::msg::Point position;
+        position.x = zone.polygon_x[point];
+        position.y = zone.polygon_y[point];
+        position.z = 0.08;
+        marker.points.push_back(position);
+      }
+      if (!marker.points.empty()) {
+        marker.points.push_back(marker.points.front());
+      }
+      marker.lifetime = rclcpp::Duration::from_seconds(marker_lifetime_sec_);
+      marker_pub_->publish(marker);
+    }
+
+    visualization_msgs::msg::Marker status;
+    status.header.stamp = update_stamp;
+    status.header.frame_id = target_frame_;
+    status.ns = "perception_safety_status";
+    status.id = 0;
+    status.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    status.action = visualization_msgs::msg::Marker::ADD;
+    status.pose.position.x = decision.target_id == 0U
+                                 ? robot_position.x
+                                 : decision.target_position.x;
+    status.pose.position.y = decision.target_id == 0U
+                                 ? robot_position.y
+                                 : decision.target_position.y;
+    status.pose.position.z = decision.target_id == 0U
+                                 ? robot_position.z + 1.0
+                                 : decision.target_position.z + 0.5;
+    status.pose.orientation.w = 1.0;
+    status.scale.z = marker_scale_;
+    status.color.r = 1.0F;
+    status.color.g = decision.level == PerceptionSafetyLevel::kStop ? 0.15F : 0.85F;
+    status.color.b = decision.level == PerceptionSafetyLevel::kClear ? 0.25F : 0.10F;
+    status.color.a = 1.0F;
+    char text[256];
+    if (decision.target_id == 0U) {
+      std::snprintf(text, sizeof(text), "Perception safety: CLEAR");
+    } else {
+      std::snprintf(
+          text, sizeof(text), "Safety #%u %s %.2fm%s%s",
+          decision.target_id, PerceptionSafetyLevelName(decision.level),
+          decision.distance_m, decision.zone_id.empty() ? "" : " zone=",
+          decision.zone_id.c_str());
+    }
+    status.text = text;
+    status.lifetime = rclcpp::Duration::from_seconds(marker_lifetime_sec_);
+    marker_pub_->publish(status);
+  }
+
   void PublishInspectionRequired(
       const ManagedTarget& target,
       const builtin_interfaces::msg::Time& update_stamp) {
@@ -605,6 +812,10 @@ class GeometryValidationNode final : public rclcpp::Node {
   std::string detection_topic_;
   std::string geometry_input_mode_;
   std::string marker_namespace_;
+  std::string safety_event_topic_;
+  std::string safety_robot_frame_;
+  std::string safety_map_name_;
+  std::string safety_zones_file_;
   BoundingBox2D bbox_;
   int sync_queue_size_ = 10;
   double sync_slop_sec_ = 0.05;
@@ -612,6 +823,7 @@ class GeometryValidationNode final : public rclcpp::Node {
   double marker_scale_ = 0.18;
   double marker_lifetime_sec_ = 0.75;
   bool ground_truth_enabled_ = false;
+  bool safety_danger_zone_enabled_ = true;
   double ground_truth_x_ = 0.0;
   double ground_truth_y_ = 0.0;
   double ground_truth_z_ = 0.0;
@@ -622,6 +834,8 @@ class GeometryValidationNode final : public rclcpp::Node {
   std::unique_ptr<DepthProjector> projector_;
   std::unique_ptr<TargetManager> target_manager_;
   std::unique_ptr<InspectionEventPolicy> inspection_event_policy_;
+  std::unique_ptr<PerceptionSafetyPolicy> safety_policy_;
+  std::vector<robot_navigation::MapZone> danger_zones_;
   message_filters::Subscriber<sensor_msgs::msg::Image> rgb_sub_;
   message_filters::Subscriber<vision_msgs::msg::Detection2DArray> detection_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> depth_sub_;
@@ -637,6 +851,9 @@ class GeometryValidationNode final : public rclcpp::Node {
       robot_interfaces_perception::msg::DetectedObject3D>::SharedPtr objects_3d_pub_;
   rclcpp::Publisher<
       robot_interfaces_perception::msg::PerceptionEvent>::SharedPtr event_pub_;
+  rclcpp::Publisher<
+      robot_interfaces_perception::msg::PerceptionSafetyEvent>::SharedPtr
+      safety_event_pub_;
   rclcpp::Subscription<
       robot_interfaces_perception::msg::PerceptionEvent>::SharedPtr event_sub_;
 };

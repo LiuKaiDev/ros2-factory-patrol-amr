@@ -74,6 +74,37 @@ estop, runtime safety stop, and speed-limit gate before publishing `/cmd_vel`.
 Phase 5 selects its existing `nav2` input only when visual inspection is
 enabled; no mux or Safety Gate behavior is changed.
 
+## Phase 6 Visual Safety Integration
+
+Phase 6 adds a semantic person-safety input without adding another controller:
+
+```text
+RGB-D detector
+  -> map-frame 3D observation
+  -> TargetManager
+  -> PerceptionSafetyPolicy
+  -> /perception/safety_event
+  -> existing Safety Gate
+  -> /cmd_vel
+```
+
+Only currently observed `CONFIRMED` or `PROCESSED` person targets are eligible.
+`TENTATIVE` targets do not trigger safety and `LOST` targets only affect the
+short recovery latch inherited from the last valid decision. The policy uses
+planar XY distance between the filtered person map position and the
+observation-time `map -> base_link` translation. It does not use optical Z or
+bbox size as robot-person distance.
+
+`robot_interfaces_perception/msg/PerceptionSafetyEvent` keeps the source event
+separate from the Phase 5 task `PerceptionEvent`. The normal hardware bringup
+path (`twist_mux -> cmd_vel_safety_gate_node`) and the Factory Patrol combined
+`cmd_vel_mux_node` both consume the same semantic event. Each combines it with
+existing inputs through the most restrictive state and retains the existing
+velocity clamp/zero implementation. Source priorities and Nav2 are unchanged.
+
+Perception NEVER publishes `/cmd_vel` or `/nav2_cmd_vel`. The existing Safety
+Gate remains the final velocity authority.
+
 ## Current / Planned Boundary
 
 | Area | Current | Planned / TBD |

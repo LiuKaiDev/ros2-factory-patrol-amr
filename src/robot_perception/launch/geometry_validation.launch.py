@@ -11,12 +11,20 @@ def generate_launch_description():
     publish_sim_map_tf = LaunchConfiguration("publish_sim_map_tf")
     params_file = LaunchConfiguration("params_file")
     tracking_params_file = LaunchConfiguration("tracking_params_file")
+    safety_params_file = LaunchConfiguration("safety_params_file")
+    safety_zones_file = LaunchConfiguration("safety_zones_file")
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     default_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "depth.yaml"]
     )
     default_tracking_params = PathJoinSubstitution(
         [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
+    )
+    default_safety_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety.yaml"]
+    )
+    default_safety_zones = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
     )
 
     return LaunchDescription(
@@ -33,6 +41,12 @@ def generate_launch_description():
             DeclareLaunchArgument("params_file", default_value=default_params),
             DeclareLaunchArgument(
                 "tracking_params_file", default_value=default_tracking_params
+            ),
+            DeclareLaunchArgument(
+                "safety_params_file", default_value=default_safety_params
+            ),
+            DeclareLaunchArgument(
+                "safety_zones_file", default_value=default_safety_zones
             ),
             DeclareLaunchArgument(
                 "geometry_input_mode",
@@ -53,10 +67,12 @@ def generate_launch_description():
                 executable="geometry_validation_node",
                 parameters=[
                     params_file,
+                    safety_params_file,
                     tracking_params_file,
                     {
                         "use_sim_time": use_sim_time,
                         "geometry_input_mode": geometry_input_mode,
+                        "safety.zones_file": safety_zones_file,
                     },
                 ],
                 output="screen",

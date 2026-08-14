@@ -25,6 +25,8 @@ def generate_launch_description():
     world_name = LaunchConfiguration("world_name")
     cmd_vel_default_source = LaunchConfiguration("cmd_vel_default_source")
     manual_takeover = LaunchConfiguration("manual_takeover")
+    perception_safety_enabled = LaunchConfiguration("perception_safety_enabled")
+    perception_event_timeout_sec = LaunchConfiguration("perception_event_timeout_sec")
     simulation_models = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "models"]
     )
@@ -49,6 +51,8 @@ def generate_launch_description():
             DeclareLaunchArgument("world_name", default_value="indoor_room"),
             DeclareLaunchArgument("cmd_vel_default_source", default_value="teleop"),
             DeclareLaunchArgument("manual_takeover", default_value="true"),
+            DeclareLaunchArgument("perception_safety_enabled", default_value="true"),
+            DeclareLaunchArgument("perception_event_timeout_sec", default_value="1.5"),
             SetEnvironmentVariable(
                 "GZ_SIM_RESOURCE_PATH",
                 [
@@ -142,7 +146,16 @@ def generate_launch_description():
             Node(
                 package="robot_teleop",
                 executable="cmd_vel_mux_node",
-                parameters=[{"default_source": cmd_vel_default_source}],
+                parameters=[
+                    {
+                        "default_source": cmd_vel_default_source,
+                        "perception_safety_enabled": perception_safety_enabled,
+                        "perception_event_timeout_sec": perception_event_timeout_sec,
+                        "perception_speed_limit_linear_mps": 0.15,
+                        "perception_speed_limit_angular_radps": 0.4,
+                        "use_sim_time": True,
+                    }
+                ],
                 output="screen",
             ),
             Node(

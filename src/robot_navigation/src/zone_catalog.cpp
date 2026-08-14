@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -221,16 +222,31 @@ std::vector<MapZone> LoadMapZones(const std::filesystem::path& zones_file) {
 
 bool ContainsPoint(const MapZone& zone, const double x, const double y) {
   const auto count = zone.polygon_x.size();
-  if (count < 3 || zone.polygon_y.size() != count) {
+  if (count < 3 || zone.polygon_y.size() != count || !std::isfinite(x) ||
+      !std::isfinite(y)) {
     return false;
   }
 
+  constexpr double kBoundaryTolerance = 1.0e-9;
   bool inside = false;
   for (std::size_t i = 0, j = count - 1; i < count; j = i++) {
     const double xi = zone.polygon_x[i];
     const double yi = zone.polygon_y[i];
     const double xj = zone.polygon_x[j];
     const double yj = zone.polygon_y[j];
+    if (!std::isfinite(xi) || !std::isfinite(yi) || !std::isfinite(xj) ||
+        !std::isfinite(yj)) {
+      return false;
+    }
+    const double cross = (x - xj) * (yi - yj) - (y - yj) * (xi - xj);
+    const double scale = std::max({1.0, std::abs(xi - xj), std::abs(yi - yj)});
+    if (std::abs(cross) <= kBoundaryTolerance * scale &&
+        x >= std::min(xi, xj) - kBoundaryTolerance &&
+        x <= std::max(xi, xj) + kBoundaryTolerance &&
+        y >= std::min(yi, yj) - kBoundaryTolerance &&
+        y <= std::max(yi, yj) + kBoundaryTolerance) {
+      return true;
+    }
     const bool crosses = ((yi > y) != (yj > y)) &&
                          (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
     if (crosses) {
@@ -256,8 +272,15 @@ std::optional<std::string> ValidateZone(const MapZone& zone) {
   if (zone.polygon_x.size() != zone.polygon_y.size() || zone.polygon_x.size() < 3U) {
     return "polygon requires at least 3 points for zone " + zone.zone_id;
   }
+  for (std::size_t index = 0U; index < zone.polygon_x.size(); ++index) {
+    if (!std::isfinite(zone.polygon_x[index]) ||
+        !std::isfinite(zone.polygon_y[index])) {
+      return "polygon coordinates must be finite for zone " + zone.zone_id;
+    }
+  }
   const auto type = ToLower(zone.type);
-  if (type != "keepout" && type != "speed_limit" && type != "preferred_lane") {
+  if (type != "keepout" && type != "speed_limit" && type != "preferred_lane" &&
+      type != "danger_zone") {
     return "unsupported zone type for zone " + zone.zone_id + ": " + zone.type;
   }
   if (type == "speed_limit" && zone.speed_limit_mps <= 0.0) {

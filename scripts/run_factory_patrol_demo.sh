@@ -13,6 +13,7 @@ ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
 RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true"
 PHASE5_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true use_nav2:=true use_detector:=true geometry_input_mode:=detector use_visual_inspection:=true perception_max_inference_rate_hz:=0.5 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml visual_inspection_params:=\$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
+PHASE6_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false use_detector:=true geometry_input_mode:=detector use_perception_safety:=true perception_max_inference_rate_hz:=2.0 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
 
 safe_source_setup() {
   local setup_file="$1"
@@ -31,10 +32,12 @@ Usage:
   bash scripts/run_factory_patrol_demo.sh
   bash scripts/run_factory_patrol_demo.sh --launch
   bash scripts/run_factory_patrol_demo.sh --phase5
+  bash scripts/run_factory_patrol_demo.sh --phase6
 
 Default mode prints the launch command and expected runtime topics.
 --launch starts the demo in this terminal.
 --phase5 starts the detector, visual inspection task, existing navigation adapter, and Nav2.
+--phase6 starts the detector, perception safety policy, existing Safety Gate, and Nav2.
 EOF
 }
 
@@ -78,6 +81,8 @@ echo "[factory-patrol-demo] Launch command:"
 echo "  ${LAUNCH_CMD}"
 echo "[factory-patrol-demo] Phase 5 launch command:"
 echo "  ${PHASE5_LAUNCH_CMD}"
+echo "[factory-patrol-demo] Phase 6 launch command:"
+echo "  ${PHASE6_LAUNCH_CMD}"
 echo
 echo "[factory-patrol-demo] Expected runtime topics:"
 cat <<'EOF'
@@ -93,6 +98,9 @@ cat <<'EOF'
   /amr_simulation/markers
   /amr_simulation/demo_timeline
   /perception/events
+  /perception/safety_event
+  /safety/state
+  /safety/reason
   /inspection/observation_pose
   /inspection/status
 EOF
@@ -117,6 +125,16 @@ case "${1:-}" in
       perception_max_inference_rate_hz:=0.5 \
       perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml" \
       visual_inspection_params:="$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
+    ;;
+  "--phase6")
+    echo
+    echo "[factory-patrol-demo] Running: ${PHASE6_LAUNCH_CMD}"
+    exec ros2 launch robot_bringup factory_patrol_demo.launch.py \
+      gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false \
+      use_detector:=true \
+      geometry_input_mode:=detector use_perception_safety:=true \
+      perception_max_inference_rate_hz:=2.0 \
+      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
     ;;
   *)
     echo "FAIL: unknown argument: ${1}" >&2

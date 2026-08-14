@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -11,7 +13,9 @@
 #include "robot_interfaces/msg/chassis_state.hpp"
 #include "robot_interfaces/msg/safety_state.hpp"
 #include "robot_interfaces_core/srv/set_control_mode.hpp"
+#include "robot_interfaces_perception/msg/perception_safety_event.hpp"
 #include "robot_teleop/cmd_vel_safety.hpp"
+#include "robot_teleop/perception_safety_input.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -50,6 +54,25 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
         declare_parameter<double>("speed_limited_max_linear_mps", 0.15);
     speed_limited_max_angular_radps_ =
         declare_parameter<double>("speed_limited_max_angular_radps", 0.4);
+    perception_safety_enabled_ =
+        declare_parameter<bool>("perception_safety_enabled", true);
+    perception_safety_topic_ = declare_parameter<std::string>(
+        "perception_safety_topic", "/perception/safety_event");
+    perception_event_timeout_sec_ =
+        declare_parameter<double>("perception_event_timeout_sec", 1.5);
+    perception_speed_limit_linear_mps_ =
+        declare_parameter<double>("perception_speed_limit_linear_mps", 0.15);
+    perception_speed_limit_angular_radps_ =
+        declare_parameter<double>("perception_speed_limit_angular_radps", 0.4);
+    if (perception_safety_topic_.empty() ||
+        !std::isfinite(perception_event_timeout_sec_) ||
+        perception_event_timeout_sec_ <= 0.0 ||
+        !std::isfinite(perception_speed_limit_linear_mps_) ||
+        perception_speed_limit_linear_mps_ <= 0.0 ||
+        !std::isfinite(perception_speed_limit_angular_radps_) ||
+        perception_speed_limit_angular_radps_ <= 0.0) {
+      throw std::invalid_argument("perception safety Gate parameters are invalid");
+    }
 
     cmd_pub_ = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     active_pub_ = create_publisher<std_msgs::msg::String>("/cmd_vel_mux/active_source", 10);
@@ -99,6 +122,24 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
           if (robot_teleop::SafetyStateFromChassisStatus(msg->connected, msg->status) ==
               robot_teleop::SafetyState::kEmergencyStop) {
             emergency_stop_latched_ = true;
+          }
+        });
+    perception_safety_sub_ = create_subscription<
+        robot_interfaces_perception::msg::PerceptionSafetyEvent>(
+        perception_safety_topic_, rclcpp::QoS(10).reliable(),
+        [this](
+            const robot_interfaces_perception::msg::PerceptionSafetyEvent::SharedPtr msg) {
+          if (!perception_safety_enabled_) {
+            return;
+          }
+          if (!robot_teleop::UpdatePerceptionSafetySnapshot(
+                  &perception_safety_, msg->safety_state, msg->target_id,
+                  msg->class_name, msg->event_type, msg->distance_m, msg->source,
+                  msg->reason, rclcpp::Time(msg->header.stamp).nanoseconds(),
+                  now().nanoseconds(), perception_event_timeout_sec_)) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 2000,
+                "rejected malformed, stale, future, or out-of-order perception safety event");
           }
         });
 
@@ -211,6 +252,20 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
       states.push_back(robot_teleop::SafetyState::kSpeedLimited);
       reasons.push_back("runtime dynamic speed limit active");
     }
+    const auto perception_state = perception_safety_enabled_
+                                      ? robot_teleop::PerceptionSafetyContribution(
+                                            perception_safety_, now().nanoseconds(),
+                                            perception_event_timeout_sec_)
+                                      : robot_teleop::SafetyState::kNormal;
+    states.push_back(perception_state);
+    if (perception_state != robot_teleop::SafetyState::kNormal) {
+      reasons.push_back(perception_safety_.reason);
+    } else if (perception_safety_enabled_ && perception_safety_.received &&
+               !robot_teleop::PerceptionSafetyInputIsFresh(
+                   perception_safety_, now().nanoseconds(),
+                   perception_event_timeout_sec_)) {
+      reasons.push_back("perception safety event stale; perception restriction removed");
+    }
     if (!InStartupGrace() && WatchdogExpired()) {
       states.push_back(robot_teleop::SafetyState::kCommunicationLost);
       reasons.push_back("muxed cmd_vel stale or missing: " + input_topic_);
@@ -300,6 +355,7 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
         safety_state == robot_teleop::SafetyState::kChassisFault ||
             safety_state == robot_teleop::SafetyState::kCommunicationLost ||
             safety_state == robot_teleop::SafetyState::kLocalizationLost ||
+            safety_state == robot_teleop::SafetyState::kPerceptionStop ||
             safety_state == robot_teleop::SafetyState::kSensorStale ||
             safety_state == robot_teleop::SafetyState::kRecovery,
         manual_takeover_, state_hint);
@@ -342,12 +398,12 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
                            input_topic_.c_str());
     }
     const double speed_limit_mps =
-        dynamic_speed_limit_mps_ > 0.0 ? std::min(dynamic_speed_limit_mps_,
-                                                  speed_limited_max_linear_mps_)
-                                       : speed_limited_max_linear_mps_;
+        EffectiveSpeedLimit(safety_state);
+    const double angular_limit_radps =
+        EffectiveAngularLimit(safety_state);
     auto output_twist = robot_teleop::ApplySafetyPolicy(
         gate_decision.output_twist, safety_state, speed_limit_mps,
-        speed_limited_max_angular_radps_, emergency_stop_requires_reset_);
+        angular_limit_radps, emergency_stop_requires_reset_);
     if (safety_state == robot_teleop::SafetyState::kNormal && dynamic_speed_limit_mps_ > 0.0) {
       output_twist = robot_teleop::ApplyDynamicSpeedLimit(
           output_twist, dynamic_speed_limit_mps_, dynamic_angular_limit_radps_);
@@ -362,6 +418,41 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
     cmd_pub_->publish(output_twist);
   }
 
+  double EffectiveSpeedLimit(const robot_teleop::SafetyState safety_state) const {
+    double limit = speed_limited_max_linear_mps_;
+    const auto perception_state = perception_safety_enabled_
+                                      ? robot_teleop::PerceptionSafetyContribution(
+                                            perception_safety_, now().nanoseconds(),
+                                            perception_event_timeout_sec_)
+                                      : robot_teleop::SafetyState::kNormal;
+    if (safety_state == robot_teleop::SafetyState::kSpeedLimited &&
+        perception_state == robot_teleop::SafetyState::kSpeedLimited &&
+        dynamic_speed_limit_mps_ <= 0.0 &&
+        robot_teleop::SafetyStateFromLocalizationHealth(localization_health_) ==
+            robot_teleop::SafetyState::kNormal) {
+      limit = perception_speed_limit_linear_mps_;
+    }
+    if (dynamic_speed_limit_mps_ > 0.0) {
+      limit = std::min(limit, dynamic_speed_limit_mps_);
+    }
+    return limit;
+  }
+
+  double EffectiveAngularLimit(const robot_teleop::SafetyState safety_state) const {
+    const auto perception_state = perception_safety_enabled_
+                                      ? robot_teleop::PerceptionSafetyContribution(
+                                            perception_safety_, now().nanoseconds(),
+                                            perception_event_timeout_sec_)
+                                      : robot_teleop::SafetyState::kNormal;
+    if (safety_state == robot_teleop::SafetyState::kSpeedLimited &&
+        perception_state == robot_teleop::SafetyState::kSpeedLimited) {
+      return std::min(
+          perception_speed_limit_angular_radps_,
+          speed_limited_max_angular_radps_);
+    }
+    return speed_limited_max_angular_radps_;
+  }
+
   std::string input_topic_;
   std::string active_source_hint_;
   std::string localization_health_topic_;
@@ -370,6 +461,7 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
   std::string chassis_state_topic_;
   std::string safety_state_topic_;
   std::string safety_reason_topic_;
+  std::string perception_safety_topic_;
   int watchdog_timeout_ms_;
   double scan_timeout_sec_;
   double odom_timeout_sec_;
@@ -390,10 +482,15 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
   bool chassis_fault_stop_ = true;
   bool communication_lost_stop_ = true;
   bool emergency_stop_requires_reset_ = true;
+  bool perception_safety_enabled_ = true;
   double dynamic_speed_limit_mps_ = 0.0;
   double dynamic_angular_limit_radps_ = 0.6;
   double speed_limited_max_linear_mps_ = 0.15;
   double speed_limited_max_angular_radps_ = 0.4;
+  double perception_event_timeout_sec_ = 1.5;
+  double perception_speed_limit_linear_mps_ = 0.15;
+  double perception_speed_limit_angular_radps_ = 0.4;
+  robot_teleop::PerceptionSafetySnapshot perception_safety_;
   std::string localization_health_;
   rclcpp::Time last_stamp_;
   rclcpp::Time started_stamp_;
@@ -410,6 +507,9 @@ class CmdVelSafetyGateNode final : public rclcpp::Node {
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<robot_interfaces::msg::ChassisState>::SharedPtr chassis_state_sub_;
+  rclcpp::Subscription<
+      robot_interfaces_perception::msg::PerceptionSafetyEvent>::SharedPtr
+      perception_safety_sub_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr active_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr safety_state_pub_;

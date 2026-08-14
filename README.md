@@ -14,6 +14,7 @@
 - 提供 odom、TF、scan、safety state 等运行时 topic 检查脚本。
 - 提供多点巡检、临时障碍物和定位恢复等 demo / validation 入口，便于验证巡检流程和运行时状态。
 - 提供基于 RGB-D 目标确认事件的静态视觉巡检任务，由 `robot_tasks` 通过现有 Nav2 适配器导航到 1.2 m 观察位。
+- 提供 person 感知安全事件，由现有 Safety Gate 对最终速度进行限速或停车；感知节点不发布速度。
 <!-- Phase 5B demo workflows -->
 
 ## 当前状态
@@ -116,6 +117,19 @@ bash scripts/run_factory_patrol_demo.sh --phase5
 `chair`；`--phase5` 为仿真中已有的静态 person 目标显式加载独立验证 profile，
 不会把 `person` 变成默认靠近目标。
 
+Phase 6 视觉安全联动启动：
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/run_factory_patrol_demo.sh --phase6
+```
+
+该模式保持控制链路为
+`Nav2 -> /nav2_cmd_vel -> 现有 cmd_vel mux / Safety Gate -> /cmd_vel`。
+`robot_perception` 只发布
+`robot_interfaces_perception/msg/PerceptionSafetyEvent` 类型的
+`/perception/safety_event`，绝不发布 `/cmd_vel` 或 `/nav2_cmd_vel`。
+
 ## 启动 Factory Patrol Demo
 
 默认基线场景：
@@ -177,6 +191,7 @@ bash scripts/check_factory_patrol_target_manager_runtime.sh
 FACTORY_PATROL_DETECTOR_MODE=true FACTORY_PATROL_VISUAL_INSPECTION_MODE=true \
   bash scripts/check_factory_patrol_runtime_topics.sh
 bash scripts/check_factory_patrol_visual_inspection_runtime.sh
+bash scripts/check_factory_patrol_perception_safety_runtime.sh
 ```
 
 更多脚本说明见 [scripts/README.md](scripts/README.md)。Validation Scripts 的完整列表也放在该文档中。

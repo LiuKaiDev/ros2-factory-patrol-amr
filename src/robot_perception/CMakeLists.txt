@@ -11,6 +11,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robot_interfaces_perception REQUIRED)
+find_package(robot_navigation REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -37,9 +38,17 @@ target_include_directories(inspection_event_policy PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(inspection_event_policy target_manager)
 
+add_library(perception_safety_policy src/perception_safety_policy.cpp)
+target_include_directories(perception_safety_policy PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(perception_safety_policy
+  target_manager robot_navigation::robot_navigation_zone_catalog)
+
 add_executable(geometry_validation_node src/geometry_validation_node.cpp)
 target_link_libraries(
-  geometry_validation_node depth_projector target_manager inspection_event_policy)
+  geometry_validation_node depth_projector target_manager inspection_event_policy
+  perception_safety_policy robot_navigation::robot_navigation_zone_catalog)
 ament_target_dependencies(geometry_validation_node
   geometry_msgs
   builtin_interfaces
@@ -53,7 +62,7 @@ ament_target_dependencies(geometry_validation_node
   visualization_msgs
   vision_msgs)
 
-install(TARGETS depth_projector target_manager inspection_event_policy geometry_validation_node
+install(TARGETS depth_projector target_manager inspection_event_policy perception_safety_policy geometry_validation_node
   EXPORT export_robot_perception
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -80,6 +89,9 @@ if(BUILD_TESTING)
   target_link_libraries(target_manager_test target_manager)
   ament_add_gtest(inspection_event_policy_test test/inspection_event_policy_test.cpp)
   target_link_libraries(inspection_event_policy_test inspection_event_policy)
+  ament_add_gtest(perception_safety_policy_test test/perception_safety_policy_test.cpp)
+  target_link_libraries(perception_safety_policy_test
+    perception_safety_policy robot_navigation::robot_navigation_zone_catalog)
   ament_add_pytest_test(detection_utils_test test/test_detection_utils.py)
 endif()
 

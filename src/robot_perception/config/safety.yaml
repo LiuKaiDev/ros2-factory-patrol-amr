@@ -1,0 +1,14 @@
+geometry_validation_node:
+  ros__parameters:
+    safety.enabled: true
+    safety.person_class: person
+    safety.person_slow_distance: 3.0
+    safety.person_stop_distance: 1.5
+    safety.clear_observations: 3
+    safety.stop_hysteresis: 0.2
+    safety.slow_hysteresis: 0.2
+    safety.max_target_age_sec: 2.5
+    safety.event_topic: /perception/safety_event
+    safety.robot_frame: base_link
+    safety.map_name: factory_patrol
+    safety.danger_zone_enabled: true

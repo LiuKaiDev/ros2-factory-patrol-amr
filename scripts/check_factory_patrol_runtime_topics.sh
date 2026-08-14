@@ -47,8 +47,23 @@ TOPICS=(
 
 DETECTOR_MODE="${FACTORY_PATROL_DETECTOR_MODE:-false}"
 VISUAL_INSPECTION_MODE="${FACTORY_PATROL_VISUAL_INSPECTION_MODE:-false}"
+PERCEPTION_SAFETY_MODE="${FACTORY_PATROL_PERCEPTION_SAFETY_MODE:-false}"
 if [[ "${DETECTOR_MODE}" == "true" ]]; then
   TOPICS+=("/perception/detections_2d" "/perception/debug_image")
+fi
+if [[ "${PERCEPTION_SAFETY_MODE}" == "true" ]]; then
+  TOPICS+=(
+    "/perception/safety_event"
+    "/safety/state"
+    "/safety/reason"
+    "/nav2_cmd_vel"
+  )
+fi
+if [[ "${PERCEPTION_SAFETY_MODE}" == "true" && "${VISUAL_INSPECTION_MODE}" != "true" ]]; then
+  for index in "${!TOPICS[@]}"; do
+    [[ "${TOPICS[$index]}" == "/mission_runner/state" ]] && unset 'TOPICS[index]'
+  done
+  echo "[factory-topic-check] Phase 6 safety profile omits /mission_runner/state by design."
 fi
 if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
   TOPICS+=(
@@ -384,6 +399,23 @@ if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
   echo
   echo "[factory-topic-check] Delegating Phase 5 visual inspection validation..."
   bash scripts/check_factory_patrol_visual_inspection_runtime.sh || failures=$((failures + 1))
+fi
+
+if [[ "${PERCEPTION_SAFETY_MODE}" == "true" ]]; then
+  echo
+  echo "[factory-topic-check] Validating Phase 6 perception safety interface..."
+  check_topic_type "/perception/safety_event" \
+    "robot_interfaces_perception/msg/PerceptionSafetyEvent" || failures=$((failures + 1))
+  check_topic_type "/safety/state" "std_msgs/msg/String" || failures=$((failures + 1))
+  check_topic_type "/safety/reason" "std_msgs/msg/String" || failures=$((failures + 1))
+  if timeout 30s ros2 topic echo --once --timeout 28 /perception/safety_event \
+      --filter "m.header.frame_id == 'map' and (m.header.stamp.sec > 0 or m.header.stamp.nanosec > 0) and m.source == 'robot_perception' and m.safety_state in (0, 1, 2) and m.event_type in ('CLEAR', 'PERSON_NEAR', 'PERSON_TOO_CLOSE', 'PERSON_IN_DANGER_ZONE')" \
+      --no-arr >/dev/null 2>&1; then
+    echo "PASS: /perception/safety_event publishes valid stamped semantic safety data"
+  else
+    echo "FAIL: /perception/safety_event did not publish a valid event" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
 echo

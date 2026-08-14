@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <unistd.h>
 
 #include <gtest/gtest.h>
@@ -162,6 +163,58 @@ TEST_F(ZoneCatalogTest, LoadMapZones_InvalidPolygon_Throws) {
       "      - [1.0, 0.0]\n");
 
   EXPECT_THROW(LoadMapZones(path), std::runtime_error);
+}
+
+TEST_F(ZoneCatalogTest, DangerZone_LoadsUsingExistingPolygonConvention) {
+  const auto path = WriteZones(
+      "zones:\n"
+      "  - zone_id: person_danger\n"
+      "    map_name: factory_patrol\n"
+      "    type: danger_zone\n"
+      "    frame_id: map\n"
+      "    enabled: true\n"
+      "    rule: stop for person\n"
+      "    polygon:\n"
+      "      - [2.0, -1.0]\n"
+      "      - [3.0, -1.0]\n"
+      "      - [3.0, 0.0]\n"
+      "      - [2.0, 0.0]\n");
+
+  const auto zones = LoadMapZones(path);
+
+  ASSERT_EQ(zones.size(), 1U);
+  EXPECT_EQ(zones.front().type, "danger_zone");
+  EXPECT_TRUE(ContainsPoint(zones.front(), 2.5, -0.5));
+}
+
+TEST_F(ZoneCatalogTest, ContainsPoint_OutsidePolygon_ReturnsFalse) {
+  MapZone zone;
+  zone.polygon_x = {0.0, 2.0, 2.0, 0.0};
+  zone.polygon_y = {0.0, 0.0, 2.0, 2.0};
+
+  EXPECT_FALSE(ContainsPoint(zone, 2.1, 1.0));
+}
+
+TEST_F(ZoneCatalogTest, ContainsPoint_OnEdgeOrVertex_IsConservativelyInside) {
+  MapZone zone;
+  zone.polygon_x = {0.0, 2.0, 2.0, 0.0};
+  zone.polygon_y = {0.0, 0.0, 2.0, 2.0};
+
+  EXPECT_TRUE(ContainsPoint(zone, 2.0, 1.0));
+  EXPECT_TRUE(ContainsPoint(zone, 0.0, 0.0));
+}
+
+TEST_F(ZoneCatalogTest, ContainsPoint_InvalidZoneOrPoint_ReturnsFalse) {
+  MapZone invalid;
+  invalid.polygon_x = {0.0, 1.0};
+  invalid.polygon_y = {0.0, 1.0};
+  EXPECT_FALSE(ContainsPoint(invalid, 0.5, 0.5));
+
+  MapZone valid;
+  valid.polygon_x = {0.0, 1.0, 0.0};
+  valid.polygon_y = {0.0, 0.0, 1.0};
+  EXPECT_FALSE(ContainsPoint(
+      valid, std::numeric_limits<double>::quiet_NaN(), 0.5));
 }
 
 }  // namespace robot_navigation

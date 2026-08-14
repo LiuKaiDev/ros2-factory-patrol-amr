@@ -943,3 +943,101 @@ Factory patrol assets are ready to support screenshots, videos, and report
 figures, but Phase 6 only adds the placeholder index under `docs/showcase/`.
 Future artifacts should record the exact launch command, commit, map/world,
 parameters, and log or rosbag path before being cited in the README or report.
+
+## Visual Perception Phase 6: Safety Gate Integration
+
+Phase 6 uses the existing visual-only `phase3_person_detection_target` and the
+existing Gazebo set-pose service for deterministic validation. It adds no crowd
+or pedestrian framework. The standard licensed person mesh is too tall to
+remain fully visible in the camera vertical field of view below the `1.5 m`
+STOP threshold, so both Factory Patrol worlds also contain
+`phase6_person_safety_target`: a static, collision-free `0.40` scale instance
+of the same licensed mesh. It stays hidden at `z=-2` unless the Phase 6 probe
+uses it for the close-range STOP case. This changes only validation image
+scale; the policy still uses measured RGB-D XY distance and class `person`.
+
+The runtime chain is:
+
+```text
+managed person (`CONFIRMED` or observed `PROCESSED`)
+  -> PerceptionSafetyPolicy
+  -> /perception/safety_event
+  -> existing cmd_vel mux / Safety Gate
+  -> /cmd_vel
+```
+
+`/perception/safety_event` has type
+`robot_interfaces_perception/msg/PerceptionSafetyEvent`. It carries the target
+ID/class, map position, measured robot-relative planar distance, semantic event,
+severity, source/reason, and optional danger-zone ID. It is distinct from the
+Phase 5 mission event. Perception NEVER publishes `/cmd_vel` or
+`/nav2_cmd_vel`.
+
+Default distance thresholds are `1.5 m` for STOP and `3.0 m` for
+SPEED_LIMITED. Exact `1.5 m` and `3.0 m` boundaries are limited rather than
+stopped/clear. STOP clears above `1.7 m`, SPEED_LIMITED clears above `3.2 m`,
+and three valid less-restrictive observations are required. Multiple persons
+resolve to the most restrictive state. The configured map-frame polygon
+`factory_person_danger_zone` is:
+
+```text
+[(3.00, -1.20), (3.80, -1.20), (3.80, -0.30), (3.00, -0.30)]
+```
+
+Polygon boundaries count as inside. A person inside this zone causes STOP even
+when its robot-relative distance is greater than `1.5 m`. The configuration is
+in `robot_perception/config/safety_zones.yaml` and reuses the existing
+`robot_navigation::ZoneCatalog` map polygon convention.
+
+Safety Gate freshness is `1.5 s` in ROS/simulation time. A stale event removes
+only perception's restriction; it does not override estop, localization,
+chassis, scan, watchdog, or legacy `/safety_state` conditions. Invalid TF or
+malformed person data does not create a CLEAR event.
+
+Prepare the existing detector model and launch the Phase 6 profile:
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/run_factory_patrol_demo.sh --phase6
+```
+
+In another sourced shell, validate topics and the end-to-end gate:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_PERCEPTION_SAFETY_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+
+bash scripts/check_factory_patrol_perception_safety_runtime.sh
+```
+
+The runtime probe moves the visual fixture through measured CLEAR,
+SPEED_LIMITED, STOP, danger-zone STOP, and recovery cases while one existing
+Nav2 goal stays active. It reports real `/nav2_cmd_vel` and final `/cmd_vel`
+samples plus the ROS-time STOP response latency.
+
+A headless WSL smoke run on 2026-08-14 produced these measured results from the
+live RGB-D, YOLOX, depth projection, TargetManager, policy, and Safety Gate
+chain:
+
+| Case | Measured result |
+| --- | --- |
+| CLEAR | Person distance `3.260 m`; perception `CLEAR`; final safety state `NORMAL` |
+| SPEED_LIMITED | Person distance `2.955 m`; upstream `/nav2_cmd_vel` linear `0.350 m/s`; final `/cmd_vel` linear `0.150 m/s`; final state `SPEED_LIMITED` |
+| STOP | Person distance `1.314 m`; upstream linear `0.350 m/s`; final linear `0.000 m/s`; final state `STOP` |
+| Danger zone | Person map position `(3.253, -0.727) m`, distance `3.222 m`; inside `factory_person_danger_zone`; final state `STOP`; final linear velocity `0.000 m/s` |
+| Recovery | Three valid clear observations at `3.260 m`; final state returned to `NORMAL`; the original Nav2 goal stayed active and final `(0.350, -0.040)` linear/angular command matched its upstream intent |
+
+For the STOP transition, the qualifying condition timestamp was `12.079 s` in
+simulation time and the first required final safe command timestamp was
+`12.369 s`, an observed response latency of `0.290 s`. The safety event was
+received at `12.343 s`. This is one smoke-test measurement, not a Phase 8
+latency distribution.
+
+The run also verified that perception had no `/cmd_vel` or `/nav2_cmd_vel`
+publisher. A known simulation limitation is that the Gazebo `mobile_robot`
+world pose barely changes while the bridged odometry integrates motion. The
+probe therefore uses the existing Gazebo set-pose service to position the
+visual-only person fixture and keeps one Nav2 goal active to provide real
+upstream command intent; it does not claim that a physically moving world-model
+robot approached the person during this smoke test.

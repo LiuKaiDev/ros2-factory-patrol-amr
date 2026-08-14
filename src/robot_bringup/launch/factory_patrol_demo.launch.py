@@ -16,6 +16,7 @@ def generate_launch_description():
     use_geometry_validation = LaunchConfiguration("use_geometry_validation")
     use_detector = LaunchConfiguration("use_detector")
     use_visual_inspection = LaunchConfiguration("use_visual_inspection")
+    use_perception_safety = LaunchConfiguration("use_perception_safety")
     geometry_input_mode = LaunchConfiguration("geometry_input_mode")
     detector_model_path = LaunchConfiguration("detector_model_path")
     perception_debug_image = LaunchConfiguration("perception_debug_image")
@@ -23,6 +24,8 @@ def generate_launch_description():
         "perception_max_inference_rate_hz"
     )
     perception_tracking_params = LaunchConfiguration("perception_tracking_params")
+    perception_safety_params = LaunchConfiguration("perception_safety_params")
+    perception_safety_zones = LaunchConfiguration("perception_safety_zones")
     visual_inspection_params = LaunchConfiguration("visual_inspection_params")
     visual_inspection_start_delay = LaunchConfiguration(
         "visual_inspection_start_delay"
@@ -53,6 +56,12 @@ def generate_launch_description():
     )
     default_visual_inspection_params = PathJoinSubstitution(
         [FindPackageShare("robot_tasks"), "config", "visual_inspection.yaml"]
+    )
+    default_safety_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety.yaml"]
+    )
+    default_safety_zones = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
     )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
@@ -91,6 +100,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_geometry_validation", default_value="true"),
             DeclareLaunchArgument("use_detector", default_value="false"),
             DeclareLaunchArgument("use_visual_inspection", default_value="false"),
+            DeclareLaunchArgument("use_perception_safety", default_value="false"),
             DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
             DeclareLaunchArgument("detector_model_path", default_value=""),
             DeclareLaunchArgument("perception_debug_image", default_value="true"),
@@ -99,6 +109,12 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "perception_tracking_params", default_value=default_tracking_params
+            ),
+            DeclareLaunchArgument(
+                "perception_safety_params", default_value=default_safety_params
+            ),
+            DeclareLaunchArgument(
+                "perception_safety_zones", default_value=default_safety_zones
             ),
             DeclareLaunchArgument(
                 "visual_inspection_params", default_value=default_visual_inspection_params
@@ -125,11 +141,24 @@ def generate_launch_description():
                     "world_file": world_file,
                     "world_name": "factory_patrol",
                     "cmd_vel_default_source": PythonExpression(
-                        ["'nav2' if '", use_visual_inspection, "' == 'true' else 'teleop'"]
+                        [
+                            "'nav2' if ('",
+                            use_visual_inspection,
+                            "' == 'true' or '",
+                            use_perception_safety,
+                            "' == 'true') else 'teleop'",
+                        ]
                     ),
                     "manual_takeover": PythonExpression(
-                        ["'false' if '", use_visual_inspection, "' == 'true' else 'true'"]
+                        [
+                            "'false' if ('",
+                            use_visual_inspection,
+                            "' == 'true' or '",
+                            use_perception_safety,
+                            "' == 'true') else 'true'",
+                        ]
                     ),
+                    "perception_safety_enabled": use_perception_safety,
                 }.items(),
             ),
             IncludeLaunchDescription(
@@ -175,6 +204,8 @@ def generate_launch_description():
                     "debug_image_enabled": perception_debug_image,
                     "max_inference_rate_hz": perception_max_inference_rate_hz,
                     "tracking_params_file": perception_tracking_params,
+                    "safety_params_file": perception_safety_params,
+                    "safety_zones_file": perception_safety_zones,
                 }.items(),
             ),
             Node(
