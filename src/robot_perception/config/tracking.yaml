@@ -1,0 +1,13 @@
+geometry_validation_node:
+  ros__parameters:
+    objects_3d_topic: /perception/objects_3d
+    tracking.confirm_frames: 3
+    tracking.lost_frames: 5
+    tracking.lost_retirement_frames: 0
+    tracking.max_match_distance: 0.5
+    tracking.ema_alpha: 0.4
+    tracking.processed_cooldown_sec: 10.0
+    inspection.enabled: true
+    inspection.allowed_classes: [chair]
+    inspection.min_confidence: 0.5
+    inspection.event_topic: /perception/events

@@ -13,3 +13,7 @@ analyzers:
       type: diagnostic_aggregator/GenericAnalyzer
       path: Safety
       startswith: ["system/emergency_stop"]
+    perception:
+      type: diagnostic_aggregator/GenericAnalyzer
+      path: Perception
+      startswith: ["system/perception", "perception/"]

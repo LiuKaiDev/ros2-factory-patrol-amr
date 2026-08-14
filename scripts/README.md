@@ -48,6 +48,13 @@ bash scripts/run_factory_patrol_obstacle_demo.sh
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 bash scripts/check_factory_patrol_demo_workflows.sh
 bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/check_factory_patrol_detector_runtime.sh
+bash scripts/check_factory_patrol_target_manager_runtime.sh
+bash scripts/check_factory_patrol_visual_inspection_runtime.sh
+bash scripts/check_factory_patrol_perception_safety_runtime.sh
+bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
+bash scripts/run_factory_patrol_benchmarks.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -56,6 +63,37 @@ bash scripts/check_factory_patrol_demo_runtime.sh
 non-Nav2 Gazebo/RViz showcase. `check_factory_patrol_runtime_topics.sh` requires
 a running ROS2 graph and prints topic counts, `/scan` QoS hints, sampled frame
 IDs, and odom TF connectivity diagnostics.
+
+`prepare_phase3_detector_model.sh` explicitly downloads and verifies the
+official OpenCV Zoo YOLOX-S model into the user cache. Normal ROS launch never
+downloads weights. With the detector-mode demo running,
+`check_factory_patrol_detector_runtime.sh` validates the real 2D-to-3D chain.
+`check_factory_patrol_target_manager_runtime.sh` reuses that live detector,
+depth, CameraInfo, and TF graph to validate stable IDs, lifecycle transitions,
+duplicate suppression, markers, and raw-versus-filtered position statistics.
+With the explicit Phase 5 validation profiles loaded,
+`check_factory_patrol_visual_inspection_runtime.sh` validates one accepted
+task-owned Nav2 approach, observation standoff and yaw, robot motion,
+completion feedback, the target's `PROCESSED` state, and the unchanged
+mux/Safety Gate velocity path.
+
+`run_factory_patrol_demo.sh --phase6` starts the live detector, the managed
+person safety policy, Nav2, and the existing combined mux/Safety Gate.
+`check_factory_patrol_perception_safety_runtime.sh` moves the existing
+visual-only person fixture through distance and map-zone cases, then compares
+real `/nav2_cmd_vel` intent with final `/cmd_vel`, measures STOP response time,
+and verifies recovery without sending any Twist from perception.
+
+`run_factory_patrol_demo.sh --phase7` adds the standard perception diagnostic
+stream and existing system health/fault supervision. The Phase 7 runtime check
+injects camera, depth-quality, observation-time TF, and detector faults and
+verifies recovery without publishing velocity or synthetic safety events.
+
+`run_factory_patrol_benchmarks.sh` executes the isolated headless Phase 8
+detector, geometry, mission, safety, and invalid-depth profiles. Successful runs
+write timestamped JSON and summary CSV files under
+`src/robot_experiments/results/`. The committed reviewed pair is documented in
+`docs/experiment_report.md`; runtime varies with host load.
 
 To preview the independent Factory Patrol Scene V2 industrial world:
 
@@ -84,5 +122,6 @@ the final mux / safety output consumed by the Gazebo bridge. Useful checks are
 bash scripts/check_project_showcase_readiness.sh
 ```
 
-This final readiness script checks documentation, CI, showcase placeholders, and
-major validation entry points. It does not claim runtime success.
+This final readiness script checks the Phase 9 landing documentation, local
+Markdown paths, committed Phase 8 JSON/CSV consistency, CI, evidence policy,
+and major validation entry points. It does not replace ROS runtime checks.

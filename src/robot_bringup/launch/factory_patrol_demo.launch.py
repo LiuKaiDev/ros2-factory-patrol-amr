@@ -1,8 +1,8 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -13,6 +13,26 @@ def generate_launch_description():
     use_nav2 = LaunchConfiguration("use_nav2")
     use_localization_health = LaunchConfiguration("use_localization_health")
     use_mission_runner = LaunchConfiguration("use_mission_runner")
+    use_geometry_validation = LaunchConfiguration("use_geometry_validation")
+    use_detector = LaunchConfiguration("use_detector")
+    use_visual_inspection = LaunchConfiguration("use_visual_inspection")
+    use_perception_safety = LaunchConfiguration("use_perception_safety")
+    use_perception_diagnostics = LaunchConfiguration("use_perception_diagnostics")
+    use_perception_system_monitor = LaunchConfiguration("use_perception_system_monitor")
+    perception_diagnostics_params = LaunchConfiguration("perception_diagnostics_params")
+    geometry_input_mode = LaunchConfiguration("geometry_input_mode")
+    detector_model_path = LaunchConfiguration("detector_model_path")
+    perception_debug_image = LaunchConfiguration("perception_debug_image")
+    perception_max_inference_rate_hz = LaunchConfiguration(
+        "perception_max_inference_rate_hz"
+    )
+    perception_tracking_params = LaunchConfiguration("perception_tracking_params")
+    perception_safety_params = LaunchConfiguration("perception_safety_params")
+    perception_safety_zones = LaunchConfiguration("perception_safety_zones")
+    visual_inspection_params = LaunchConfiguration("visual_inspection_params")
+    visual_inspection_start_delay = LaunchConfiguration(
+        "visual_inspection_start_delay"
+    )
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart_mission = LaunchConfiguration("autostart_mission")
     mission_file = LaunchConfiguration("mission_file")
@@ -30,6 +50,24 @@ def generate_launch_description():
     )
     mission_runner_launch = PathJoinSubstitution(
         [FindPackageShare("robot_tasks"), "launch", "mission_runner.launch.py"]
+    )
+    perception_launch = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "launch", "perception.launch.py"]
+    )
+    default_tracking_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "tracking.yaml"]
+    )
+    default_visual_inspection_params = PathJoinSubstitution(
+        [FindPackageShare("robot_tasks"), "config", "visual_inspection.yaml"]
+    )
+    default_safety_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety.yaml"]
+    )
+    default_safety_zones = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "safety_zones.yaml"]
+    )
+    default_perception_diagnostics_params = PathJoinSubstitution(
+        [FindPackageShare("robot_perception"), "config", "diagnostics.yaml"]
     )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "factory_patrol.sdf"]
@@ -65,6 +103,34 @@ def generate_launch_description():
             DeclareLaunchArgument("use_nav2", default_value="false"),
             DeclareLaunchArgument("use_localization_health", default_value="true"),
             DeclareLaunchArgument("use_mission_runner", default_value="true"),
+            DeclareLaunchArgument("use_geometry_validation", default_value="true"),
+            DeclareLaunchArgument("use_detector", default_value="false"),
+            DeclareLaunchArgument("use_visual_inspection", default_value="false"),
+            DeclareLaunchArgument("use_perception_safety", default_value="false"),
+            DeclareLaunchArgument("use_perception_diagnostics", default_value="false"),
+            DeclareLaunchArgument("use_perception_system_monitor", default_value="false"),
+            DeclareLaunchArgument(
+                "perception_diagnostics_params", default_value=default_perception_diagnostics_params
+            ),
+            DeclareLaunchArgument("geometry_input_mode", default_value="synthetic"),
+            DeclareLaunchArgument("detector_model_path", default_value=""),
+            DeclareLaunchArgument("perception_debug_image", default_value="true"),
+            DeclareLaunchArgument(
+                "perception_max_inference_rate_hz", default_value="0.0"
+            ),
+            DeclareLaunchArgument(
+                "perception_tracking_params", default_value=default_tracking_params
+            ),
+            DeclareLaunchArgument(
+                "perception_safety_params", default_value=default_safety_params
+            ),
+            DeclareLaunchArgument(
+                "perception_safety_zones", default_value=default_safety_zones
+            ),
+            DeclareLaunchArgument(
+                "visual_inspection_params", default_value=default_visual_inspection_params
+            ),
+            DeclareLaunchArgument("visual_inspection_start_delay", default_value="10.0"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart_mission", default_value="false"),
             DeclareLaunchArgument("mission_file", default_value=default_mission_file),
@@ -85,6 +151,25 @@ def generate_launch_description():
                     "labels_enabled": "false",
                     "world_file": world_file,
                     "world_name": "factory_patrol",
+                    "cmd_vel_default_source": PythonExpression(
+                        [
+                            "'nav2' if ('",
+                            use_visual_inspection,
+                            "' == 'true' or '",
+                            use_perception_safety,
+                            "' == 'true') else 'teleop'",
+                        ]
+                    ),
+                    "manual_takeover": PythonExpression(
+                        [
+                            "'false' if ('",
+                            use_visual_inspection,
+                            "' == 'true' or '",
+                            use_perception_safety,
+                            "' == 'true') else 'true'",
+                        ]
+                    ),
+                    "perception_safety_enabled": use_perception_safety,
                 }.items(),
             ),
             IncludeLaunchDescription(
@@ -115,6 +200,93 @@ def generate_launch_description():
                     "preflight_map_name": "factory_patrol",
                     "return_to_dock_on_low_battery": "false",
                 }.items(),
+            ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(perception_launch),
+                condition=IfCondition(use_geometry_validation),
+                launch_arguments={
+                    "use_sim_time": use_sim_time,
+                    "publish_sim_map_tf": PythonExpression(
+                        ["'", use_nav2, "' == 'false'"]
+                    ),
+                    "detector_enabled": use_detector,
+                    "diagnostics_enabled": use_perception_diagnostics,
+                    "diagnostics_params_file": perception_diagnostics_params,
+                    "geometry_input_mode": geometry_input_mode,
+                    "model_path": detector_model_path,
+                    "debug_image_enabled": perception_debug_image,
+                    "max_inference_rate_hz": perception_max_inference_rate_hz,
+                    "tracking_params_file": perception_tracking_params,
+                    "safety_params_file": perception_safety_params,
+                    "safety_zones_file": perception_safety_zones,
+                }.items(),
+            ),
+            Node(
+                package="robot_utils",
+                executable="system_monitor_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "monitor_base_system": False,
+                        "monitor_perception": True,
+                        "perception_diagnostics_topic": "/perception/diagnostics",
+                        "perception_diagnostics_timeout_ms": 3000,
+                        "perception_startup_grace_ms": 12000,
+                    }
+                ],
+                output="screen",
+            ),
+            Node(
+                package="diagnostic_aggregator",
+                executable="aggregator_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    PathJoinSubstitution(
+                        [FindPackageShare("robot_utils"), "config", "diagnostic_aggregator.yaml"]
+                    ),
+                    {"use_sim_time": use_sim_time},
+                ],
+                output="screen",
+            ),
+            Node(
+                package="robot_utils",
+                executable="fault_supervisor_node",
+                condition=IfCondition(use_perception_system_monitor),
+                parameters=[
+                    {"use_sim_time": use_sim_time, "auto_clear": True, "startup_grace_ms": 3000}
+                ],
+                output="screen",
+            ),
+            Node(
+                package="robot_tasks",
+                executable="navigate_sequence_server_node",
+                condition=IfCondition(use_visual_inspection),
+                parameters=[
+                    {
+                        "use_nav2_action": use_nav2,
+                        "use_waypoint_follower": False,
+                        "simulate_without_nav2": False,
+                        "simulated_motion_enabled": False,
+                        "nav2_server_timeout_ms": 15000,
+                    }
+                ],
+                output="screen",
+            ),
+            TimerAction(
+                period=visual_inspection_start_delay,
+                condition=IfCondition(use_visual_inspection),
+                actions=[
+                    Node(
+                        package="robot_tasks",
+                        executable="visual_inspection_task_node",
+                        parameters=[
+                            visual_inspection_params,
+                            {"use_sim_time": use_sim_time},
+                        ],
+                        output="screen",
+                    )
+                ],
             ),
             Node(
                 package="rviz2",

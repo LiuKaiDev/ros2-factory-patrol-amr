@@ -12,16 +12,19 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(robot_interfaces REQUIRED)
 find_package(robot_interfaces_core REQUIRED)
+find_package(robot_interfaces_perception REQUIRED)
 
 include_directories(include)
 
 add_executable(cmd_vel_mux_node src/cmd_vel_mux_node.cpp)
 ament_target_dependencies(cmd_vel_mux_node
-  rclcpp geometry_msgs std_msgs std_srvs robot_interfaces robot_interfaces_core)
+  rclcpp geometry_msgs std_msgs std_srvs robot_interfaces robot_interfaces_core
+  robot_interfaces_perception)
 
 add_executable(cmd_vel_safety_gate_node src/cmd_vel_safety_gate_node.cpp)
 ament_target_dependencies(cmd_vel_safety_gate_node
   rclcpp geometry_msgs nav_msgs sensor_msgs std_msgs std_srvs robot_interfaces robot_interfaces_core)
+ament_target_dependencies(cmd_vel_safety_gate_node robot_interfaces_perception)
 
 add_executable(virtual_rc_node src/virtual_rc_node.cpp)
 ament_target_dependencies(virtual_rc_node

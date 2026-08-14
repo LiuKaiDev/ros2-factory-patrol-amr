@@ -1,4 +1,5 @@
 #include "robot_teleop/cmd_vel_safety.hpp"
+#include "robot_teleop/perception_safety_input.hpp"
 
 #include <initializer_list>
 
@@ -216,6 +217,132 @@ TEST(CmdVelSafetyTest, SafetyStateFromChassisStatus_MapsFaultCodes) {
             robot_teleop::SafetyState::kEmergencyStop);
   EXPECT_EQ(robot_teleop::SafetyStateFromChassisStatus(false, "fault_code=NONE(0):estop=0"),
             robot_teleop::SafetyState::kCommunicationLost);
+}
+
+TEST(CmdVelSafetyTest, ExistingNormalAndPerceptionClearRemainNormal) {
+  robot_teleop::PerceptionSafetySnapshot perception;
+  perception.received = true;
+  perception.event_stamp_ns = 1'000'000'000LL;
+  perception.state = robot_teleop::PerceptionSafetyInputState::kClear;
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kNormal,
+                 robot_teleop::PerceptionSafetyContribution(
+                     perception, 1'100'000'000LL, 1.5)}),
+            robot_teleop::SafetyState::kNormal);
+}
+
+TEST(CmdVelSafetyTest, ExistingNormalAndPerceptionLimitedBecomeLimited) {
+  robot_teleop::PerceptionSafetySnapshot perception;
+  perception.received = true;
+  perception.event_stamp_ns = 1'000'000'000LL;
+  perception.state = robot_teleop::PerceptionSafetyInputState::kSpeedLimited;
+  EXPECT_EQ(robot_teleop::PerceptionSafetyContribution(
+                perception, 1'100'000'000LL, 1.5),
+            robot_teleop::SafetyState::kSpeedLimited);
+}
+
+TEST(CmdVelSafetyTest, ExistingNormalAndPerceptionStopBecomeStop) {
+  robot_teleop::PerceptionSafetySnapshot perception;
+  perception.received = true;
+  perception.event_stamp_ns = 1'000'000'000LL;
+  perception.state = robot_teleop::PerceptionSafetyInputState::kStop;
+  EXPECT_EQ(robot_teleop::PerceptionSafetyContribution(
+                perception, 1'100'000'000LL, 1.5),
+            robot_teleop::SafetyState::kPerceptionStop);
+}
+
+TEST(CmdVelSafetyTest, ExistingStopAndPerceptionClearRemainStop) {
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kChassisFault,
+                 robot_teleop::SafetyState::kNormal}),
+            robot_teleop::SafetyState::kChassisFault);
+}
+
+TEST(CmdVelSafetyTest, EstopAndPerceptionClearRemainEstop) {
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kEmergencyStop,
+                 robot_teleop::SafetyState::kNormal}),
+            robot_teleop::SafetyState::kEmergencyStop);
+}
+
+TEST(CmdVelSafetyTest, LocalizationFailureOutranksPerceptionClearAndStop) {
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kLocalizationLost,
+                 robot_teleop::SafetyState::kNormal}),
+            robot_teleop::SafetyState::kLocalizationLost);
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kLocalizationLost,
+                 robot_teleop::SafetyState::kPerceptionStop}),
+            robot_teleop::SafetyState::kLocalizationLost);
+}
+
+TEST(CmdVelSafetyTest, PerceptionStopProducesFinalZeroVelocity) {
+  geometry_msgs::msg::Twist input;
+  input.linear.x = 0.35;
+  input.angular.z = 0.4;
+  const auto output = robot_teleop::ApplySafetyPolicy(
+      input, robot_teleop::SafetyState::kPerceptionStop, 0.15, 0.4);
+  EXPECT_DOUBLE_EQ(output.linear.x, 0.0);
+  EXPECT_DOUBLE_EQ(output.angular.z, 0.0);
+}
+
+TEST(CmdVelSafetyTest, PerceptionLimitClampsWithoutReversingCommand) {
+  geometry_msgs::msg::Twist input;
+  input.linear.x = 0.35;
+  input.angular.z = -0.8;
+  const auto output = robot_teleop::ApplySafetyPolicy(
+      input, robot_teleop::SafetyState::kSpeedLimited, 0.15, 0.4);
+  EXPECT_NEAR(output.linear.x, 0.15, 1e-9);
+  EXPECT_LT(output.angular.z, 0.0);
+  EXPECT_GE(output.angular.z, -0.4);
+}
+
+TEST(CmdVelSafetyTest, PerceptionTimeoutClearsOnlyItsContribution) {
+  robot_teleop::PerceptionSafetySnapshot perception;
+  perception.received = true;
+  perception.event_stamp_ns = 1'000'000'000LL;
+  perception.state = robot_teleop::PerceptionSafetyInputState::kStop;
+  EXPECT_EQ(robot_teleop::PerceptionSafetyContribution(
+                perception, 3'000'000'000LL, 1.5),
+            robot_teleop::SafetyState::kNormal);
+  EXPECT_EQ(robot_teleop::ResolveHighestPriority(
+                {robot_teleop::SafetyState::kChassisFault,
+                 robot_teleop::SafetyState::kNormal}),
+            robot_teleop::SafetyState::kChassisFault);
+}
+
+TEST(CmdVelSafetyTest, ValidPerceptionPayloadUpdatesSnapshot) {
+  robot_teleop::PerceptionSafetySnapshot snapshot;
+  EXPECT_TRUE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 2U, 9U, "person", "PERSON_TOO_CLOSE", 1.2,
+      "robot_perception", "PERCEPTION_PERSON_TOO_CLOSE", 1'000'000'000LL,
+      1'100'000'000LL, 1.5));
+  EXPECT_TRUE(snapshot.received);
+  EXPECT_EQ(snapshot.state, robot_teleop::PerceptionSafetyInputState::kStop);
+}
+
+TEST(CmdVelSafetyTest, MalformedClearCannotReplaceValidStop) {
+  robot_teleop::PerceptionSafetySnapshot snapshot;
+  ASSERT_TRUE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 2U, 9U, "person", "PERSON_TOO_CLOSE", 1.2,
+      "robot_perception", "", 1'000'000'000LL, 1'100'000'000LL, 1.5));
+  EXPECT_FALSE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 0U, 0U, "person", "PERSON_NEAR", -1.0,
+      "robot_perception", "", 1'200'000'000LL, 1'200'000'000LL, 1.5));
+  EXPECT_EQ(snapshot.state, robot_teleop::PerceptionSafetyInputState::kStop);
+}
+
+TEST(CmdVelSafetyTest, OutOfOrderAndFutureEventsAreRejected) {
+  robot_teleop::PerceptionSafetySnapshot snapshot;
+  ASSERT_TRUE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 1U, 9U, "person", "PERSON_NEAR", 2.0,
+      "robot_perception", "", 2'000'000'000LL, 2'100'000'000LL, 1.5));
+  EXPECT_FALSE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 0U, 0U, "person", "CLEAR", -1.0,
+      "robot_perception", "", 1'900'000'000LL, 2'100'000'000LL, 1.5));
+  EXPECT_FALSE(robot_teleop::UpdatePerceptionSafetySnapshot(
+      &snapshot, 0U, 0U, "person", "CLEAR", -1.0,
+      "robot_perception", "", 2'300'000'000LL, 2'200'000'000LL, 1.5));
 }
 
 }  // namespace

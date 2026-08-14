@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 LEGACY_PACKAGE="robot_interfaces"
 LEGACY_REMAINING_INTERFACE_COUNT=10
-TARGET_INTERFACE_COUNT=94
+TARGET_INTERFACE_COUNT=97
 NEW_PACKAGES=(
   robot_interfaces_core
   robot_interfaces_navigation
@@ -15,6 +15,7 @@ NEW_PACKAGES=(
   robot_interfaces_fleet
   robot_interfaces_business
   robot_interfaces_site
+  robot_interfaces_perception
 )
 
 fail() {

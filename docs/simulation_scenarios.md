@@ -179,6 +179,419 @@ keep the AMR inspection loop visually separated from racks, rails, walls, and
 workcell props. These visual assets do not claim runtime mission success by
 themselves.
 
+### Factory Patrol RGB-D Camera
+
+The primary `mobile_robot` in both `factory_patrol.sdf` and
+`factory_patrol_industrial.sdf` has one simulated RGB-D camera. The same camera
+mount is represented in `robot.urdf.xacro`; the Xacro properties are the
+authoritative extrinsic and the static asset check verifies that both worlds
+mirror it.
+
+Camera parameters:
+
+| Parameter | Value |
+| --- | --- |
+| Parent frame | `base_link` |
+| Camera body frame | `camera_link` |
+| Optical frame | `camera_color_optical_frame` |
+| `base_link -> camera_link` translation | `x=0.58 m, y=0.0 m, z=0.42 m` |
+| `camera_link -> camera_color_optical_frame` rotation | RPY `-pi/2, 0, -pi/2` |
+| Resolution | `640 x 480` |
+| Update rate | `15 Hz` |
+| Horizontal field of view | `1.0471975512 rad` (60 degrees) |
+| Depth clip range | `0.1 m` to `10.0 m` |
+
+The optical frame follows the ROS camera convention: `+Z` forward, `+X` right,
+and `+Y` down. RGB, depth, and CameraInfo headers use
+`camera_color_optical_frame`.
+
+ROS topics exposed by the existing `ros_gz_bridge` process:
+
+| Topic | Type |
+| --- | --- |
+| `/camera/color/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/depth/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/color/camera_info` | `sensor_msgs/msg/CameraInfo` |
+
+The Factory Patrol showcase RViz configuration displays the RGB image by
+default. Depth visualization is not enabled by default.
+
+Static validation:
+
+```bash
+bash scripts/check_factory_patrol_assets.sh
+```
+
+Runtime validation after starting the Factory Patrol demo:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
+```
+
+In a second sourced shell:
+
+```bash
+bash scripts/check_factory_patrol_runtime_topics.sh
+ros2 topic info /camera/color/image_raw
+ros2 topic info /camera/depth/image_raw
+ros2 topic echo --once /camera/color/camera_info
+ros2 run tf2_ros tf2_echo base_link camera_color_optical_frame
+```
+
+The runtime check verifies topic presence and types, nonempty RGB/depth payloads,
+valid nonzero CameraInfo intrinsics, camera header frame IDs, and the camera TF.
+It does not validate detection, 3D projection, visual navigation, or perception
+safety behavior.
+
+### Phase 2 RGB-D Geometry Validation
+
+Phase 2 adds the minimal `robot_perception` package for validating depth
+projection and timestamped TF without an object detector. The pipeline is:
+
+```text
+synthetic bbox + synchronized RGB/depth/CameraInfo
+  -> central-ROI median depth
+  -> PointStamped in camera_color_optical_frame
+  -> TF2 lookup at the depth observation timestamp
+  -> PointStamped in map
+  -> RViz sphere marker
+```
+
+Inputs:
+
+| Topic | Type |
+| --- | --- |
+| `/camera/color/image_raw` | `sensor_msgs/msg/Image` |
+| `/camera/depth/image_raw` | `sensor_msgs/msg/Image` (`32FC1`) |
+| `/camera/color/camera_info` | `sensor_msgs/msg/CameraInfo` |
+
+Outputs:
+
+| Topic | Type | Frame |
+| --- | --- | --- |
+| `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | `camera_color_optical_frame` |
+| `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | `map` |
+| `/perception/markers` | `visualization_msgs/msg/Marker` | `map` |
+
+The three camera streams use `message_filters::ApproximateTime` with a default
+50 ms maximum interval. The depth message timestamp is the authoritative
+observation timestamp for both PointStamped outputs and the TF lookup. The node
+does not fall back to latest TF. A missing observation-time transform suppresses
+the map point and marker while leaving the camera point and node alive.
+
+For a bbox center `(u, v)`, median depth `Z`, and CameraInfo intrinsics, the
+camera-frame point is:
+
+```text
+X = (u - cx) * Z / fx
+Y = (v - cy) * Z / fy
+Z = median valid depth
+```
+
+Depth is sampled from the central portion of the bbox. Defaults in
+`src/robot_perception/config/depth.yaml` are a `0.3` ROI ratio, `0.2 m` minimum,
+`8.0 m` maximum, median statistic, and at least five valid samples. Zero, NaN,
+Inf, below-range, and above-range values are rejected. Invalid depth or
+intrinsics produce no point.
+
+Both Factory Patrol worlds contain a visual-only, non-colliding
+`phase2_geometry_validation_target`. The target visual is centered at
+`[2.76, 0.00, 0.66]`; its front face is at `x = 2.70`. The default bbox center
+ray is at the settled camera/TF height `z = 0.495`, so the relevant known
+surface intersection is `P_gt = [2.70, 0.00, 0.495]` in the map convention.
+The synthetic bbox is centered at `(320, 240)` and can be changed through ROS
+parameters without recompilation.
+
+Gazebo's freely settling model can move slightly before wheel odometry starts
+tracking motion. That passive displacement is not represented by the
+differential-drive odometry frame. Record the measured `P_est` versus `P_gt`
+error from the geometry node log rather than assuming exact equality; this is
+a simulator/odometry-origin limitation, not a latest-TF fallback.
+
+When Factory Patrol runs without Nav2/AMCL, the Phase 2 launch explicitly
+publishes an identity `map -> odom` static transform for this simulation
+validation only. With `use_nav2:=true`, that simulation transform is disabled
+and AMCL remains authoritative. No transform fallback exists in the geometry
+node.
+
+Launch the integrated validation:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false use_geometry_validation:=true
+```
+
+Or launch only the geometry component against an existing camera/TF runtime:
+
+```bash
+ros2 launch robot_perception geometry_validation.launch.py \
+  publish_sim_map_tf:=true
+```
+
+Validation commands:
+
+```bash
+colcon test --packages-select robot_perception
+colcon test-result --verbose
+bash scripts/check_factory_patrol_assets.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
+ros2 topic echo --once /perception/geometry/camera_point
+ros2 topic echo --once /perception/geometry/map_point
+ros2 topic echo --once /perception/markers
+```
+
+Known limitations: Phase 2 uses one configurable synthetic bbox and one static
+validation target. It does not detect or track objects, associate targets across
+frames, filter positions over time, create perception events, affect missions or
+safety, or publish velocity commands. Quantitative accuracy must be reported
+from an executed simulation run; target placement alone is not an accuracy
+result.
+
+### Phase 3 Real 2D Object Detection
+
+Phase 3 adds a replaceable Python detector adapter in the existing
+`robot_perception` package. The supplied backend is OpenCV-DNN YOLOX-S with
+COCO classes. It consumes RGB images and publishes the standard
+`vision_msgs/msg/Detection2DArray` contract:
+
+```text
+/camera/color/image_raw
+  -> DetectorBackend (OpenCV-DNN YOLOX-S)
+  -> /perception/detections_2d
+  -> ApproximateTime with depth + CameraInfo
+  -> existing central-ROI median DepthProjector
+  -> camera PointStamped + observation-time TF
+  -> map PointStamped
+  -> TargetManager + managed sphere/text RViz markers
+```
+
+The detector copies the source image header to both `Detection2DArray` and
+every `Detection2D`; no inference-completion timestamp is substituted. In
+`geometry_input_mode:=detector`, the geometry node synchronizes that detection
+header with depth and CameraInfo. The detection/source-image timestamp remains
+authoritative for both output points and the TF lookup. Multiple detections in
+one frame are processed independently. Invalid depth suppresses only that 3D
+result and never creates a false point.
+
+Phase 3 topics:
+
+| Topic | Type | Contents/frame |
+| --- | --- | --- |
+| `/perception/detections_2d` | `vision_msgs/msg/Detection2DArray` | class, confidence, pixel bbox; `camera_color_optical_frame` |
+| `/perception/debug_image` | `sensor_msgs/msg/Image` | optional RGB boxes/labels; `camera_color_optical_frame` |
+| `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | valid median-depth projection; optical frame |
+| `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | observation-time TF result; `map` |
+| `/perception/markers` | `visualization_msgs/msg/Marker` | managed target ID/class/state/filtered-position markers in detector mode |
+| `/perception/objects_3d` | `robot_interfaces_perception/msg/DetectedObject3D` | Phase 4 managed map-frame target; one message per retained target per update |
+
+Detector parameters are in `src/robot_perception/config/detector.yaml`:
+
+| Parameter | Default | Purpose |
+| --- | --- | --- |
+| `backend` | `opencv_yolox` | Replaceable backend selection |
+| `model_path` | empty | Empty resolves to the verified user-cache path |
+| `confidence_threshold` | `0.45` | Minimum published class confidence |
+| `nms_threshold` | `0.5` | Class-aware nonmaximum suppression IoU |
+| `input_size` | `640` | Square YOLOX input size |
+| `device` | `auto` | `auto`, `cpu`, or OpenCV-DNN `cuda` |
+| `allowed_classes` | `[person]` | Published COCO class allowlist; empty allows all |
+| `debug_image_enabled` | `true` | Enable annotated debug image |
+
+The ONNX weights are not stored in Git and normal launch never downloads a
+model. Fetch and SHA-256 verify the official OpenCV Zoo model explicitly:
+
+```bash
+sudo apt install ros-jazzy-cv-bridge ros-jazzy-vision-msgs \
+  python3-opencv python3-numpy
+bash scripts/prepare_phase3_detector_model.sh
+```
+
+The script installs `object_detection_yolox_2022nov.onnx` under
+`${XDG_CACHE_HOME:-$HOME/.cache}/robot_perception/models` by default. Override
+the directory with `ROBOT_PERCEPTION_MODEL_DIR`, or pass an explicit launch
+path with `detector_model_path:=/absolute/model.onnx`. The download URL may be
+overridden with `ROBOT_PERCEPTION_MODEL_URL`; the same fixed SHA-256 is always
+required before installation. The backend uses the
+system `python3-opencv` and `python3-numpy`; CUDA is used only when requested
+and available through the installed OpenCV build. An absent, truncated, or
+unsupported model disables inference with an error log while the ROS node
+stays alive and publishes empty, correctly stamped detection arrays.
+
+Both Factory Patrol worlds include the visual-only
+`phase3_person_detection_target`, offset from the Phase 2 center-ray target so
+synthetic regression remains unchanged. Its source, license, and mechanical
+texture reduction are recorded beside the model in
+`src/robot_simulation/models/person_standing/ATTRIBUTION.md`.
+
+Run the real detector path:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false \
+  use_detector:=true geometry_input_mode:=detector
+```
+
+Keep the Phase 2 regression path by leaving `use_detector:=false` and
+`geometry_input_mode:=synthetic` (both defaults). These switches also allow a
+different node implementing the same `Detection2DArray` contract to replace
+YOLOX without changing depth projection.
+
+Validation commands:
+
+```bash
+colcon test --packages-select robot_perception
+bash scripts/check_factory_patrol_assets.sh
+bash scripts/check_factory_patrol_runtime_topics.sh
+FACTORY_PATROL_DETECTOR_MODE=true bash scripts/check_factory_patrol_runtime_topics.sh
+bash scripts/check_factory_patrol_detector_runtime.sh
+ros2 topic echo --once /perception/detections_2d
+ros2 topic echo --once /perception/geometry/map_point
+ros2 topic echo --once /perception/markers
+```
+
+Inference latency is measured around actual backend inference and logged as
+current and running-average milliseconds. The runtime validator requires a
+real `person` detection and the resulting camera/map points and text marker;
+it does not synthesize detections. Detector failures and empty scenes yield no
+new 3D observations. The detector and geometry contracts remain unchanged;
+Phase 4 consumes their valid map-frame result downstream. Perception events,
+mission behavior, safety integration, and velocity output remain absent.
+
+### Phase 4 Managed Targets
+
+Phase 4 adds a ROS-independent C++ `TargetManager` after the existing validated
+map-frame projection. Detector and OpenCV types remain upstream. Its generic
+input contains class name, confidence, finite map-frame XYZ, source observation
+timestamp, and depth validity. Invalid depth, empty class names, out-of-range
+confidence, non-finite positions, future-dated observations, and out-of-order
+update cycles are rejected without creating targets.
+
+```text
+Detection2DArray + depth + CameraInfo
+  -> existing DepthProjector
+  -> observation-time TF to map
+  -> generic 3D observations (one synchronized frame)
+  -> class-compatible 3D distance association
+  -> confirmation + lifecycle + EMA
+  -> /perception/objects_3d + /perception/markers
+```
+
+The lifecycle implemented in Phase 4 is:
+
+```text
+               confirm_frames matched observations
+TENTATIVE ----------------------------------------------> CONFIRMED
+    |                                                        |
+    +---------------- lost_frames misses --------------------+
+                                                             |
+                                                             v
+                                                            LOST
+
+TENTATIVE / CONFIRMED -- MarkProcessed() --> PROCESSED
+PROCESSED -- cooldown expires and object is observed --> TENTATIVE (same ID)
+```
+
+`confirm_frames` counts compatible matches; hits do not need to be exactly
+consecutive, and a dropout shorter than `lost_frames` preserves the target and
+its ID. At `lost_frames` missed synchronized detector cycles, a target becomes
+LOST. It remains matchable until the missed count exceeds twice
+`lost_frames`, then it is removed to bound memory. A matching LOST target is
+reacquired with the same ID; a previously confirmed target returns directly to
+CONFIRMED. IDs increase monotonically from 1 and are not recycled within the
+process lifetime.
+
+For each update, all same-class target/observation pairs inside the full 3D
+Euclidean `max_match_distance` are sorted by distance, then target ID, then
+observation order. Greedy selection enforces one target per observation and one
+observation per target. Additional same-class observations within the match
+radius of an accepted observation are suppressed as duplicates. This is a
+small deterministic spatial association policy, not appearance tracking,
+DeepSORT, ByteTrack, or ReID.
+
+The managed position is an exponential moving average:
+
+```text
+p_filtered = ema_alpha * p_new + (1 - ema_alpha) * p_previous
+```
+
+Raw latest position is retained internally for validation; the public managed
+position and markers use the filtered value. Confidence uses the latest matched
+detector confidence. Markers use stable IDs derived from `target_id`, display
+text such as `#12 person CONFIRMED`, and rely on `DELETEALL` plus bounded marker
+lifetime for clean LOST/removed-target updates.
+
+The minimal domain interface lives in `robot_interfaces_perception`, consistent
+with the repository's split custom-interface ownership. `DetectedObject3D.msg`
+contains a source-observation header, stable `target_id`, class, latest
+confidence, filtered map position, depth validity, and one of `TENTATIVE`,
+`CONFIRMED`, `LOST`, or `PROCESSED`. `PROCESSED` is currently reachable only
+through the C++ manager API; no mission consumer or ROS behavior API is added.
+During `processed_cooldown_sec`, matching observations update the retained
+target but do not create a new actionable identity. After cooldown, a matching
+observation re-enters TENTATIVE with the same ID.
+
+Tracking parameters are loaded from
+`src/robot_perception/config/tracking.yaml`:
+
+| Parameter | Default | Validation / behavior |
+| --- | --- | --- |
+| `tracking.confirm_frames` | `3` | positive matched-observation count |
+| `tracking.lost_frames` | `5` | positive missed synchronized cycles |
+| `tracking.max_match_distance` | `0.5` m | positive finite 3D match radius |
+| `tracking.ema_alpha` | `0.4` | finite value in `(0, 1]` |
+| `tracking.processed_cooldown_sec` | `10.0` s | nonnegative finite ROS-time duration |
+
+Validation commands:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+colcon test --packages-select robot_interfaces_perception robot_perception
+colcon test-result --verbose
+bash scripts/check_factory_patrol_assets.sh
+
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=false use_rviz:=false use_nav2:=false \
+  use_detector:=true geometry_input_mode:=detector
+
+bash scripts/check_factory_patrol_detector_runtime.sh
+bash scripts/check_factory_patrol_target_manager_runtime.sh
+ros2 topic echo --once /perception/objects_3d
+```
+
+The Phase 4 runtime check uses the real Factory Patrol person detection and live
+RGB-D/TF graph. An isolated relay supplies real, empty, and one duplicated
+detection cycle to validate TENTATIVE, CONFIRMED, short dropout, LOST,
+same-ID reacquisition, and duplicate suppression without changing the world.
+It reports measured raw and EMA XYZ standard deviations and manager update
+latency when an executed run provides enough samples; it does not manufacture
+results.
+
+The Phase 4 WSL runtime validation on 2026-08-13 completed with one real
+Factory Patrol person target and stable `target_id=1`. It observed TENTATIVE,
+CONFIRMED, a short dropout, LOST, same-ID reacquisition, duplicate suppression,
+and managed markers. Across 15 paired stationary samples, both raw and filtered
+population standard deviations were `x=0.000000 m`, `y=0.000000 m`, and
+`z=0.000000 m`. This run therefore measured no EMA improvement because the raw
+projected position had no observable jitter. The isolated node logged a
+TargetManager update latency of `7.576 us`; detector inference remains a
+separate cost and was not included in that measurement.
+
+Known limitations: association has no velocity model or appearance information,
+all classes use one 3D radius, frame-count lifecycle behavior depends on
+synchronized detector cycles, and a removed target receives a new ID if later
+rediscovered. `DetectedObject3D` is published once per retained target rather
+than as an array. No Phase 5 mission, Nav2 approach goal, observation pose,
+perception event, Safety Gate input, Phase 6 proximity policy, or `/cmd_vel`
+publisher is implemented.
+
 Current / planned boundary:
 
 - Current in Phase 5A: world/config assets, map-generation note, demo launch
@@ -388,9 +801,309 @@ Planned after Phase 5B:
 No Gazebo, RViz, Nav2, localization recovery, or obstacle-avoidance runtime
 success is claimed by this phase.
 
+## Visual Perception Phase 5: Static Inspection Approach
+
+Phase 5 connects a stable managed target to a task-owned Nav2 mission:
+
+```text
+/perception/objects_3d CONFIRMED
+  -> /perception/events INSPECTION_REQUIRED
+  -> visual_inspection_task_node
+  -> /navigate_sequence
+  -> NavigateToPose
+  -> arrival
+  -> INSPECTION_COMPLETED
+  -> /perception/objects_3d PROCESSED
+```
+
+The `PerceptionEvent` interface contains `target_id`, `event_type`, class,
+confidence, severity, and a stamped `target_pose`. Phase 5 declares only
+`TARGET_CONFIRMED`, `INSPECTION_REQUIRED`, and `INSPECTION_COMPLETED`; it does
+not implement Phase 6 person-proximity or safety-event behavior.
+
+### Eligibility and duplicate policy
+
+The detector continues to expose both `person` and `chair`, but the default
+inspection allowlist is only `chair` with `min_confidence: 0.5`. A raw detector
+frame cannot start a task. The target must first reach `CONFIRMED` through the
+Phase 4 `TargetManager`. Perception emits one actionable event for that managed
+target and suppresses subsequent frames. A successful task marks the target
+`PROCESSED`; the existing `tracking.processed_cooldown_sec` must expire and the
+target must pass through `TENTATIVE` and `CONFIRMED` again before a newer event
+can be emitted.
+
+The existing pretrained model does not reliably classify a code-native
+primitive chair. Runtime validation therefore explicitly loads
+`tracking_phase5_validation.yaml` and
+`visual_inspection_phase5_validation.yaml`, whose allowlists contain `person`,
+and reuses the existing visual-only, static `phase3_person_detection_target` at
+the known world pose `(2.80, -0.75)`. This does not change the default `chair`
+policy, add collision geometry, or implement person following. The target is a
+fixed inspection fixture for this explicitly configured validation run. The
+validation tracking profile also narrows the depth ROI and extends LOST-target
+retention so the original managed ID remains available for task completion
+after the robot turns or the static fixture leaves the camera view. Default
+Phase 4 retention behavior is unchanged. Its processed cooldown is 120 seconds
+so the same fixture cannot retrigger during the end-to-end measurement window.
+The `--phase5` helper also caps CPU inference at 0.5 Hz so Nav2 action callbacks
+remain responsive in WSL. The detector is still the same pretrained YOLOX
+backend on live RGB images, and the default detector rate remains uncapped.
+The validation profile permits one task-owned retry for a transient Nav2 result
+race at arrival; the default mission profile remains `retry_count: 0`.
+
+### Observation pose
+
+Planning occurs in `map`. For target position `T`, current robot position `R`,
+and configured `standoff_distance`, the task computes:
+
+```text
+d = normalize(R - T)
+observation_position = T + d * standoff_distance
+yaw = atan2(T.y - observation.y, T.x - observation.x)
+```
+
+The default `standoff_distance` is `1.2` m. The planner rejects non-finite
+poses, non-map frames, invalid quaternions, and non-positive standoff values.
+If `R` and `T` are coincident, it uses the direction opposite the robot's
+current heading. The selected pose is frozen when the mission starts; target
+updates or temporary detector loss do not replace the Nav2 goal. Phase 5 is for
+static inspection targets only and does not implement pursuit, following, or
+visual servoing.
+
+Navigation failures publish a `FAILED` task status and never mark the target
+successfully processed. The default retry count is zero. Nav2 rejection or an
+unreachable pose is treated as a normal task failure rather than adding a
+custom planner or costmap search.
+
+The Factory Patrol bringup delays the Phase 5 event consumer until after the
+existing delayed Nav2 bringup has completed. Because `/perception/events` is
+transient-local, a target confirmed during Nav2 activation is replayed once to
+the task after it starts; this avoids treating normal lifecycle startup as a
+navigation failure.
+
+### Launch and validation
+
+Prepare the existing Phase 3 model, build, then launch the complete chain:
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+bash scripts/run_factory_patrol_demo.sh --phase5
+```
+
+The equivalent launch command is:
+
+```bash
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=true use_rviz:=true use_nav2:=true use_detector:=true \
+  geometry_input_mode:=detector use_visual_inspection:=true \
+  perception_max_inference_rate_hz:=0.5 \
+  perception_tracking_params:=$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml \
+  visual_inspection_params:=$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml
+```
+
+Validate the running graph from another sourced shell:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_VISUAL_INSPECTION_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+
+bash scripts/check_factory_patrol_visual_inspection_runtime.sh
+ros2 topic echo /perception/events
+ros2 topic echo /inspection/status
+ros2 topic echo /inspection/observation_pose
+ros2 topic echo /perception/objects_3d
+```
+
+The RViz showcase displays managed target labels/IDs and the observation pose;
+the existing current-goal and odometry/path displays remain available. Runtime
+measurements come from the validation script output.
+
+The full headless Factory Patrol bringup was validated in WSL on 2026-08-13
+with the explicit Phase 5 profiles and the live YOLOX detector. Target
+`target_id=1` (`person`, validation fixture only) produced one accepted visual
+inspection mission at simulation time `18.679 s`. Its measured map position was
+`(2.842653, -0.759916)` m and the planned observation pose was
+`(1.683362, -0.450007)` m. The configured and planned target standoffs were both
+`1.2 m`. Nav2 accepted the goal and returned `SUCCEEDED` after `6.489` simulated
+seconds. The final robot pose was `(1.570, -0.334, yaw=-0.421137)` with a
+`0.162199 m` observation-pose error and a measured `1.342032 m` planar distance
+to the target. Robot displacement was `1.605134 m`. The run observed one
+`INSPECTION_REQUIRED` and one `INSPECTION_COMPLETED` for target 1, then verified
+that it reached `PROCESSED` without an immediate second mission. It also
+verified that perception published no velocity topic and that commands remained
+`/nav2_cmd_vel -> cmd_vel_mux_node/Safety Gate -> /cmd_vel`.
+
 ## Phase 6 Showcase Boundary
 
 Factory patrol assets are ready to support screenshots, videos, and report
 figures, but Phase 6 only adds the placeholder index under `docs/showcase/`.
 Future artifacts should record the exact launch command, commit, map/world,
 parameters, and log or rosbag path before being cited in the README or report.
+
+## Visual Perception Phase 6: Safety Gate Integration
+
+Phase 6 uses the existing visual-only `phase3_person_detection_target` and the
+existing Gazebo set-pose service for deterministic validation. It adds no crowd
+or pedestrian framework. The standard licensed person mesh is too tall to
+remain fully visible in the camera vertical field of view below the `1.5 m`
+STOP threshold, so both Factory Patrol worlds also contain
+`phase6_person_safety_target`: a static, collision-free `0.40` scale instance
+of the same licensed mesh. It stays hidden at `z=-2` unless the Phase 6 probe
+uses it for the close-range STOP case. This changes only validation image
+scale; the policy still uses measured RGB-D XY distance and class `person`.
+
+The runtime chain is:
+
+```text
+managed person (`CONFIRMED` or observed `PROCESSED`)
+  -> PerceptionSafetyPolicy
+  -> /perception/safety_event
+  -> existing cmd_vel mux / Safety Gate
+  -> /cmd_vel
+```
+
+`/perception/safety_event` has type
+`robot_interfaces_perception/msg/PerceptionSafetyEvent`. It carries the target
+ID/class, map position, measured robot-relative planar distance, semantic event,
+severity, source/reason, and optional danger-zone ID. It is distinct from the
+Phase 5 mission event. Perception NEVER publishes `/cmd_vel` or
+`/nav2_cmd_vel`.
+
+Default distance thresholds are `1.5 m` for STOP and `3.0 m` for
+SPEED_LIMITED. Exact `1.5 m` and `3.0 m` boundaries are limited rather than
+stopped/clear. STOP clears above `1.7 m`, SPEED_LIMITED clears above `3.2 m`,
+and three valid less-restrictive observations are required. Multiple persons
+resolve to the most restrictive state. The configured map-frame polygon
+`factory_person_danger_zone` is:
+
+```text
+[(3.00, -1.20), (3.80, -1.20), (3.80, -0.30), (3.00, -0.30)]
+```
+
+Polygon boundaries count as inside. A person inside this zone causes STOP even
+when its robot-relative distance is greater than `1.5 m`. The configuration is
+in `robot_perception/config/safety_zones.yaml` and reuses the existing
+`robot_navigation::ZoneCatalog` map polygon convention.
+
+Safety Gate freshness is `1.5 s` in ROS/simulation time. A stale event removes
+only perception's restriction; it does not override estop, localization,
+chassis, scan, watchdog, or legacy `/safety_state` conditions. Invalid TF or
+malformed person data does not create a CLEAR event.
+
+Prepare the existing detector model and launch the Phase 6 profile:
+
+```bash
+bash scripts/prepare_phase3_detector_model.sh
+bash scripts/run_factory_patrol_demo.sh --phase6
+```
+
+In another sourced shell, validate topics and the end-to-end gate:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_PERCEPTION_SAFETY_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+
+bash scripts/check_factory_patrol_perception_safety_runtime.sh
+```
+
+The runtime probe moves the visual fixture through measured CLEAR,
+SPEED_LIMITED, STOP, danger-zone STOP, and recovery cases while one existing
+Nav2 goal stays active. It reports real `/nav2_cmd_vel` and final `/cmd_vel`
+samples plus the ROS-time STOP response latency.
+
+A headless WSL smoke run on 2026-08-14 produced these measured results from the
+live RGB-D, YOLOX, depth projection, TargetManager, policy, and Safety Gate
+chain:
+
+| Case | Measured result |
+| --- | --- |
+| CLEAR | Person distance `3.260 m`; perception `CLEAR`; final safety state `NORMAL` |
+| SPEED_LIMITED | Person distance `2.955 m`; upstream `/nav2_cmd_vel` linear `0.350 m/s`; final `/cmd_vel` linear `0.150 m/s`; final state `SPEED_LIMITED` |
+| STOP | Person distance `1.314 m`; upstream linear `0.350 m/s`; final linear `0.000 m/s`; final state `STOP` |
+| Danger zone | Person map position `(3.253, -0.727) m`, distance `3.222 m`; inside `factory_person_danger_zone`; final state `STOP`; final linear velocity `0.000 m/s` |
+| Recovery | Three valid clear observations at `3.260 m`; final state returned to `NORMAL`; the original Nav2 goal stayed active and final `(0.350, -0.040)` linear/angular command matched its upstream intent |
+
+For the STOP transition, the qualifying condition timestamp was `12.079 s` in
+simulation time and the first required final safe command timestamp was
+`12.369 s`, an observed response latency of `0.290 s`. The safety event was
+received at `12.343 s`. This is one smoke-test measurement, not a Phase 8
+latency distribution.
+
+The run also verified that perception had no `/cmd_vel` or `/nav2_cmd_vel`
+publisher. A known simulation limitation is that the Gazebo `mobile_robot`
+world pose barely changes while the bridged odometry integrates motion. The
+probe therefore uses the existing Gazebo set-pose service to position the
+visual-only person fixture and keeps one Nav2 goal active to provide real
+upstream command intent; it does not claim that a physically moving world-model
+robot approached the person during this smoke test.
+
+### Phase 7 Perception Diagnostics and Recovery
+
+Phase 7 adds an optional, low-frequency health stream. Enable it in the Factory
+Patrol profile with:
+
+```bash
+bash scripts/run_factory_patrol_demo.sh --phase7
+```
+
+The standard `diagnostic_msgs/msg/DiagnosticArray` topic is
+`/perception/diagnostics`. The published status names are:
+
+| Status | Observed condition |
+| --- | --- |
+| `perception/camera_rgb` | RGB receipt age and optical-frame ID |
+| `perception/camera_depth` | Depth receipt age and optical-frame ID |
+| `perception/camera_info` | CameraInfo receipt age, frame, and nonzero intrinsics |
+| `perception/detector` | Detector model availability, exceptions, consecutive failures, and latency |
+| `perception/tf` | Observation-time `map <- camera_color_optical_frame` lookup results |
+| `perception/depth_quality` | Global invalid depth ratio; zero, NaN, Inf, and out-of-range values are invalid |
+| `perception/pipeline` | Worst component level and component summary |
+
+The defaults in `robot_perception/config/diagnostics.yaml` are a 10 s startup
+grace, camera warning/error ages of 0.5/1.5 s, depth limits of 0.2/8.0 m, and
+invalid-depth ratio warning/error thresholds of 0.25/0.60. Detector latency
+warning/error thresholds are 1200/3000 ms in `config/detector.yaml`. These are
+simulation defaults and should be calibrated for a deployed camera and detector.
+Diagnostics are informational
+at WARN; a fresh component ERROR is aggregated by the existing
+`system_monitor_node` and follows the existing `fault_supervisor_node` error
+path. A stale perception diagnostic stream is reported as WARN and does not by
+itself request an emergency stop.
+
+The Phase 7 Factory Patrol simulation sets `monitor_base_system:=false` because
+that Gazebo profile does not run the hardware chassis-state publisher. The
+parameter defaults to `true`, so normal hardware and mock bringup monitoring is
+unchanged; the Phase 7 profile still propagates perception ERROR through the
+same system-health and fault-supervisor path.
+
+Missing or invalid detector/depth/TF observations suppress new geometry and
+safety events. In particular, detector mode does not emit a fresh CLEAR event
+when a frame has no detections or all projections are invalid. The existing
+Safety Gate event timeout may remove only the perception restriction; chassis,
+watchdog, localization, scan, and other safety conditions remain authoritative.
+
+Run the deterministic fault-injection probe in an isolated ROS graph with:
+
+```bash
+bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
+```
+
+For a live Factory Patrol instance, the existing topic checker includes the
+Phase 7 statuses when `FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true`:
+
+```bash
+FACTORY_PATROL_DETECTOR_MODE=true \
+FACTORY_PATROL_PERCEPTION_SAFETY_MODE=true \
+FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true \
+  bash scripts/check_factory_patrol_runtime_topics.sh
+```
+
+The known Phase 6 simulation limitation remains: the freely settling Gazebo
+world pose and integrated odometry are not a claim of exact physical robot
+motion. Phase 7 reports that condition through existing health inputs; it does
+not change navigation or mission behavior.

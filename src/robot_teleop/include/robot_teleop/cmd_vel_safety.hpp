@@ -15,6 +15,7 @@ enum class SafetyState {
   kSpeedLimited,
   kSensorStale,
   kLocalizationLost,
+  kPerceptionStop,
   kChassisFault,
   kCommunicationLost,
   kEmergencyStop,
@@ -40,6 +41,8 @@ inline std::string ToString(const SafetyState state) {
       return "SENSOR_STALE";
     case SafetyState::kLocalizationLost:
       return "LOCALIZATION_LOST";
+    case SafetyState::kPerceptionStop:
+      return "STOP";
     case SafetyState::kChassisFault:
       return "CHASSIS_FAULT";
     case SafetyState::kCommunicationLost:
@@ -62,6 +65,8 @@ inline int SafetyPriority(const SafetyState state) {
       return 70;
     case SafetyState::kLocalizationLost:
       return 60;
+    case SafetyState::kPerceptionStop:
+      return 55;
     case SafetyState::kSensorStale:
       return 50;
     case SafetyState::kManualTakeover:
@@ -98,6 +103,7 @@ inline SafetyPolicy PolicyForState(const SafetyState state,
     case SafetyState::kCommunicationLost:
     case SafetyState::kChassisFault:
     case SafetyState::kLocalizationLost:
+    case SafetyState::kPerceptionStop:
     case SafetyState::kSensorStale:
     case SafetyState::kRecovery:
       policy.allow_cmd_vel = false;

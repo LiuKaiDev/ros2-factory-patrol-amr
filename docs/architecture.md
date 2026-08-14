@@ -1,104 +1,183 @@
 # System Architecture
 
-本项目定位为面向厂区 / 园区半封闭场景的低速巡检 AMR 导航控制系统。架构重点不是展示大量业务入口，而是展示一条可解释、可调试、可扩展的规控闭环：目标点输入、地图加载、AMCL 定位、Nav2 规划与控制、速度仲裁、安全门控、底盘适配和状态反馈。
+The project is a low-speed factory patrol AMR whose navigation, control, safety,
+perception, and diagnostic paths have explicit ownership boundaries. The visual
+upgrade extends the existing Nav2-based robot; it does not replace navigation or
+create a second velocity controller.
 
-## Closed Loop
+## End-to-End Closed Loop
 
 ```mermaid
-flowchart LR
-  Goal[巡检点 / 目标点] --> Task[robot_tasks<br/>mission_runner / station task]
-  Task --> Map[map_server<br/>indoor_room map]
-  Map --> AMCL[AMCL localization<br/>/amcl_pose, map->odom]
-  AMCL --> LocHealth[localization_health_monitor<br/>/localization/health]
-  AMCL --> Planner[Nav2 global planner<br/>Navfn / SmacPlanner2D]
-  Planner --> Controller[Nav2 local controller<br/>RPP / MPPI]
-  Controller --> Mux[cmd_vel_mux / twist_mux<br/>speed arbitration]
-  Tracking[Pure Pursuit / Stanley<br/>standalone experiment] --> Mux
-  Teleop[teleop / virtual RC] --> Mux
-  Mux --> Gate[cmd_vel_safety_gate<br/>watchdog / estop / speed limit]
-  Gate --> Driver[chassis_driver_node]
-  Driver --> Backend[Mock / Serial / UDP backend<br/>text / text_v2 / Mick binary]
-  Backend --> Feedback[/odom / wheel odom + covariance<br/>/chassis/state / TF<br/>heartbeat / fault_code]
-  Feedback --> AMCL
-  LocHealth --> Monitor
-  LocHealth --> Task
-  Feedback --> Monitor[system_monitor]
-  Monitor --> Fault[fault_supervisor]
+flowchart TD
+  Goal[Patrol goal or visual target] --> Tasks[robot_tasks]
+  Camera[RGB-D camera] --> Perception[robot_perception]
+  Perception --> Target[Map-frame TargetManager]
+  Target --> Inspection[Inspection event policy]
+  Target --> Person[Person safety policy]
+  Inspection --> Tasks
+  Tasks --> Nav2[Nav2 planner and controller]
+  Localization[AMCL and localization health] --> Nav2
+  Nav2 --> NavCmd[/nav2_cmd_vel]
+  Teleop[Teleop or virtual RC] --> Mux[cmd_vel mux]
+  Tracking[Standalone tracking experiments] --> Mux
+  NavCmd --> Mux
+  Mux --> Gate[Safety Gate]
+  Person --> SafetyEvent[/perception/safety_event]
+  SafetyEvent --> Gate
+  Diagnostics[System and perception diagnostics] --> Fault[fault_supervisor]
   Fault --> Gate
+  Gate --> Cmd[/cmd_vel]
+  Cmd --> Backend[Gazebo or chassis adapter]
+  Backend --> Feedback[odom, TF, scan, chassis state]
+  Feedback --> Localization
+  Feedback --> Diagnostics
 ```
+
+The normal hardware bringup uses `twist_mux` followed by
+`cmd_vel_safety_gate_node`. Factory Patrol simulation uses the existing combined
+`cmd_vel_mux_node`, which performs source selection and the same final safety
+resolution before `/cmd_vel`. Both preserve this authority order:
+
+```text
+candidate commands -> velocity arbitration -> Safety Gate -> final /cmd_vel
+```
+
+Perception publishes spatial targets, mission events, safety events, markers,
+and diagnostics. It has no `/cmd_vel` or `/nav2_cmd_vel` publisher.
 
 ## Package Responsibilities
 
 | Package | Current responsibility |
 | --- | --- |
-| `robot_bringup` | 顶层 launch 入口，组合 display、bringup、tracking、amr_demo 等流程。 |
-| `robot_description` | URDF / Xacro、RViz display 配置和机器人模型资源。 |
-| `robot_hardware` | 底盘协议、Mock / Serial / UDP 后端、`chassis_driver_node`、仿真底盘节点、ros2_control SystemInterface、运动学参数和 odom covariance。 |
-| `robot_sensors` | 激光、IMU 标准化，fake sensor source，基础诊断。 |
-| `robot_navigation` | Nav2、AMCL、SLAM、地图、costmap、map manager、语义区配置和 localization health monitor。 |
-| `robot_path_tracking` | 参考路径发布、Pure Pursuit、Stanley standalone 路径跟踪控制器。 |
-| `robot_teleop` | cmd_vel 仲裁、安全门控、急停、键盘 / 虚拟遥控。 |
-| `robot_tasks` | mission runner、站点任务、队列、恢复、充电、定位健康和重定位服务等任务层逻辑。 |
-| `robot_simulation` | Gazebo world、仿真桥接、RViz marker、自动演示编排。 |
-| `robot_utils` | system monitor、fault supervisor，连接诊断和急停闭环。 |
-| `robot_experiments` | benchmark runner、参考路径和指标输出基础设施。 |
-| `robot_interfaces*` | msg / srv / action 接口，按 core、navigation、mission、facility、fleet、business、site 等领域拆分。 |
+| `robot_bringup` | Top-level composition for simulation, navigation, tasks, perception, and monitoring. |
+| `robot_description` | Xacro/URDF, physical links, authoritative RGB-D extrinsic, and optical frame. |
+| `robot_hardware` | Chassis protocol, mock/serial/UDP backends, driver, kinematics, state, and odometry covariance. |
+| `robot_sensors` | Laser/IMU normalization, fake sources, and sensor diagnostics. |
+| `robot_navigation` | Nav2, AMCL, maps, costmaps, map management, and localization health. |
+| `robot_path_tracking` | Standalone Pure Pursuit and Stanley experiment controllers. |
+| `robot_teleop` | Manual input, velocity muxing, watchdog, estop, speed limits, and final Safety Gate. |
+| `robot_tasks` | Mission lifecycle, station tasks, observation-pose planning, visual inspection, and Nav2 action ownership. |
+| `robot_perception` | Detector adapter, depth/TF geometry, TargetManager, semantic task/safety policies, and diagnostics. |
+| `robot_simulation` | Gazebo worlds/bridges, RGB-D sensor, fixtures, semantic config, and RViz views. |
+| `robot_utils` | System monitor and fault supervisor. |
+| `robot_experiments` | Repeatable benchmark probes, statistics, and result serialization. |
+| `robot_interfaces*` | Domain-separated custom interfaces, including perception targets and semantic events. |
 
-## Current / Planned Boundary
-
-| Area | Current | Planned / TBD |
-| --- | --- | --- |
-| Low-speed patrol positioning | 项目文档已统一定位；现有 indoor_room 仿真和站点任务可承载演示。 | 厂区 / 园区专用 `factory_patrol` 场景、地图、stations、zones。 |
-| Navigation loop | Nav2 + AMCL + Navfn / Smac + RPP / MPPI 配置存在。 | Phase 1 系统化调参、costmap 能力验证和巡检场景参数收敛。 |
-| Localization health | Phase 4A 已补充 `/amcl_pose` covariance、AMCL timeout 和 TF 检查，并发布 `/localization/health`。 | Phase 4B 将 `LOCALIZATION_LOST` 接入安全停车和任务暂停策略。 |
-| Chassis adapter | Mock / Serial / UDP 后端和行文本协议存在；Phase 3A 已补充 `text_v2` 的 seq、timestamp、heartbeat、fault_code 和命令超时停车 hook；Phase 3B 已补充运动学参数统一、odom covariance 和标定流程文档。 | 真实底盘联调、完整故障码表、实车 covariance 估计和接口字段化。 |
-| Safety | safety gate、watchdog、dynamic speed limit、manual takeover、fault supervisor 存在。 | 统一安全状态机、状态事件记录、任务暂停 / 恢复策略完整化。 |
-| Experiment report | benchmark 基础设施和部分历史结果文件存在。 | 不复用为正式结论；后续按模板重新跑实验并记录。 |
-
-## Phase 4B Safety Integration
-
-The final `/cmd_vel` gate now resolves a unified safety state before publishing
-commands to the chassis adapter:
+## Perception Boundary
 
 ```text
-/localization/health + /scan + /odom + /chassis/state
-  + /manual_takeover/state + legacy /safety_state
-  -> cmd_vel_safety_gate_node
-  -> /safety/state + /safety/reason
-  -> gated /cmd_vel
+/camera/color/image_raw -> replaceable Detector -> Detection2DArray
+                                              + synchronized depth/CameraInfo
+                                              -> DepthProjector
+                                              -> camera optical point
+                                              -> observation-time TF2
+                                              -> map-frame observation
+                                              -> TargetManager
 ```
 
-High-risk states (`SENSOR_STALE`, `LOCALIZATION_LOST`, `CHASSIS_FAULT`,
-`COMMUNICATION_LOST`, `EMERGENCY_STOP`) publish zero speed. `SPEED_LIMITED`
-keeps the command path alive but clamps it to the low-speed policy. This phase
-does not change mission-runner recovery behavior or add new factory-patrol
-scenarios.
+`DetectorBackend` isolates the OpenCV-DNN YOLOX-S implementation. Downstream
+geometry consumes the standard `vision_msgs/msg/Detection2DArray`, so a future
+detector can be substituted without changing projection, target, task, or
+safety message contracts.
 
-## Phase 5A Factory Patrol Assets
+Depth is a median of valid samples from the central bbox ROI, not a single
+pixel. The projection rejects invalid depth and invalid intrinsics. TF lookup
+uses the image observation timestamp; latest-TF fallback is intentionally not
+used.
 
-Simulation now includes a factory patrol asset skeleton alongside the existing
-`indoor_room` demo:
+The shared coordinate path is:
 
 ```text
-robot_simulation/worlds/factory_patrol.sdf
-robot_simulation/config/factory_patrol_stations.yaml
-robot_simulation/config/factory_patrol_zones.yaml
-robot_simulation/config/factory_patrol_route.yaml
-robot_bringup/launch/factory_patrol_demo.launch.py
+map -> odom -> base_footprint -> base_link -> camera_link
+                                             -> camera_color_optical_frame
 ```
 
-The Phase 5A assets add a main patrol road, equipment area, narrow corridor,
-turning area, static obstacles, `station_A/B/C`, and `dock` markers. The route
-config is a multi-point patrol asset, but it is not claimed as a closed-loop
-mission execution result yet.
+`map` coordinates are authoritative for target association, observation goals,
+robot-person distance, and configured zones.
 
-## Phase 6 Final Architecture Boundary
+## Target and Mission Ownership
 
-The final project story is a navigation-control engineering loop: patrol goals
-enter localization and Nav2, candidate velocity commands are filtered by muxing
-and safety gating, chassis adapters publish odometry/state feedback, and health
-monitors close the diagnostic loop.
+TargetManager assigns class-aware spatial IDs and manages:
 
-Phase 6 does not add new runtime behavior. It aligns README, CI, showcase
-placeholders, scripts, and report templates so the architecture can be reviewed
-without confusing static readiness with real ROS2/Gazebo runtime success.
+```text
+TENTATIVE -> CONFIRMED -> LOST
+                    \-> PROCESSED
+```
+
+Confirmation prevents a single detector frame from starting work. Lost-frame
+handling allows short reacquisition; EMA reduces abrupt position updates when
+useful; processed cooldown and task state suppress duplicate actions. This is
+short-horizon spatial tracking, not appearance ReID. The longer Phase 8 run
+observed two IDs for one static target after lifecycle transitions.
+
+For an eligible confirmed target:
+
+```text
+TargetManager
+  -> /perception/events (INSPECTION_REQUIRED, map-frame target pose)
+  -> robot_tasks visual_inspection_task_node
+  -> observation pose planner (configured 1.2 m standoff, face target)
+  -> existing /navigate_sequence action
+  -> Nav2 NavigateToPose
+  -> /nav2_cmd_vel
+  -> cmd_vel mux
+  -> Safety Gate
+  -> /cmd_vel
+```
+
+`robot_tasks` owns event validation, observation-pose planning, action lifecycle,
+retry policy, and completion/failure decisions. It emits
+`INSPECTION_COMPLETED` only after navigation succeeds. Perception consumes that
+semantic completion and marks its target `PROCESSED`; task code does not access
+perception process memory.
+
+## Safety Ownership
+
+The perception policy evaluates only currently observed eligible person targets
+using planar map-frame distance from the observation-time `map -> base_link`
+transform:
+
+| Condition | Policy result |
+| --- | --- |
+| `distance > 3.0 m` | `CLEAR` |
+| `1.5 m <= distance <= 3.0 m` | `SPEED_LIMITED` |
+| `distance < 1.5 m` | `STOP` |
+| Target inside configured danger zone | `STOP` |
+
+The policy uses hysteresis and requires three clear observations for recovery.
+It publishes `robot_interfaces_perception/msg/PerceptionSafetyEvent`; it does
+not clamp Twist itself. The Safety Gate combines this semantic restriction with
+watchdog, estop, scan, localization, chassis, manual takeover, and legacy safety
+inputs using the most restrictive active state.
+
+## Diagnostics and Failure Semantics
+
+```text
+/perception/diagnostics -> system_monitor -> fault_supervisor -> Safety Gate
+```
+
+Independent status names distinguish RGB freshness, depth freshness,
+CameraInfo validity, detector health, observation-time TF, depth quality, and
+aggregate pipeline health. Missing, invalid, or stale data does not generate a
+new point, target, task, or artificial CLEAR event. This is fault-aware
+supervision, not a functional-safety certification.
+
+## Simulation and Navigation Authority
+
+Factory Patrol contains both `factory_patrol.sdf` and the independent industrial
+preview world. The primary profile bridges RGB-D, scan, IMU, odom, TF, and final
+velocity without changing the original robot geometry or navigation stack.
+
+When Nav2 is disabled, perception validation publishes an identity
+`map -> odom` transform. When Nav2 is enabled, AMCL owns `map -> odom`. Passive
+Gazebo settling can occur before bridged wheel odometry begins, so world pose
+and integrated odometry can have different origins; geometry benchmarks retain
+that alignment effect rather than masking it with a TF fallback.
+
+## Evidence Boundary
+
+The formal quantitative evidence is the Phase 8 WSL2/Gazebo benchmark documented
+in [experiment_report.md](experiment_report.md). Early Phase 2/3/5/6 values in
+[simulation_scenarios.md](simulation_scenarios.md) are labeled smoke runs and are
+not aggregated into the final benchmark. Physical hardware behavior remains
+unvalidated.

@@ -1,0 +1,10 @@
+metric,sample_count,mean,p50,p95,max,unit
+detector_processing_latency,30,526.1894666666666,519.714,568.83,656.778,ms
+localization_error,30,0.020454648335773803,0.01645266532897871,0.052386040687560476,0.07075488090515081,m
+detection_to_confirmation,5,1.97,2.023,2.405,2.405,s
+confirmation_to_event,5,0.0,0.0,0.0,0.0,s
+event_to_nav2_goal,5,0.08,0.002,0.385,0.385,s
+detection_to_nav2_goal,5,2.05,2.034,2.79,2.79,s
+safety_stop_response,10,0.1806,0.173,0.214,0.214,s
+mission_success_rate,5,1.0,N/A,N/A,N/A,ratio
+invalid_depth_rejection_rate,20,1.0,N/A,N/A,N/A,ratio

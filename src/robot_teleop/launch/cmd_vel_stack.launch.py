@@ -29,6 +29,15 @@ def generate_launch_description():
     speed_limited_max_angular_radps = LaunchConfiguration("speed_limited_max_angular_radps")
     twist_mux_config = LaunchConfiguration("twist_mux_config")
     mux_output_topic = LaunchConfiguration("mux_output_topic")
+    perception_safety_enabled = LaunchConfiguration("perception_safety_enabled")
+    perception_safety_topic = LaunchConfiguration("perception_safety_topic")
+    perception_event_timeout_sec = LaunchConfiguration("perception_event_timeout_sec")
+    perception_speed_limit_linear_mps = LaunchConfiguration(
+        "perception_speed_limit_linear_mps"
+    )
+    perception_speed_limit_angular_radps = LaunchConfiguration(
+        "perception_speed_limit_angular_radps"
+    )
 
     default_twist_mux_config = PathJoinSubstitution(
         [FindPackageShare("robot_teleop"), "config", "twist_mux.yaml"]
@@ -58,6 +67,17 @@ def generate_launch_description():
             DeclareLaunchArgument("speed_limited_max_angular_radps", default_value="0.4"),
             DeclareLaunchArgument("twist_mux_config", default_value=default_twist_mux_config),
             DeclareLaunchArgument("mux_output_topic", default_value="/muxed_cmd_vel"),
+            DeclareLaunchArgument("perception_safety_enabled", default_value="true"),
+            DeclareLaunchArgument(
+                "perception_safety_topic", default_value="/perception/safety_event"
+            ),
+            DeclareLaunchArgument("perception_event_timeout_sec", default_value="1.5"),
+            DeclareLaunchArgument(
+                "perception_speed_limit_linear_mps", default_value="0.15"
+            ),
+            DeclareLaunchArgument(
+                "perception_speed_limit_angular_radps", default_value="0.4"
+            ),
             Node(
                 package="twist_mux",
                 executable="twist_mux",
@@ -91,6 +111,11 @@ def generate_launch_description():
                         "emergency_stop_requires_reset": emergency_stop_requires_reset,
                         "speed_limited_max_linear_mps": speed_limited_max_linear_mps,
                         "speed_limited_max_angular_radps": speed_limited_max_angular_radps,
+                        "perception_safety_enabled": perception_safety_enabled,
+                        "perception_safety_topic": perception_safety_topic,
+                        "perception_event_timeout_sec": perception_event_timeout_sec,
+                        "perception_speed_limit_linear_mps": perception_speed_limit_linear_mps,
+                        "perception_speed_limit_angular_radps": perception_speed_limit_angular_radps,
                         "use_sim_time": use_sim_time,
                     }
                 ],
@@ -105,6 +130,13 @@ def generate_launch_description():
                         "default_source": default_source,
                         "watchdog_timeout_ms": watchdog_timeout_ms,
                         "dynamic_angular_limit_radps": dynamic_angular_limit_radps,
+                        "perception_safety_enabled": perception_safety_enabled,
+                        "perception_safety_topic": perception_safety_topic,
+                        "perception_event_timeout_sec": perception_event_timeout_sec,
+                        "perception_speed_limit_linear_mps": perception_speed_limit_linear_mps,
+                        "perception_speed_limit_angular_radps": perception_speed_limit_angular_radps,
+                        "safety_state_topic": safety_state_topic,
+                        "safety_reason_topic": safety_reason_topic,
                         "use_sim_time": use_sim_time,
                     }
                 ],

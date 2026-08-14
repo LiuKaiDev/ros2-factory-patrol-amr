@@ -1,0 +1,13 @@
+zones:
+  - zone_id: factory_person_danger_zone
+    map_name: factory_patrol
+    type: danger_zone
+    frame_id: map
+    enabled: true
+    speed_limit_mps: 0.0
+    rule: stop the robot while a managed person target occupies the marked area
+    polygon:
+      - [3.00, -1.20]
+      - [3.80, -1.20]
+      - [3.80, -0.30]
+      - [3.00, -0.30]

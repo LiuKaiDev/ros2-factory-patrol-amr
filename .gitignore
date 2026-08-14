@@ -27,3 +27,4 @@ docs/showcase/figures/*
 !docs/showcase/figures/.gitkeep
 docs/showcase/screenshots/*
 !docs/showcase/screenshots/.gitkeep
+src/robot_perception/models/

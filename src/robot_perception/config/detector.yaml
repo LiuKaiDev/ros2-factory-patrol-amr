@@ -1,0 +1,19 @@
+detector_node:
+  ros__parameters:
+    use_sim_time: true
+    backend: opencv_yolox
+    model_path: ""
+    confidence_threshold: 0.45
+    nms_threshold: 0.5
+    input_size: 640
+    device: auto
+    allowed_classes: [person, chair]
+    max_inference_rate_hz: 0.0
+    debug_image_enabled: true
+    diagnostics_rate_hz: 2.0
+    diagnostics_output_timeout_sec: 3.0
+    diagnostics_latency_warn_ms: 1200.0
+    diagnostics_latency_error_ms: 3000.0
+    image_topic: /camera/color/image_raw
+    detection_topic: /perception/detections_2d
+    debug_image_topic: /perception/debug_image

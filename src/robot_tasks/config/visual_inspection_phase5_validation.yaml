@@ -1,0 +1,18 @@
+visual_inspection_task_node:
+  ros__parameters:
+    inspection.enabled: true
+    inspection.allowed_classes: [person]
+    inspection.min_confidence: 0.5
+    inspection.standoff_distance: 1.2
+    inspection.retry_count: 1
+    inspection.retry_delay_sec: 2.0
+    inspection.processed_on_success: true
+    inspection.action_server_timeout_ms: 3000
+    inspection.tf_wait_timeout_sec: 5.0
+    inspection.map_frame: map
+    inspection.robot_frame: base_link
+    inspection.event_topic: /perception/events
+    inspection.navigation_action: /navigate_sequence
+    inspection.observation_pose_topic: /inspection/observation_pose
+    inspection.status_topic: /inspection/status
+    inspection.marker_topic: /inspection/observation_marker

@@ -26,6 +26,8 @@ require_grep() {
 
 HELPER_HPP="src/robot_teleop/include/robot_teleop/cmd_vel_safety.hpp"
 GATE_CPP="src/robot_teleop/src/cmd_vel_safety_gate_node.cpp"
+MUX_CPP="src/robot_teleop/src/cmd_vel_mux_node.cpp"
+PERCEPTION_HELPER_HPP="src/robot_teleop/include/robot_teleop/perception_safety_input.hpp"
 TEST_CPP="src/robot_teleop/test/cmd_vel_safety_test.cpp"
 LAUNCH_FILE="src/robot_teleop/launch/cmd_vel_stack.launch.py"
 CMAKE_FILE="src/robot_teleop/CMakeLists.txt"
@@ -36,14 +38,14 @@ CHASSIS_DOC="docs/chassis_protocol.md"
 ARCH_DOC="docs/architecture.md"
 README_FILE="README.md"
 
-for file in "${HELPER_HPP}" "${GATE_CPP}" "${TEST_CPP}" "${LAUNCH_FILE}" \
+for file in "${HELPER_HPP}" "${PERCEPTION_HELPER_HPP}" "${GATE_CPP}" "${MUX_CPP}" "${TEST_CPP}" "${LAUNCH_FILE}" \
   "${CMAKE_FILE}" "${PACKAGE_FILE}" "${SAFETY_DOC}" "${LOCALIZATION_DOC}" \
   "${CHASSIS_DOC}" "${ARCH_DOC}" "${README_FILE}"; do
   require_file "${file}"
 done
 
 for state in NORMAL MANUAL_TAKEOVER SPEED_LIMITED SENSOR_STALE LOCALIZATION_LOST \
-  CHASSIS_FAULT COMMUNICATION_LOST EMERGENCY_STOP RECOVERY; do
+  STOP CHASSIS_FAULT COMMUNICATION_LOST EMERGENCY_STOP RECOVERY; do
   require_grep "${state}" "${HELPER_HPP}" "safety helper does not define ${state}"
   require_grep "${state}" "${SAFETY_DOC}" "safety docs do not describe ${state}"
 done
@@ -79,6 +81,16 @@ require_grep "/safety/state" "${GATE_CPP}" \
   "safety gate does not publish /safety/state"
 require_grep "/safety/reason" "${GATE_CPP}" \
   "safety gate does not publish /safety/reason"
+require_grep "/perception/safety_event" "${GATE_CPP}" \
+  "standalone safety gate does not consume perception safety"
+require_grep "/perception/safety_event" "${MUX_CPP}" \
+  "combined Factory Patrol mux/gate does not consume perception safety"
+require_grep "PerceptionSafetyInputIsFresh" "${PERCEPTION_HELPER_HPP}" \
+  "perception safety freshness policy is missing"
+require_grep "PerceptionStopProducesFinalZeroVelocity" "${TEST_CPP}" \
+  "perception STOP final velocity test is missing"
+require_grep "ExistingStopAndPerceptionClearRemainStop" "${TEST_CPP}" \
+  "perception CLEAR priority regression test is missing"
 
 require_grep "localization_health_topic" "${LAUNCH_FILE}" \
   "launch file does not expose localization health topic"

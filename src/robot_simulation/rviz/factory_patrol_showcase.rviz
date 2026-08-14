@@ -49,6 +49,26 @@ Visualization Manager:
       Style: Points
       Size (m): 0.018
       Color: 210; 112; 82
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: RGB Camera
+      Normalize Range: true
+      Topic:
+        Value: /camera/color/image_raw
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: Detector Debug Image
+      Normalize Range: true
+      Topic:
+        Value: /perception/debug_image
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 2
     - Class: rviz_default_plugins/Odometry
       Enabled: true
       Name: Odometry
@@ -83,6 +103,35 @@ Visualization Manager:
         Reliability Policy: Reliable
         History Policy: Keep Last
         Depth: 5
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Managed Targets
+      Marker Topic:
+        Value: /perception/markers
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: Inspection Observation Pose
+      Topic:
+        Value: /inspection/observation_pose
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Shape: Arrow
+      Color: 255; 80; 20
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Inspection Observation Marker
+      Marker Topic:
+        Value: /inspection/observation_marker
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
     - Class: rviz_default_plugins/Pose
       Enabled: false
       Name: Mission Current Goal

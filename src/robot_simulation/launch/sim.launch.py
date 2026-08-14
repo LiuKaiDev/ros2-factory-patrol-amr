@@ -1,8 +1,18 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    EnvironmentVariable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -13,6 +23,13 @@ def generate_launch_description():
     label_scale = LaunchConfiguration("label_scale")
     world_file = LaunchConfiguration("world_file")
     world_name = LaunchConfiguration("world_name")
+    cmd_vel_default_source = LaunchConfiguration("cmd_vel_default_source")
+    manual_takeover = LaunchConfiguration("manual_takeover")
+    perception_safety_enabled = LaunchConfiguration("perception_safety_enabled")
+    perception_event_timeout_sec = LaunchConfiguration("perception_event_timeout_sec")
+    simulation_models = PathJoinSubstitution(
+        [FindPackageShare("robot_simulation"), "models"]
+    )
     default_world_file = PathJoinSubstitution(
         [FindPackageShare("robot_simulation"), "worlds", "indoor_room.sdf"]
     )
@@ -32,6 +49,18 @@ def generate_launch_description():
             DeclareLaunchArgument("label_scale", default_value="0.55"),
             DeclareLaunchArgument("world_file", default_value=default_world_file),
             DeclareLaunchArgument("world_name", default_value="indoor_room"),
+            DeclareLaunchArgument("cmd_vel_default_source", default_value="teleop"),
+            DeclareLaunchArgument("manual_takeover", default_value="true"),
+            DeclareLaunchArgument("perception_safety_enabled", default_value="true"),
+            DeclareLaunchArgument("perception_event_timeout_sec", default_value="1.5"),
+            SetEnvironmentVariable(
+                "GZ_SIM_RESOURCE_PATH",
+                [
+                    simulation_models,
+                    ":",
+                    EnvironmentVariable("GZ_SIM_RESOURCE_PATH", default_value=""),
+                ],
+            ),
             ExecuteProcess(
                 cmd=["gz", "sim", "-r", world_file],
                 condition=IfCondition(use_gui),
@@ -54,8 +83,16 @@ def generate_launch_description():
                     "/sim/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
                     "/robot_2/sim/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
                     "/sim/imu@sensor_msgs/msg/Imu[gz.msgs.IMU",
+                    "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                    "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
+                    "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
                     ["/world/", world_name, "/set_pose@ros_gz_interfaces/srv/SetEntityPose"],
                     ["/world/", world_name, "/control@ros_gz_interfaces/srv/ControlWorld"],
+                ],
+                remappings=[
+                    ("/camera/image", "/camera/color/image_raw"),
+                    ("/camera/depth_image", "/camera/depth/image_raw"),
+                    ("/camera/camera_info", "/camera/color/camera_info"),
                 ],
                 output="screen",
             ),
@@ -109,13 +146,22 @@ def generate_launch_description():
             Node(
                 package="robot_teleop",
                 executable="cmd_vel_mux_node",
-                parameters=[{"default_source": "teleop"}],
+                parameters=[
+                    {
+                        "default_source": cmd_vel_default_source,
+                        "perception_safety_enabled": perception_safety_enabled,
+                        "perception_event_timeout_sec": perception_event_timeout_sec,
+                        "perception_speed_limit_linear_mps": 0.15,
+                        "perception_speed_limit_angular_radps": 0.4,
+                        "use_sim_time": True,
+                    }
+                ],
                 output="screen",
             ),
             Node(
                 package="robot_teleop",
                 executable="virtual_rc_node",
-                parameters=[{"manual_takeover": True}],
+                parameters=[{"manual_takeover": manual_takeover}],
                 output="screen",
             ),
             Node(

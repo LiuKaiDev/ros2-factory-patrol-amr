@@ -1,35 +1,43 @@
 # Showcase
 
-This directory is reserved for future reviewed showcase materials after real
-ROS2/Gazebo/RViz validation. Current Phase 6 work only provides placeholders
-and documentation.
+This directory stores reviewed showcase evidence and the policy for future
+media. Phase 8 quantitative JSON/CSV artifacts live under
+`src/robot_experiments/results/`; no screenshots, GIFs, or video have been
+fabricated for Phase 9.
 
 Do not add screenshots, videos, CSV-derived figures, or demo claims unless they
 are tied to a real command, commit, parameter set, map/world, and log or rosbag
 path.
 
-## Planned Artifact Index
+## Media Artifact Index
 
 | Artifact | Directory | Status | Notes |
 | --- | --- | --- | --- |
-| RViz Nav2 debug screenshot | `screenshots/` | TBD | To be filled after real Nav2 basic validation. |
-| Gazebo factory patrol screenshot | `screenshots/` | TBD | To be filled after real factory patrol validation. |
-| Tracking comparison figures | `figures/` | TBD | To be filled after real tracking CSV review. |
-| Demo video link | external / TBD | TBD | To be filled after real runtime validation. |
+| RViz visual-perception screenshot | `screenshots/` | not recorded | Add only after a reviewed runtime capture. |
+| Gazebo Factory Patrol screenshot | `screenshots/` | not recorded | Add only after a reviewed runtime capture. |
+| Benchmark-derived figure | `figures/` | not generated | JSON/CSV remain the canonical Phase 8 evidence. |
+| Demo video | external | not recorded | Do not add a link without command/commit/run evidence. |
 
 ## Validation Summaries
 
 These concise summaries record build, test, and static-check evidence. They do
 not claim physical robot deployment or real factory operation.
 
-- [WSL2 full validation summary](wsl2_full_validation_summary.md): local WSL2
-  Ubuntu 24.04 + ROS2 Jazzy desktop validation with 514 tests, 0 errors,
-  0 failures, and 0 skipped after a package-level retry for one transient Nav2
-  `/map` timeout.
+- [WSL2 full validation summary](wsl2_full_validation_summary.md): historical
+  pre-perception WSL2 Ubuntu 24.04 + ROS2 Jazzy desktop validation with 514
+  tests after a package-level retry for one transient Nav2 `/map` timeout.
 - [Server Docker validation summary](server_docker_validation_summary.md):
   Alibaba Cloud Linux 3 + `ros:jazzy-ros-base` partial validation with 17
   packages finished and 104 tests passing while excluding `robot_tasks` because
   the low-memory server killed `cc1plus` during compilation.
+
+The current full workspace baseline after the visual-perception upgrade is 21
+packages and 648 tests with zero errors, failures, or skipped tests. Formal
+perception/mission measurements are recorded in:
+
+- [Phase 8 JSON](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
+- [Phase 8 CSV](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
+- [Experiment report](../experiment_report.md)
 
 ## Gazebo + RViz Simulation Debugging
 
@@ -123,5 +131,5 @@ For every future artifact, record:
 - relevant logs or rosbag path
 - whether the run was simulation, mock backend, or real hardware
 
-Showcase screenshots and videos are not yet validated by the presence of this
-placeholder directory.
+Showcase screenshots and videos are not yet validated by the presence of these
+directories. Documentation never references a missing image as runtime proof.
