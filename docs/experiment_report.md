@@ -1,8 +1,10 @@
 # Experiment Report
 
-This file is the project report template. It intentionally contains `TBD`
-placeholders until a real ROS2/Gazebo/Nav2 or hardware run has been executed,
-logged, and reviewed. Do not invent metrics, screenshots, or pass/fail results.
+This file contains two evidence levels: legacy acceptance templates retain
+`TBD` where their runs have not been recorded, while Phase 8 contains the formal
+reviewed perception/mission benchmark. The committed Phase 8 JSON/CSV pair is
+the primary quantitative source. Do not invent metrics, screenshots, or
+pass/fail results.
 
 ## Environment
 
@@ -82,8 +84,9 @@ topics as expected.
 
 ## 4. Factory Patrol Demo Acceptance
 
-The factory patrol assets provide entry points for demos, but runtime results
-remain `TBD` until recorded in a real environment.
+These navigation-only Factory Patrol workflow rows remain acceptance templates.
+They are separate from the recorded visual-perception benchmark below and stay
+`TBD` until each exact workflow is logged and reviewed.
 
 | demo_name | scenario | launch_or_script | expected_topics | success_criteria | runtime_result | notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -116,7 +119,7 @@ robot deployment or real factory operation.
 | ROS distribution | Jazzy |
 | ROS package set | `ros-jazzy-desktop` with project dependencies installed through `rosdep` |
 | Build result | Full workspace build completed locally |
-| Final test result | 514 tests, 0 errors, 0 failures, 0 skipped |
+| Latest full test result | 648 tests, 0 errors, 0 failures, 0 skipped |
 | robot_navigation retry | 100% tests passed, 0 tests failed out of 6 |
 | RViz launch | Passed in WSL2 validation |
 | Gazebo Factory Patrol launch | Passed after adding lightweight label mesh assets |
@@ -133,7 +136,7 @@ Runtime topics observed during Factory Patrol simulation validation included
 `/global_costmap/costmap`, `/local_costmap/costmap`,
 `/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
 
-## Phase 8: Perception And Mission Evaluation
+## Phase 8: Perception and Mission Evaluation
 
 Phase 8 extends `robot_experiments` with quantitative probes for the existing
 perception, inspection, Nav2, and Safety Gate chain. It does not change the

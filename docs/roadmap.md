@@ -1,55 +1,64 @@
 # Roadmap
 
-This roadmap records the staged engineering cleanup from Phase 0 to Phase 6.
-The repository uses `main` as the active development branch.
+This file separates completed repository history from optional future work. The
+active visual-perception work is developed on
+`feature/visual-perception-upgrade`; this document does not imply a merge to
+`main`.
 
-## Priority Definition
+## Navigation and Control Baseline
 
-| Priority | Meaning |
-| --- | --- |
-| P0 | Core project positioning and navigation-control demo credibility |
-| P1 | Engineering completeness for chassis, safety, localization, and scenarios |
-| P2 | Final presentation, CI, report templates, and showcase readiness |
+The original Phase 0-6 roadmap is complete. It established the Nav2/AMCL loop,
+standalone tracking experiments, chassis protocol and odometry readiness,
+localization health, unified safety state, Factory Patrol simulation assets,
+demo workflows, CI/static checks, and evidence templates.
 
-## Phase Summary
+| Baseline phase | Status | Result |
+| --- | --- | --- |
+| Phase 0 | complete | Project structure and evidence boundaries |
+| Phase 1A/1B | complete | Nav2 costmap/controller and RViz/runtime checks |
+| Phase 2A/2B | complete | Pure Pursuit/Stanley logging and comparison workflow |
+| Phase 3A/3B | complete | Chassis protocol v2, odometry, and calibration readiness |
+| Phase 4A/4B | complete | Localization health and unified Safety Gate state |
+| Phase 5A/5B | complete | Factory world/assets and reproducible demo workflows |
+| Phase 6 | complete | Documentation, CI, report, and showcase readiness baseline |
 
-| Phase | Priority | Status | Goal | Key deliverables |
-| --- | --- | --- | --- | --- |
-| Phase 0 | P0 | complete | Documentation structure and project positioning | README/docs cleanup, current/planned/TBD boundaries |
-| Phase 1A | P0 | complete | Nav2 basic costmap and controller hardening | local obstacle layer, `/scan`, footprint, inflation, RPP collision checks |
-| Phase 1B | P0 | complete | Nav2 RViz and minimum validation | `nav2_basic_debug.rviz`, Nav2 demo helper, runtime topic check |
-| Phase 2A | P0 | complete | Standalone tracking experiment logging | Pure Pursuit / Stanley CSV metrics and analysis scripts |
-| Phase 2B | P0 | complete | Tracking comparison workflow | comparison and plotting helpers, report placeholders |
-| Phase 3A | P1 | complete | Chassis protocol v2 baseline | heartbeat, fault code, sequence/timestamp, UDP simulator compatibility |
-| Phase 3B | P1 | complete | Odometry and calibration readiness | wheel/track parameters, covariance, calibration docs/checks |
-| Phase 4A | P1 | complete | Localization health monitoring | `/localization/health`, AMCL/TF checks, runtime topic validation |
-| Phase 4B | P1 | complete | Unified safety state integration | `/safety/state`, `/safety/reason`, safety gate monitoring |
-| Phase 5A | P1 | complete | Factory patrol simulation assets | factory world, route, stations, zones, launch/helper scripts |
-| Phase 5B | P1 | complete | Factory patrol demo workflow entries | multipoint, temporary obstacle, localization recovery helpers |
-| Phase 6 | P2 | current | Final docs, CI, experiment report, and showcase readiness | README, CI static checks, showcase placeholders, readiness script |
+## Visual Perception Upgrade
 
-## Final Project Shape
+| Phase | Status | Result |
+| --- | --- | --- |
+| Phase 0 | complete | Scope and architecture audit |
+| Phase 1 | complete | RGB-D sensor, optical TF, topics, bridge, RViz, validation |
+| Phase 2 | complete | Robust depth projection and observation-time TF geometry |
+| Phase 3 | complete | Replaceable OpenCV-DNN YOLOX-S detector integration |
+| Phase 4 | complete | Map-frame TargetManager and lifecycle/event policy |
+| Phase 5 | complete | Task-owned visual inspection through existing Nav2 |
+| Phase 6 | complete | Person safety events integrated into existing Safety Gate |
+| Phase 7 | complete | Perception diagnostics, monitoring, fault injection/recovery |
+| Phase 8 | complete | Repeatable Gazebo/WSL benchmark and committed JSON/CSV |
+| Phase 9 | complete | Final README, documentation, evidence links, and portfolio summary |
 
-The project is now organized around a closed-loop AMR navigation story:
+## Current Project Shape
 
 ```text
-goal / route -> localization -> planning -> control -> safety gate
--> chassis adapter -> odom / TF / state feedback -> health and recovery checks
+RGB-D -> 2D detection -> depth/TF -> managed map target
+                                  /                 \
+                         robot_tasks             Safety Gate
+                              |                       |
+                            Nav2 -> cmd_vel mux ------+
+                                      |
+                                 final /cmd_vel
 ```
 
-The repository contains enough static validation and documentation to explain
-the system clearly, while keeping all runtime performance claims tied to future
-real ROS2/Gazebo/Nav2 runs.
+Nav2 remains the navigation stack. Perception has no velocity publisher, and
+the Safety Gate remains final authority.
 
-## Remaining Work
+## Optional Future Work
 
-The following items are intentionally left as future work because they require
-real runtime execution or hardware access:
+- Evaluate C++ inference, ONNX Runtime, and TensorRT on target hardware.
+- Calibrate and validate the complete loop on a physical robot.
+- Add appearance-aware target re-identification and dynamic-target evaluation.
+- Evaluate filtering choices with rosbag replay and non-static scenes.
+- Expand the factory-object dataset and benchmark repetitions.
+- Record reviewed screenshots/video with exact command, commit, parameters, and logs.
 
-- Fill `docs/experiment_report.md` with measured metrics from recorded runs.
-- Add reviewed screenshots and videos under `docs/showcase/`.
-- Run full ROS2 Jazzy `colcon build --symlink-install` in a supported Ubuntu
-  environment and record the result.
-- Tune Nav2 and chassis parameters on the actual target robot.
-- Promote selected static checks to a richer ROS2 integration CI when the runner
-  image and dependency set are stable.
+These items are not implemented capabilities.

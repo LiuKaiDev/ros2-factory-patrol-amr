@@ -54,6 +54,7 @@ bash scripts/check_factory_patrol_target_manager_runtime.sh
 bash scripts/check_factory_patrol_visual_inspection_runtime.sh
 bash scripts/check_factory_patrol_perception_safety_runtime.sh
 bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
+bash scripts/run_factory_patrol_benchmarks.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
@@ -88,6 +89,12 @@ stream and existing system health/fault supervision. The Phase 7 runtime check
 injects camera, depth-quality, observation-time TF, and detector faults and
 verifies recovery without publishing velocity or synthetic safety events.
 
+`run_factory_patrol_benchmarks.sh` executes the isolated headless Phase 8
+detector, geometry, mission, safety, and invalid-depth profiles. Successful runs
+write timestamped JSON and summary CSV files under
+`src/robot_experiments/results/`. The committed reviewed pair is documented in
+`docs/experiment_report.md`; runtime varies with host load.
+
 To preview the independent Factory Patrol Scene V2 industrial world:
 
 ```bash
@@ -115,5 +122,6 @@ the final mux / safety output consumed by the Gazebo bridge. Useful checks are
 bash scripts/check_project_showcase_readiness.sh
 ```
 
-This final readiness script checks documentation, CI, showcase placeholders, and
-major validation entry points. It does not claim runtime success.
+This final readiness script checks the Phase 9 landing documentation, local
+Markdown paths, committed Phase 8 JSON/CSV consistency, CI, evidence policy,
+and major validation entry points. It does not replace ROS runtime checks.
