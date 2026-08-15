@@ -70,8 +70,8 @@ RGB-D -> Detection2D -> robust depth -> optical-frame 3D
 
 - 在配置的 `1.2 m` standoff 处规划 Observation Pose，并让机器人朝向目标，而不是驶向物体中心。
 - 复用既有 `NavigateSequence` adapter 与 Nav2；没有 visual servoing，也没有 perception velocity publisher。
-- Phase 5 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标距离 `1.342032 m`。Nav2 goal tolerance
-  解释了部分差异；该值不属于正式 Phase 8 standoff metrics。
+- 一次 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标距离 `1.342032 m`。Nav2 goal
+  tolerance 解释了部分差异；该值不属于正式 Benchmark 的 standoff metrics。
 
 ### Safety 与故障处理
 
@@ -90,7 +90,7 @@ RGB-D -> Detection2D -> robust depth -> optical-frame 3D
 
 ## 简历可用的已验证指标（Resume-ready Verified Metrics）
 
-以下全部是已提交 Phase 8 artifact 的 Gazebo/WSL simulation 结果，不是实体机器人的保证：
+以下全部是已提交 Benchmark artifact 的 Gazebo/WSL simulation 结果，不是实体机器人的保证：
 
 - 3D localization RMSE：`0.02351 m`，30 个样本，距离 `1.7-3.7 m`；P95 error `0.05239 m`。
 - CPU OpenCV-DNN YOLOX-S inference：30 个样本，Mean `526.189 ms`，P95 `568.830 ms`。
@@ -103,8 +103,8 @@ RGB-D -> Detection2D -> robust depth -> optical-frame 3D
 
 证据：
 
-- [Phase 8 JSON](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
-- [Phase 8 CSV](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
+- [Benchmark JSON](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
+- [Benchmark CSV](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
 - [实验方法与解释](experiment_report.md)
 
 ## 不能夸大的结果
@@ -141,7 +141,7 @@ RGB-D -> Detection2D -> robust depth -> optical-frame 3D
 - Gazebo settling 与积分 wheel odometry 可能有不同 origin，影响 geometry error。
 - Inspection 假设目标静止且使用固定 Observation Pose，不是 pursuit 或 visual servoing。
 
-## 实现状态
+## 当前状态
 
-视觉感知升级 Phase 0 到 Phase 9 已完成。Phase 9 只完成 documentation、可复现命令、证据
-链接和 portfolio presentation，没有改变 benchmark 的 runtime behavior。
+系统已发布 `visual-perception-v1`。当前仓库包含完整仿真闭环、可复现验证入口与固定
+Benchmark 证据；实体硬件部署仍属于未来工作。

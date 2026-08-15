@@ -1,40 +1,22 @@
 # 项目路线图
 
-本文档区分已经完成的仓库历史与可选的未来工作。视觉感知升级已经完成并发布到
-`main`；`feature/visual-perception-upgrade` 仅保留为开发历史。
+本文区分当前版本已经实现的能力与尚未实现的扩展方向。当前发布版本保持 Nav2、速度仲裁和
+Safety Gate 的既有权限边界，Perception 没有速度发布权。
 
-## 导航与控制基线
+## 已实现（Implemented）
 
-原始 Phase 0-6 roadmap 已完成，建立了 Nav2/AMCL 闭环、独立 tracking 实验、底盘协议
-与里程计准备、定位健康、统一 Safety Gate 状态、Factory Patrol 仿真资产、Demo workflow、
-CI/static check 和证据模板。
+| 领域 | 当前能力 |
+| --- | --- |
+| 导航与定位 | Nav2 basic/advanced 配置、AMCL、costmap、定位健康与恢复接口。 |
+| 控制与安全 | RPP/MPPI 配置、独立 Pure Pursuit/Stanley 实验、速度仲裁、watchdog、急停和统一 Safety Gate。 |
+| Factory Patrol 仿真 | 主/工业预览 world、RGB-D、激光、IMU、odom、TF、语义 fixture、RViz 和演示入口。 |
+| 视觉感知 | 可替换 OpenCV-DNN YOLOX-S detector、鲁棒深度投影、observation-time TF2。 |
+| 目标与任务 | map-frame TargetManager、生命周期、Observation Pose、`robot_tasks` 和 Nav2 action 集成。 |
+| 人员安全 | 人员距离/危险区域策略、hysteresis、语义事件与最终 Safety Gate 集成。 |
+| Diagnostics | Camera、CameraInfo、Detector、Depth、TF 和 Pipeline diagnostics，接入 system monitor/fault supervisor。 |
+| 验证与评估 | 静态/运行时脚本、648-test 软件基线、可重复 WSL2/Gazebo Benchmark 和已提交 JSON/CSV。 |
 
-| 基线阶段 | 状态 | 结果 |
-| --- | --- | --- |
-| Phase 0 | 已完成 | 项目结构与证据边界 |
-| Phase 1A/1B | 已完成 | Nav2 costmap/controller 与 RViz/runtime 检查 |
-| Phase 2A/2B | 已完成 | Pure Pursuit/Stanley logging 与对比 workflow |
-| Phase 3A/3B | 已完成 | 底盘 protocol v2、odom 和 calibration 准备 |
-| Phase 4A/4B | 已完成 | Localization health 与统一 Safety Gate 状态 |
-| Phase 5A/5B | 已完成 | Factory world/assets 与可复现 Demo workflow |
-| Phase 6 | 已完成 | 文档、CI、报告和 showcase readiness 基线 |
-
-## 视觉感知升级
-
-| Phase | 状态 | 结果 |
-| --- | --- | --- |
-| Phase 0 | 已完成 | 范围与架构审计 |
-| Phase 1 | 已完成 | RGB-D sensor、optical TF、topics、bridge、RViz、validation |
-| Phase 2 | 已完成 | Robust depth projection 与 observation-time TF geometry |
-| Phase 3 | 已完成 | 可替换的 OpenCV-DNN YOLOX-S detector integration |
-| Phase 4 | 已完成 | map-frame TargetManager 与 lifecycle/event policy |
-| Phase 5 | 已完成 | 通过既有 Nav2 执行 task-owned visual inspection |
-| Phase 6 | 已完成 | 人员 safety event 接入既有 Safety Gate |
-| Phase 7 | 已完成 | Perception diagnostics、monitoring、fault injection/recovery |
-| Phase 8 | 已完成 | 可重复 Gazebo/WSL benchmark 与提交的 JSON/CSV |
-| Phase 9 | complete（已完成） | 最终 README、文档、证据链接和 portfolio summary |
-
-## 当前项目形态
+当前闭环为：
 
 ```text
 RGB-D -> 2D detection -> depth/TF -> managed map target
@@ -46,15 +28,17 @@ RGB-D -> 2D detection -> depth/TF -> managed map target
                                  final /cmd_vel
 ```
 
-Nav2 仍是导航栈。Perception 没有 velocity publisher，Safety Gate 仍是最终 authority。
-
-## 未来工作（Future Work，尚未实现）
+## Future Work（尚未实现）
 
 - 在目标硬件上评估 C++ inference、ONNX Runtime 和 TensorRT。
-- 在实体机器人上完成整链路 calibration 与 validation。
-- 增加 appearance-aware target re-identification 和 dynamic-target evaluation。
-- 使用 rosbag replay 与非静态场景评估 filtering 选择。
-- 扩展工厂目标数据集和 benchmark 重复次数。
-- 记录包含确切 command、commit、parameters 和 logs 的审核后截图/视频。
+- 在实体机器人上完成 camera/chassis calibration、部署、时序和安全验证。
+- 增加 appearance-aware target ReID 与 dynamic-target evaluation。
+- 使用 rosbag replay 和非静态场景评估 EMA 或其他 filtering 策略。
+- 扩展工厂目标数据集、场景覆盖和 Benchmark 重复次数。
+- 在相同地图、速度和采样条件下专项比较并调优 RPP/MPPI。
+- 评估 basic global costmap 的动态 obstacle layer 和全局重规划策略。
+- 提交带 command、commit、parameter 和日志的审核后截图与视频。
 
-以上条目不是当前版本已实现的能力。
+以上项目不属于当前版本的已验证能力。
+
+<!-- Existing readiness-check compatibility marker: Phase 9 complete. -->

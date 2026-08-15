@@ -1,7 +1,7 @@
 # Showcase 证据规范
 
-本目录保存审阅过的 Showcase 证据和未来 media 的管理规则。Phase 8 定量 JSON/CSV artifact
-位于 `src/robot_experiments/results/`；Phase 9 没有伪造 screenshot、GIF 或 video。
+本目录保存审阅过的 Showcase 证据和 media 管理规则。定量 JSON/CSV artifact 位于
+`src/robot_experiments/results/`；当前未提交经过审阅的 screenshot、GIF 或 video。
 
 只有当 screenshot、video、CSV-derived figure 或 Demo claim 关联真实 command、commit、
 parameter set、map/world 和 log/rosbag path 时，才可以加入。
@@ -12,7 +12,7 @@ parameter set、map/world 和 log/rosbag path 时，才可以加入。
 | --- | --- | --- | --- |
 | RViz visual-perception screenshot | `screenshots/` | 未记录 | 只在 runtime capture 被审阅后加入。 |
 | Gazebo Factory Patrol screenshot | `screenshots/` | 未记录 | 只在 runtime capture 被审阅后加入。 |
-| Benchmark-derived figure | `figures/` | 未生成 | JSON/CSV 仍是 Phase 8 权威证据。 |
+| Benchmark-derived figure | `figures/` | 未生成 | JSON/CSV 是当前定量证据。 |
 | Demo video | external | 未记录 | 没有 command/commit/run 证据时不添加链接。 |
 
 ## Validation 总结
@@ -29,8 +29,8 @@ parameter set、map/world 和 log/rosbag path 时，才可以加入。
 视觉感知升级后的当前 full workspace baseline 为 21 packages、648 tests、0 errors、
 0 failures、0 skipped。正式 perception/mission 测量记录在：
 
-- [Phase 8 JSON](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
-- [Phase 8 CSV](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
+- [Benchmark JSON](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
+- [Benchmark CSV](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
 - [实验与 Benchmark 报告](../experiment_report.md)
 
 ## Gazebo + RViz 仿真调试
@@ -90,9 +90,9 @@ ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {
 ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-建议手动 input 使用 `/virtual_rc/cmd_vel`。`/teleop_cmd_vel` 是 `virtual_rc_node` 进入
-`cmd_vel_mux_node` 的 output；`/cmd_vel` 是 bridge 到 Gazebo 的 final mux/safety output。
-除非有意调试 final bridge，否则手动测试不要直接发布到 `/cmd_vel`。
+手动 input 使用 `/virtual_rc/cmd_vel`。`/teleop_cmd_vel` 是 `virtual_rc_node` 进入
+`cmd_vel_mux_node` 的 output；`/cmd_vel` 是 bridge 到 Gazebo 的 final mux/safety output，
+不属于普通手动输入接口。
 
 如果 AMR 不移动，在修改 navigation、safety、chassis 或 task code 前，先检查 `/cmd_vel`、
 `/odom`、`/safety_state`、`/cmd_vel_mux/active_source`、`ros2 topic info -v /cmd_vel` 和

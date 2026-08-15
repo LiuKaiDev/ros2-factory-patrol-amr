@@ -1,67 +1,70 @@
 # 控制系统
 
-本项目涉及两类控制链路：Nav2 controller 下的局部控制，以及 standalone path tracking experiment 下的路径跟踪控制器。两者用途不同，文档和实验报告中需要分开描述。
+项目包含两类用途不同的控制链路：Nav2 controller 负责正式导航中的局部控制；
+`robot_path_tracking` 提供 Pure Pursuit 和 Stanley 的独立路径跟踪实验。两者不共享实现，
+实验控制器也不替代 Nav2。
+
+## 最终控制架构
+
+```text
+Nav2 controller -> /nav2_cmd_vel --+
+teleop / virtual RC ---------------+-> cmd_vel mux -> Safety Gate -> /cmd_vel
+standalone tracking ---------------+
+```
+
+所有候选命令都经过速度源仲裁和 Safety Gate。Perception 不发布 `/cmd_vel` 或
+`/nav2_cmd_vel`。
 
 ## Nav2 Controller
 
-| Controller | Location | Status | Role |
-| --- | --- | --- | --- |
-| Regulated Pure Pursuit (RPP) | `nav2_basic.yaml` | current | Nav2 局部控制器，根据全局路径输出速度候选。 |
-| MPPI | `nav2_advanced.yaml` | current | Nav2 高级局部控制器，用采样优化方式输出速度候选。 |
+| Controller | 配置 | 作用 |
+| --- | --- | --- |
+| Regulated Pure Pursuit (RPP) | `src/robot_navigation/config/nav2_basic.yaml` | basic profile 的低速局部路径跟随。 |
+| MPPI | `src/robot_navigation/config/nav2_advanced.yaml` | advanced profile 的采样优化局部控制。 |
 
-Nav2 controller 的输出不是直接发到底盘，而是进入 cmd_vel 仲裁与 safety gate：
-
-```text
-Nav2 controller -> /nav2_cmd_vel or mux input -> cmd_vel_mux / twist_mux -> cmd_vel_safety_gate -> /cmd_vel
-```
+RPP 和 MPPI 都由 `controller_server` 调用并生成 Nav2 速度候选。当前参数见
+[导航系统](navigation.md)。仓库没有提交统一条件下的 RPP/MPPI 定量对比，因此不据此判断
+控制器优劣。
 
 ## 独立 Path Tracking 实验
 
-| Controller | Package | Status | Role |
-| --- | --- | --- | --- |
-| Pure Pursuit | `robot_path_tracking` | current + Phase 2A CSV metrics | 独立路径跟踪实验，用于参考路径追踪与控制器对比。 |
-| Stanley | `robot_path_tracking` | current + Phase 2A CSV metrics | 独立路径跟踪实验，用于横向误差相关控制对比。 |
-
-该链路适合做算法讲解和指标对比，不等同于 Nav2 controller_server 的插件实现。
-
-数据流：
+| Controller | Package | 作用 |
+| --- | --- | --- |
+| Pure Pursuit | `robot_path_tracking` | 参考路径追踪和前视控制实验。 |
+| Stanley | `robot_path_tracking` | 基于横向与航向误差的控制实验。 |
 
 ```text
-/reference_path + /odom -> pure_pursuit_controller_node / stanley_controller_node
-  -> /tracking_cmd_vel
-  -> /tracking_error
+/reference_path + /odom
+  -> pure_pursuit_controller_node / stanley_controller_node
+  -> /tracking_cmd_vel + /tracking_error
   -> optional tracking CSV
 ```
 
-`path_publisher_node` 发布 `/reference_path`，两个 standalone controller 订阅 `/odom` 和 `/reference_path`，输出 `/tracking_cmd_vel`，并发布统一字段的 `/tracking_error`。Phase 2A 增加可选 CSV logging，默认关闭，不会在普通运行中自动生成结果文件。
+`path_publisher_node` 发布 `/reference_path`；两个控制器输出相同字段的 `/tracking_error`。
+CSV logging 默认关闭，不会在普通运行中自动生成结果。
 
-## Phase 2A CSV 指标
+## Tracking CSV 与指标
 
-Pure Pursuit 和 Stanley 支持相同参数：
-
-| Parameter | Default | Meaning |
+| Parameter | Default | 含义 |
 | --- | --- | --- |
-| `enable_csv_logging` | `false` | 只有显式开启时才写 CSV。 |
-| `csv_output_path` | `""` | 为空时默认写入 `src/robot_experiments/results/tracking_<controller>_<timestamp>.csv`。 |
-| `path_name` | `default_path` | 写入 CSV 的路径名称标签。 |
+| `enable_csv_logging` | `false` | 显式开启后才写 CSV。 |
+| `csv_output_path` | `""` | 为空时写入 `src/robot_experiments/results/tracking_<controller>_<timestamp>.csv`。 |
+| `path_name` | `default_path` | 当前参考路径标签。 |
 
-CSV 字段：
+CSV 字段包括：
 
-| Field | Meaning |
+| Field | 含义 |
 | --- | --- |
-| `timestamp_sec` | 当前 ROS 时间秒。 |
-| `controller` | `pure_pursuit` 或 `stanley`。 |
-| `path_name` | 运行参数中的路径名称。 |
-| `sample_index` | 控制器本次运行内的采样序号。 |
+| `timestamp_sec`, `sample_index` | ROS 时间与采样序号。 |
+| `controller`, `path_name` | 控制器和路径标签。 |
 | `x`, `y`, `yaw` | 当前机器人位姿。 |
-| `ref_x`, `ref_y`, `ref_yaw` | 最近参考路径点位姿；`ref_yaw` 来自路径点 orientation。 |
-| `linear_velocity`, `angular_velocity` | 本 tick 输出的速度命令。 |
-| `lateral_error` | 机器人相对最近参考点切线方向的带符号横向误差，单位 m。 |
-| `heading_error` | `ref_yaw - yaw` 归一化到 `[-pi, pi]`，单位 rad。 |
-| `distance_to_goal` | 当前位姿到路径终点的距离。 |
-| `goal_reached` | 是否到达终点容差。 |
+| `ref_x`, `ref_y`, `ref_yaw` | 最近参考点位姿。 |
+| `linear_velocity`, `angular_velocity` | 当前速度候选。 |
+| `lateral_error` | 相对参考点切线的带符号横向误差，单位 m。 |
+| `heading_error` | 归一化到 `[-pi, pi]` 的航向误差，单位 rad。 |
+| `distance_to_goal`, `goal_reached` | 终点距离和到达标志。 |
 
-开启 CSV logging 示例：
+示例：
 
 ```bash
 ros2 launch robot_bringup tracking.launch.py \
@@ -72,128 +75,68 @@ ros2 launch robot_bringup tracking.launch.py \
   path_name:=demo_path
 ```
 
-Stanley 只需要把 `controller:=stanley`。不要提交运行生成的 CSV 结果。
+使用 Stanley 时改为 `controller:=stanley`。运行生成的 CSV 默认被忽略，只有附带可追溯
+配置并经过审阅的结果才适合作为项目证据。
 
-分析 CSV：
+## 分析与可视化
+
+分析单个结果：
 
 ```bash
 python3 scripts/analyze_tracking_result.py <csv_file>
 ```
 
-提示型运行脚本：
-
-```bash
-bash scripts/run_tracking_experiment_demo.sh pure_pursuit
-bash scripts/run_tracking_experiment_demo.sh stanley
-```
-
-该脚本检查 `ros2` 环境并打印推荐 launch / analyze 命令，不会自动修改文件，也不会自动提交生成的 CSV。
-
-分析脚本只使用 Python 标准库，输出：
-
-- `controller`
-- `path_name`
-- `sample_count`
-- `goal_reached`
-- `mean_lateral_error`
-- `rms_lateral_error`
-- `max_lateral_error`
-- `mean_abs_heading_error`
-- `max_abs_heading_error`
-- `mean_linear_velocity`
-- `max_linear_velocity`
-- `max_abs_angular_velocity`
-- `final_distance_to_goal`
-
-## Phase 2B 可视化与对比
-
-Phase 2B 增加从 tracking CSV 到展示材料的脚本。它们只处理真实运行后得到的 CSV，不生成或伪造实验数据。
-
-绘图脚本：
-
-```bash
-python3 scripts/plot_tracking_result.py <csv_file> --output-dir src/robot_experiments/results/figures
-```
-
-如果省略 `--output-dir`，默认输出到：
-
-```text
-src/robot_experiments/results/figures/
-```
+输出包括 sample count、goal status、横向误差 RMS/最大值、航向误差均值/最大值、速度统计
+和最终 goal distance。
 
 生成图表：
 
-| Figure | Meaning |
-| --- | --- |
-| `trajectory.png` | `ref_x/ref_y` 参考路径与 `x/y` 实际轨迹，用于观察整体跟踪偏离和起终点位置。 |
-| `lateral_error.png` | 横向误差随 `sample_index` 变化，单位 m。 |
-| `heading_error.png` | 航向误差随 `sample_index` 变化，单位 rad。 |
-| `cmd_vel.png` | `linear_velocity` 与 `angular_velocity` 命令曲线。 |
+```bash
+python3 scripts/plot_tracking_result.py <csv_file> \
+  --output-dir src/robot_experiments/results/figures
+```
 
-对比脚本：
+| Figure | 含义 |
+| --- | --- |
+| `trajectory.png` | 参考路径与实际轨迹。 |
+| `lateral_error.png` | 横向误差随采样变化。 |
+| `heading_error.png` | 航向误差随采样变化。 |
+| `cmd_vel.png` | 线速度和角速度候选曲线。 |
+
+比较两个结果：
 
 ```bash
 python3 scripts/compare_tracking_results.py <pure_pursuit.csv> <stanley.csv>
-python3 scripts/compare_tracking_results.py --format markdown <pure_pursuit.csv> <stanley.csv>
+python3 scripts/compare_tracking_results.py --format markdown \
+  <pure_pursuit.csv> <stanley.csv>
 ```
 
-默认 text 输出；`--format markdown` 输出可直接复制到实验报告模板的 Markdown 表格。
-
-标准工作流脚本：
+完整分析 workflow：
 
 ```bash
 bash scripts/run_tracking_analysis_workflow.sh <tracking.csv>
 bash scripts/run_tracking_analysis_workflow.sh <pure_pursuit.csv> <stanley.csv>
 ```
 
-该脚本会依次运行 `analyze_tracking_result.py` 和 `plot_tracking_result.py`；多个 CSV 时会额外输出 Markdown 对比表。它不需要 ROS2 环境，但绘图需要 `matplotlib`。如果当前环境没有 `matplotlib`，绘图脚本会提示安装 `python3-matplotlib`。
+这些脚本不依赖 ROS2；绘图需要 `matplotlib`。
 
-## 如何解读 Tracking 指标
+## 指标解释
 
-| Metric | How to read it |
+| Metric | 解读 |
 | --- | --- |
-| `rms_lateral_error` | 横向误差 RMS，适合看整体跟踪稳定性。越小通常表示越贴近参考路径，但必须结合路径、速度和采样条件解读。 |
-| `max_lateral_error` | 最大横向误差绝对值，适合暴露局部大偏差。 |
-| `mean_abs_heading_error` | 平均航向误差绝对值，反映车身朝向与参考方向的整体一致性。 |
-| `max_abs_heading_error` | 最大航向误差绝对值，适合观察急弯、起步或末端姿态问题。 |
-| `max_abs_angular_velocity` | 最大角速度命令绝对值，帮助判断控制输出是否过激。 |
-| `final_distance_to_goal` | 最后一帧到路径终点距离，不能单独代表全程跟踪质量。 |
+| `rms_lateral_error` | 全程横向偏差的整体量级。 |
+| `max_lateral_error` | 局部最大偏差。 |
+| `mean_abs_heading_error` | 车身朝向与参考方向的平均差异。 |
+| `max_abs_heading_error` | 急弯、起步或末端的最大朝向误差。 |
+| `max_abs_angular_velocity` | 控制输出的最大转向强度。 |
+| `final_distance_to_goal` | 最后一帧到终点的距离，不能单独代表全程质量。 |
 
-Pure Pursuit / Stanley 公平比较建议：
+公平比较需要使用相同路径、初始位姿、odom source、速度与角速度上限、goal tolerance、采样
+条件和运行窗口，并记录 commit、launch 参数与 CSV 路径。
 
-- 使用同一 `path_file` / `path_name`；
-- 使用同一初始位姿和同一 odom source；
-- 使用相同或等价的 `target_speed`、`max_angular_speed` 和 `goal_tolerance`；
-- 使用相同采样频率或近似采样条件；
-- 使用同一段运行窗口，不截取对某个控制器更有利的片段；
-- 报告中同时给出 CSV 路径、commit、launch 参数和图表目录。
+## 验证边界
 
-## 指标含义
-
-Phase 2A/2B 建立基础指标输出、分析和绘图能力，不声称任何控制器优劣。
-
-| Metric | Meaning | Status |
-| --- | --- | --- |
-| `lateral_error` | 横向误差时间序列 | current CSV field |
-| `heading_error` | 航向误差时间序列 | current CSV field |
-| `rms_lateral_error` | 横向误差 RMS | current analysis script |
-| `max_lateral_error` | 最大横向误差绝对值 | current analysis script |
-| `mean_abs_heading_error` | 平均航向误差绝对值 | current analysis script |
-| `trajectory_compare` | 参考轨迹与实际轨迹对比 | current plotting script |
-| `cmd_vel_curve` | 线速度 / 角速度曲线 | current plotting script |
-| `RPP / MPPI comparison` | Nav2 controller 对比 | planned Phase 2B 或后续 |
-
-## 实验边界
-
-Phase 6 最终说明：
-
-- Nav2 controller config 仍分别使用 basic navigation 的 RPP 和 advanced navigation 的 MPPI。
-- Standalone tracking experiment 仍提供 Pure Pursuit 和 Stanley 的 CSV logging、分析、对比与绘图 workflow。
-- 在记录真实 CSV、launch parameter、map 和 commit ID 前，报告结果保持 `TBD`。
-- Generated tracking CSV 和 figure 默认被 ignore，避免未审阅的实验产物误提交。
-
-- 可以说明项目中存在 Pure Pursuit / Stanley / RPP / MPPI 配置和代码。
-- 可以说明 Pure Pursuit / Stanley 已有 standalone CSV 指标输出基础。
-- 可以说明已有 CSV 分析、图表生成和多控制器 Markdown 对比脚本。
-- RPP / MPPI 全量对比、真实图表和最终报告仍需后续真实运行后补充。
-- 不应在没有重新跑实验的情况下声称某控制器更优、收敛更快或误差更小。
+- Pure Pursuit/Stanley 已具备统一 CSV、分析、绘图和 Markdown 对比工具。
+- RPP/MPPI 是当前 Nav2 配置中的正式控制器，但尚无统一专项对比产物。
+- 仿真 tracking 结果不等于实体底盘控制性能；未附带真实 CSV 的比较不构成实验结论。
+- 未来的 RPP/MPPI 调参与硬件验证统一列在 [项目路线图](roadmap.md)。

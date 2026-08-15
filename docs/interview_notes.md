@@ -8,7 +8,7 @@
 这是一个 ROS2 Jazzy 低速工厂巡检 AMR。系统在 AMCL、Nav2、velocity mux 和 Safety Gate
 闭环上接入 RGB-D perception，通过 Detection2D、robust Depth、CameraInfo 与 observation-time
 TF2 得到 map-frame target，再由 TargetManager、`robot_tasks` 和语义 Safety event 参与巡检
-与人员安全。项目已在 WSL2/Gazebo 完成 Phase 8 benchmark；实体硬件结果仍未验证。
+与人员安全。项目已在 WSL2/Gazebo 完成可重复 Benchmark；实体硬件结果仍未验证。
 
 ## 2 分钟版本
 
@@ -23,9 +23,8 @@ patrol goal，使用 AMCL 定位和 Nav2 规划。RGB-D pipeline 将 2D bbox 与
 mock/serial/UDP chassis backend、safety state topic、localization health monitoring，
 以及静态和 runtime validation 脚本。
 
-必须强调：simulation 和 mock 检查不能当作现场部署结果。Phase 8 已有可追溯的 Gazebo/WSL
-指标；旧 acceptance template 和实体硬件项目在没有真实 logs、commands、commit ID、maps
-和 parameter files 前保持 `TBD`。
+必须强调：simulation 和 mock 检查不能当作现场部署结果。当前有可追溯的 Gazebo/WSL
+指标；实体硬件 calibration、timing 和 safety 仍未验证。
 
 ## 5 分钟结构
 
@@ -34,7 +33,7 @@ mock/serial/UDP chassis backend、safety state topic、localization health monit
 3. 算法：Depth projection、observation-time TF2、TargetManager、AMCL、Navfn/SmacPlanner2D、RPP/MPPI。
 4. 工程：ROS2 package、launch file、parameter、mock/serial/UDP backend 和 validation script。
 5. 安全：final `/cmd_vel` gate、emergency stop、watchdog、speed limit、localization/chassis health input。
-6. 验证：static/runtime check、fault injection、Phase 8 JSON/CSV benchmark 和 evidence boundary。
+6. 验证：static/runtime check、fault injection、固定 JSON/CSV Benchmark 和 evidence boundary。
 7. 边界：不伪造指标、不声称生产硬件，真实 tuning 仍属于未来工作。
 
 ## 常见问题
@@ -50,7 +49,7 @@ mock/serial/UDP chassis backend、safety state topic、localization health monit
 | TargetManager 解决什么问题？ | 它提供多帧确认、3D 空间关联、lifecycle、cooldown 和 duplicate suppression；它不是永久 ReID。 |
 | `/cmd_vel` 如何受到保护？ | 候选命令先经过 mux，再进入 final Safety Gate；estop、watchdog、manual takeover、localization、scan、odom 和 chassis 状态都可以使其限速或停车。 |
 | 是否已经接入实体硬件？ | 仓库有 mock、serial 和 UDP adapter layer；真实硬件 calibration 与长时间现场结果仍是未来工作。 |
-| 是否有实验结果？ | 有 Phase 8 Gazebo/WSL benchmark 与提交的 JSON/CSV；实体硬件和未运行的旧验收项保持 `TBD`。 |
+| 是否有实验结果？ | 有 Gazebo/WSL Benchmark 与提交的 JSON/CSV；实体硬件结果仍未验证。 |
 
 ## 应避免的表述
 

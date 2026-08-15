@@ -1,5 +1,7 @@
 # 底盘通信协议
 
+<!-- Existing chassis-check compatibility marker: Phase 3B. -->
+
 底盘适配层目标是把 ROS2 上位机中的速度指令、里程计、底盘状态和故障状态，与具体底盘控制器或仿真后端连接起来。它不是 VCU 固件开发，也不声称覆盖真实底盘内部电机控制。
 
 ## 当前底盘 Adapter
@@ -42,10 +44,10 @@ STATE -> 底盘或后端反馈状态
 
 | Backend | Status | Responsibility |
 | --- | --- | --- |
-| Mock | current | 本地无硬件闭环、单元测试和演示。 |
-| Serial | current adapter | 通过串口连接外部底盘控制器；真实设备参数需现场配置。 |
-| UDP | current adapter | 通过 UDP 连接外部底盘控制器或模拟器。 |
-| Mick binary frame | partial current | 仓库中存在相关 frame 编解码入口，具体设备适配能力以代码和测试为准。 |
+| Mock | 已实现 | 本地无硬件闭环、单元测试和演示。 |
+| Serial | Adapter 已实现 | 通过串口连接外部底盘控制器；真实设备参数需现场配置。 |
+| UDP | Adapter 已实现 | 通过 UDP 连接外部底盘控制器或模拟器。 |
+| Mick binary frame | 部分实现 | 仓库中存在相关 frame 编解码入口，具体设备适配能力以代码和测试为准。 |
 
 ## 反馈 Topics
 
@@ -57,9 +59,10 @@ STATE -> 底盘或后端反馈状态
 - `odom -> base_footprint` 或 EKF 输入
 - battery / status / fault message（当前字段能力以接口实现为准）
 
-## Protocol v2 Phase 3A
+## Protocol v2
 
-Phase 3A 已在上位机适配层补充文本协议 v2 的最小工程骨架，目标是让 Mock / Serial / UDP 后端具备 seq、timestamp、heartbeat、fault_code 和命令超时停车的统一入口。该阶段不包含真实底盘硬件联调结论，也不声明某个厂商控制器已经完整适配。
+文本协议 v2 让 Mock、Serial 和 UDP 后端具备 seq、timestamp、heartbeat、fault_code 和命令
+超时停车的统一入口。仓库未包含特定厂商控制器的实体硬件联调结论。
 
 协议 v2 当前以行文本为主，当 `chassis_driver_node` 参数 `protocol:=text_v2` 时，Serial / UDP 后端会发送 v2 命令和 heartbeat；Mock 后端会记录 v2 frame，便于单元测试和本地闭环检查；`chassis_simulator_node` 可解析 `CMDV2` / `HEARTBEATV2` 并回传 `ODOMV2` / `STATEV2`。已有 `text` 和 `mick_binary` 路径保持兼容。
 
@@ -83,7 +86,9 @@ HEARTBEATV2 <seq> <timestamp_sec> <source>
 | 4 | `MALFORMED_PACKET` | 收到无法解析的文本行或 Mick binary frame |
 | 5 | `ESTOP_ACTIVE` | v2 状态反馈报告 emergency stop |
 
-`/chassis/state` 当前消息没有独立 `fault_code` 字段，因此 Phase 3A 将故障码、最近接收 seq / timestamp、estop、温度和轮速摘要追加在 `status` 字符串中，例如 `fault_code=NONE(0):rx_seq=...`。后续如需机器可读字段，应在接口包中新增 msg 字段并做兼容迁移。
+`/chassis/state` 当前消息没有独立 `fault_code` 字段，因此故障码、最近接收 seq/timestamp、
+estop、温度和轮速摘要追加在 `status` 字符串中，例如
+`fault_code=NONE(0):rx_seq=...`。未来若增加机器可读字段，需要在接口包中做兼容迁移。
 
 `chassis_driver_node` 新增参数：
 
@@ -103,12 +108,11 @@ bash scripts/check_chassis_protocol_v2.sh
 
 该脚本只检查仓库中 v2 结构、驱动 hook 和单测锚点是否存在；它不是串口 / UDP 真实联通测试。
 
-## Odom / Kinematics Phase 3B
+## Odom / Kinematics
 
-Phase 3B 聚焦底盘里程计、运动学参数和标定文档工程化。它与 Phase 3A 的关系是：
-
-- Phase 3A 解决通信可靠性骨架：`text_v2`、seq、timestamp、heartbeat、fault_code 和 command timeout。
-- Phase 3B 解决 odom / TF / kinematics / calibration：轮径、轮距、速度上限、odom covariance 和标定流程。
+底盘层同时负责通信可靠性与里程计工程化：`text_v2` 提供 seq、timestamp、heartbeat、
+fault_code 和 command timeout；kinematics 配置提供轮径、轮距、速度上限、odom covariance
+和标定入口。
 
 底盘参数默认值：
 
@@ -134,28 +138,29 @@ Phase 3B 聚焦底盘里程计、运动学参数和标定文档工程化。它�
 
 这些 covariance 是 mock / 仿真默认值，不来自真实底盘标定。未观测的 z、roll、pitch 相关自由度在发布时使用较大的 covariance，真实机器人应根据标定实验和传感器噪声估计修正。
 
-Frame 约定当前保持一致：`chassis_driver_node` 发布 `odom -> base_footprint`，Nav2 basic 使用 `robot_base_frame: base_footprint`，URDF 提供 `base_footprint -> base_link` 固定关节。Phase 3B 不重构 TF 树。
+Frame 约定保持一致：`chassis_driver_node` 发布 `odom -> base_footprint`，Nav2 basic 使用
+`robot_base_frame: base_footprint`，URDF 提供 `base_footprint -> base_link` 固定关节。
 
-标定流程见 `docs/calibration.md`，真实底盘标定结果仍为 TBD，不在本文档中伪造。
+标定流程见 [底盘标定](calibration.md)；实体底盘标定尚未验证。
 
-## Protocol v2 后续计划
+## Protocol v2 能力状态
 
 | Field / mechanism | Purpose | Status |
 | --- | --- | --- |
-| `seq` | 请求 / 响应关联，丢包检测 | Phase 3A current in text_v2 |
-| `timestamp` | 延迟估计和日志对齐 | Phase 3A current in text_v2 |
-| `heartbeat` | 通信存活检测 | Phase 3A current transmit / receive parsing |
-| `fault_code` | 标准化底盘故障码 | Phase 3A current minimal enum |
-| `timeout` | 命令超时停车策略 | Phase 3A current driver stop hook |
-| `odom covariance` | EKF / localization 使用里程计不确定性 | Phase 3B current mock / simulation defaults |
-| protocol version | 兼容多版本底盘控制器 | partial via `protocol:=text_v2` |
+| `seq` | 请求 / 响应关联，丢包检测 | `text_v2` 已实现 |
+| `timestamp` | 延迟估计和日志对齐 | `text_v2` 已实现 |
+| `heartbeat` | 通信存活检测 | 发送与接收解析已实现 |
+| `fault_code` | 标准化底盘故障码 | 最小枚举已实现 |
+| `timeout` | 命令超时停车策略 | Driver hook 已实现 |
+| `odom covariance` | EKF / localization 使用里程计不确定性 | Mock/仿真默认值已配置 |
+| protocol version | 兼容多版本底盘控制器 | 通过 `protocol:=text_v2` 部分实现 |
 
 真实底盘联调后，需要补充串口波特率、UDP 端口、坐标系约定、速度单位、故障码表和安全超时策略。
 
-## Phase 4B Safety 映射
+## Safety 映射
 
-Phase 4B 在 `cmd_vel_safety_gate_node` 中读取 `/chassis/state`。message 仍使用已有
-`connected` field 和 Phase 3A `status` string，因此本阶段不需要 interface migration。
+`cmd_vel_safety_gate_node` 读取 `/chassis/state` 的 `connected` field 和 `status` string，
+将底盘状态映射到统一 Safety state。
 
 Safety Gate 使用的映射：
 

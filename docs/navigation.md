@@ -1,97 +1,145 @@
 # 导航系统
 
-本项目的导航链路基于 Nav2。Phase 1A 已补强 basic Nav2 配置，使其更适合低速巡检 AMR 的规控岗位展示：local costmap 增加 LaserScan obstacle layer，补充 footprint、inflation scaling 和 RPP regulated 参数。Phase 1B 增加 Nav2 basic 调试 RViz 配置和最小验收脚本，方便检查 `/scan`、TF、odom、costmap、global path 和 cmd_vel 链路。
+## 系统概览
+
+导航链路以 Nav2 为唯一规划与局部控制栈，面向半封闭室内或厂区低速巡检。AMCL 提供
+`map -> odom`，Nav2 根据地图、激光和机器人 footprint 生成路径与速度候选，候选命令再
+经过速度仲裁和 Safety Gate 才能到达底盘：
+
+```text
+map_server + /scan -> AMCL -> planner_server -> controller_server
+                                      -> /nav2_cmd_vel
+                                      -> cmd_vel mux -> Safety Gate -> /cmd_vel
+```
+
+## 导航与控制数据流
+
+- `map_server` 加载静态地图，供 AMCL 与 global costmap 使用。
+- `AMCL` 订阅 `/scan`，发布 `/amcl_pose` 和 `map -> odom`。
+- `planner_server` 在 global costmap 上生成全局路径。
+- `controller_server` 结合 local costmap 和全局路径生成 `/nav2_cmd_vel`。
+- `behavior_server` 提供 spin、backup、wait 等行为插件。
+- `cmd_vel_mux_node`（Factory Patrol 仿真）或 `twist_mux`（实体底盘 bringup）选择速度源。
+- `cmd_vel_safety_gate_node` 解析 watchdog、急停、定位、底盘、传感器和感知安全输入，发布
+  唯一的最终 `/cmd_vel`。
 
 ## Nav2 组件
 
-```text
-map_server -> AMCL -> planner_server -> controller_server -> /cmd_vel candidate
-```
-
-- `map_server`：加载静态地图，例如 `src/robot_navigation/maps/indoor_room.yaml`。
-- `AMCL`：基于 `/scan` 和地图估计 `map -> odom`。
-- `planner_server`：根据全局 costmap 生成全局路径。
-- `controller_server`：根据局部 costmap 和全局路径生成局部速度指令。
-- `behavior_server`：提供 spin、backup、wait 等恢复 / 行为插件。
-- `global_costmap`：面向全局路径搜索，使用 map frame。
-- `local_costmap`：面向局部避障与控制，使用 odom frame 和 rolling window。
-
-## 当前配置
-
-| File | Global planner | Local controller | Costmap status |
+| 配置 | Global planner | Local controller | Costmap 组合 |
 | --- | --- | --- | --- |
 | `src/robot_navigation/config/nav2_basic.yaml` | `nav2_navfn_planner::NavfnPlanner` | `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController` | global: static + inflation + footprint；local: obstacle + inflation + footprint |
-| `src/robot_navigation/config/nav2_advanced.yaml` | `nav2_smac_planner::SmacPlanner2D` | `nav2_mppi_controller::MPPIController` | global/local: voxel + inflation，含 footprint |
+| `src/robot_navigation/config/nav2_advanced.yaml` | `nav2_smac_planner::SmacPlanner2D` | `nav2_mppi_controller::MPPIController` | global/local: voxel + inflation + footprint |
 
-basic 配置适合展示清晰、低复杂度的导航闭环：Navfn 做全局规划，RPP 做低速局部跟随，local costmap 使用 2D LaserScan obstacle layer 表达近场动态障碍。advanced 配置适合展示更接近工程调参的组合：SmacPlanner2D、MPPI 和 voxel layer。
+basic 配置强调低速巡检闭环的可解释性；advanced 配置提供 SmacPlanner2D、MPPI 和 voxel
+layer 的工程化组合。两者都使用相同的 `map`、`odom`、`base_footprint` frame 约定。
 
-## Map 与 Costmap 关系
+## Localization / AMCL
 
-- 静态地图由 map_server 加载，提供给 AMCL 和 global costmap。
-- AMCL 输出 `map -> odom`，让全局规划与机器人局部里程计链路对齐。
-- global costmap 负责路径可行区域，local costmap 负责机器人附近动态环境表达。
-- controller_server 使用 local costmap 和全局路径输出速度候选值，后续仍需经过 cmd_vel 仲裁和 safety gate。
+AMCL 使用 `/scan` 和静态地图估计 `map -> odom`；底盘或 EKF 提供 `odom -> base_footprint`，
+URDF 提供 `base_footprint -> base_link`。定位健康由
+`localization_health_monitor_node` 汇总为 `/localization/health`，并由 Safety Gate 映射为
+限速、停车或恢复状态。详细阈值见 [定位系统](localization.md)。
 
-## Phase 1A Basic Costmap 更新
+## Global Planner
 
-`src/robot_navigation/config/nav2_basic.yaml` 当前补强内容：
+basic 使用 Navfn：
 
-| Area | Current setting | Purpose |
+| Parameter | Value |
+| --- | --- |
+| Plugin | `nav2_navfn_planner::NavfnPlanner` |
+| `tolerance` | `0.5 m` |
+| `use_astar` | `false` |
+| Global costmap | `map` frame，static layer + inflation layer + footprint |
+| Global inflation | `inflation_radius: 0.55`，`cost_scaling_factor: 3.0` |
+
+advanced 使用 SmacPlanner2D：
+
+| Parameter | Value |
+| --- | --- |
+| Plugin | `nav2_smac_planner::SmacPlanner2D` |
+| `tolerance` | `0.25 m` |
+| `downsample_costmap` | `false` |
+| Global costmap | static layer + voxel layer + inflation layer |
+| Voxel range | `z_resolution: 0.05`，`z_voxels: 12`，`max_obstacle_height: 1.2` |
+| Inflation | `inflation_radius: 0.65` |
+
+basic global costmap 保持静态地图为主要全局障碍来源，近场动态障碍由 local costmap 处理。
+更复杂的全局动态障碍策略属于 [项目路线图](roadmap.md) 中的后续工作。
+
+## Local Controller
+
+basic 的 RPP 参数：
+
+| Parameter group | Settings |
+| --- | --- |
+| Lookahead | `lookahead_dist: 0.8`，`min_lookahead_dist: 0.35`，`max_lookahead_dist: 1.0`，`lookahead_time: 1.5`，`use_velocity_scaled_lookahead_dist: true` |
+| Heading | `rotate_to_heading_angular_vel: 0.8` |
+| Curvature scaling | `regulated_linear_scaling_min_radius: 0.7`，`regulated_linear_scaling_min_speed: 0.08` |
+| Cost scaling | `cost_scaling_dist: 0.6`，`cost_scaling_gain: 1.0` |
+| Collision check | `use_collision_detection: true`，`max_allowed_time_to_collision_up_to_carrot: 1.5` |
+
+advanced 的 MPPI 参数为 `time_steps: 48`、`model_dt: 0.05`、`batch_size: 1000`、
+`vx_max: 0.55`、`wz_max: 1.5`。RPP/MPPI 的独立性能比较尚未形成统一的实测结论，不能仅凭
+配置文件宣称某一控制器更优。
+
+## Global / Local Costmap
+
+两种配置都使用矩形 footprint：
+
+```text
+[[-0.32, -0.18], [-0.32, 0.18], [0.32, 0.18], [0.32, -0.18]]
+```
+
+basic local costmap 使用 `odom` frame 的 `5 m x 5 m` rolling window，分辨率 `0.05 m`，
+`nav2_costmap_2d::ObstacleLayer` 订阅 `/scan`，同时开启 marking 和 clearing；障碍最大
+范围为 `3.0 m`，raytrace 最大范围为 `4.0 m`。Inflation 为 `0.45 m`、cost scaling `3.0`。
+
+advanced local costmap 使用 voxel layer：`z_resolution: 0.05`、`z_voxels: 12`、
+`max_obstacle_height: 1.2 m`、inflation `0.5 m`。global costmap 分别使用 static + inflation
+或 static + voxel + inflation。机器人 frame 均为 `base_footprint`。
+
+## 当前关键参数
+
+| Item | Basic | Advanced |
 | --- | --- | --- |
-| robot frame | `base_footprint` | 与现有 AMCL、Nav2 和 TF 主链保持一致。 |
-| footprint | `[[-0.32, -0.18], [-0.32, 0.18], [0.32, 0.18], [0.32, -0.18]]` | 用矩形 footprint 表达低速 AMR 外形，供 collision checking 和 costmap 膨胀参考。 |
-| local costmap | `global_frame: odom`、`rolling_window: true`、`5m x 5m`、`0.05m` resolution | 用机器人附近滚动窗口处理局部障碍和局部控制。 |
-| local obstacle layer | `nav2_costmap_2d::ObstacleLayer` | 将近场激光障碍写入 local costmap。 |
-| LaserScan source | `observation_sources: scan`，topic `/scan`，`marking: true`，`clearing: true` | 使用项目标准化后的 `/scan` 作为障碍标记和清除来源。 |
-| local inflation layer | `inflation_radius: 0.45`，`cost_scaling_factor: 3.0` | 在障碍附近形成代价梯度，使 RPP 避免贴边通过。 |
-| global costmap | static + inflation + footprint | 保持全局规划主要基于静态地图，动态障碍优先交给 local costmap 处理。 |
+| Controller frequency | `20 Hz` | `30 Hz` |
+| Goal tolerance | `0.15 m / 0.2 rad` | `0.18 m / 0.18 rad` |
+| Local costmap update/publish | `8 / 4 Hz` | `8 / 4 Hz` |
+| Global costmap update/publish | `1 / 1 Hz` | `2 / 1 Hz` |
+| Planner frequency | `5 Hz` | `10 Hz` |
 
-本阶段没有在 basic global costmap 中加入 obstacle layer。原因是 basic 配置的定位是清晰、可解释的低速巡检导航闭环：全局路径由静态地图和 footprint 约束给出，近场动态障碍由 local obstacle layer 处理。若后续需要让动态障碍触发全局绕行，可在后续调参阶段增加 global obstacle layer 并配套验证。
+参数源分别是 `nav2_basic.yaml` 和 `nav2_advanced.yaml`；文档中的值与配置保持同步。
 
-## Phase 1A RPP 更新
+## RViz 调试
 
-basic `FollowPath` 继续使用 `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`，并补充以下低速巡检参数：
+`src/robot_simulation/rviz/nav2_basic_debug.rviz` 是当前可用的 Nav2 调试视图，包含：
 
-| Parameter group | Settings | Purpose |
-| --- | --- | --- |
-| lookahead | `lookahead_dist: 0.8`、`min_lookahead_dist: 0.35`、`max_lookahead_dist: 1.0`、`lookahead_time: 1.5`、`use_velocity_scaled_lookahead_dist: true` | 低速时缩短前视距离，高速时适度拉长，兼顾巡检通道跟随和轨迹平滑。 |
-| rotate to heading | `rotate_to_heading_angular_vel: 0.8` | 限制转向角速度，避免低速平台原地调整过猛。 |
-| regulated velocity scaling | `use_regulated_linear_velocity_scaling: true`、`regulated_linear_scaling_min_radius: 0.7`、`regulated_linear_scaling_min_speed: 0.08` | 曲率较大时降低线速度，保留最小爬行速度。 |
-| cost regulated scaling | `use_cost_regulated_linear_velocity_scaling: true`、`cost_scaling_dist: 0.6`、`cost_scaling_gain: 1.0` | 靠近高代价区域时降低速度。 |
-| collision detection | `use_collision_detection: true`、`max_allowed_time_to_collision_up_to_carrot: 1.5` | 沿 carrot 方向做短时碰撞预测，发现风险时约束控制输出。 |
+- Robot Model、TF、`/scan`、`/odom`、`/map` 和 `/amcl_pose`；
+- `/global_costmap/costmap`、`/local_costmap/costmap` 和 `/plan`；
+- 2D Pose Estimate (`/initialpose`) 与 2D Goal Pose (`/goal_pose`) 工具。
 
-这些参数仍需在 ROS2 Jazzy + 具体 Nav2 版本中通过运行验证；Phase 1A 只提交配置补强和静态检查脚本，不声称实验结果。
+Factory Patrol 的 `factory_patrol_showcase.rviz` 用于非 Nav2 场景展示；RGB-D 图像显示已在
+Factory Patrol 视图中提供，Depth 默认关闭。
 
-## Phase 1B RViz Debug View
+## 与视觉巡检任务的集成
 
-已有 RViz 配置审查：
+视觉任务不会绕过 Nav2：
 
-- `src/robot_simulation/rviz/amr_sim.rviz`：已包含 `/scan`、TF、`/odom` 和 odom path 等显示项。
-- `src/robot_description/rviz/display.rviz`：偏机器人模型 / TF 显示。
+```text
+CONFIRMED Target
+  -> PerceptionEvent
+  -> robot_tasks
+  -> Observation Pose
+  -> /navigate_sequence
+  -> Nav2 NavigateToPose
+  -> /nav2_cmd_vel
+  -> cmd_vel mux -> Safety Gate -> /cmd_vel
+```
 
-Phase 1B 新增专用调试配置：
+`robot_tasks` 拥有事件校验、Observation Pose、action lifecycle、重试和完成/失败决定。
+Perception 只提供 map-frame 目标和语义事件，不发布任何速度命令。
 
-- `src/robot_simulation/rviz/nav2_basic_debug.rviz`
-
-该配置面向 Nav2 basic 调试，包含：
-
-| Display | Topic / frame | Purpose |
-| --- | --- | --- |
-| Robot Model | `/robot_description` | 检查机器人模型和 footprint 近似外形。 |
-| TF | `/tf`、`/tf_static` | 检查 `map -> odom -> base_footprint -> base_link` 链路。 |
-| Laser Scan | `/scan` | 检查标准激光输入是否存在。 |
-| Odometry | `/odom` | 检查底盘或 mock 后端反馈。 |
-| Wheel Odometry | `/wheel/odom`，默认关闭 | 需要底盘链路发布时可打开。 |
-| Map | `/map` | 检查 map_server 输出。 |
-| Global Costmap | `/global_costmap/costmap` | 检查静态地图、footprint 和 inflation 组成的全局代价图。 |
-| Local Costmap | `/local_costmap/costmap` | 检查 `/scan` obstacle layer、clearing 和 inflation 是否进入局部代价图。 |
-| Global Path | `/plan` | 检查 planner_server 输出的全局路径。 |
-| AMCL Pose | `/amcl_pose` | 检查定位输出。 |
-| Goal Pose | `/goal_pose` | 配合 2D Goal Pose 工具使用。 |
-
-RViz 工具栏配置了 2D Pose Estimate (`/initialpose`) 和 2D Goal Pose (`/goal_pose`)。local plan / trajectory topic 在当前仓库中没有稳定确认的 topic 名称，本阶段不硬写，后续运行验证后再补充。
-
-## Phase 1B Validation Scripts
+## 验证方法
 
 静态配置检查：
 
@@ -99,47 +147,21 @@ RViz 工具栏配置了 2D Pose Estimate (`/initialpose`) 和 2D Goal Pose (`/go
 bash scripts/check_nav2_costmap_obstacle_layer.sh
 ```
 
-该脚本不依赖完整 ROS2 运行环境，只检查 `src/robot_navigation/config/nav2_basic.yaml` 是否包含 local obstacle layer、`/scan` observation source、footprint、inflation layer 和 RPP collision detection。
-
-Nav2 basic 分步启动提示：
+分步启动提示与运行时 topic 检查：
 
 ```bash
 bash scripts/run_nav2_basic_demo.sh
-```
-
-脚本会检查 `ros2` 是否存在、可选 source `install/setup.bash`，并输出三步命令：mock bringup、Nav2 basic、RViz debug。若只想在当前终端直接启动 Nav2，可运行：
-
-```bash
-bash scripts/run_nav2_basic_demo.sh --run-nav2
-```
-
-runtime topic 检查，需要 Nav2 basic demo 已经运行：
-
-```bash
 bash scripts/check_nav2_runtime_topics.sh
 ```
 
-该脚本检查 `/scan`、`/tf`、`/tf_static`、`/odom`、`/map`、`/plan`、`/cmd_vel`、`/local_costmap/costmap`、`/global_costmap/costmap` 是否存在。它需要真实 ROS2 graph，不能用静态文件检查替代。
+完整 Factory Patrol 运行还可使用 `scripts/check_factory_patrol_runtime_topics.sh`，并在
+RViz 中观察 `/scan`、costmap、路径、TF 与最终 `/cmd_vel`。WSL2 全量验证结果和边界见
+[实验与 Benchmark 报告](experiment_report.md)。上述 basic/advanced 参数的独立专项运行
+覆盖范围不同，未单独记录的配置项应标记为“尚未进行独立运行时专项验证”。
 
-## Runtime 验证说明
+## 已知限制
 
-- 验证 `/scan` 是否进入 local costmap：启动 Nav2 basic 后，在 RViz 打开 Laser Scan 和 Local Costmap；移动或模拟障碍应改变 `/local_costmap/costmap`。该结论需要 Gazebo / mock sensor 运行验证。
-- 验证 footprint / inflation 是否生效：在 RViz 中叠加 Robot Model、Global Costmap 和 Local Costmap，观察机器人外形附近是否形成合理代价边界。具体半径和通道通过性需要后续调参。
-- 验证 global path：发送 2D Goal Pose 后观察 `/plan` 的 Global Path 是否生成，并检查 planner_server 日志。
-- 验证 cmd_vel 链路：Nav2 controller 输出经 cmd_vel 仲裁和 safety gate 后，应在完整 bringup 中出现 `/cmd_vel`。单独启动 Nav2 时可能只有 `/nav2_cmd_vel`，因此 runtime topic 检查应在完整 basic demo 链路运行后执行。
-- 本文档不记录实验成功率、到达时间或误差指标；这些属于后续真实运行报告。
-
-## Phase 1 后续计划
-
-| Item | Status |
-| --- | --- |
-| 启动 Nav2 basic 并验证 obstacle layer 订阅 `/scan` | planned runtime verification |
-| RViz 中显示 local / global costmap 与路径 topic | current debug config / runtime verification planned |
-| 对比 basic global costmap 是否需要加入 obstacle layer | planned |
-| inflation radius 与 footprint 对低速巡检通道的实测适配 | planned |
-| RPP 参数在真实 / 仿真巡检路径中的调参收敛 | planned |
-| MPPI 参数：采样规模、速度上下限、角速度约束、critic 配置 | planned |
-| Navfn / Smac 路径质量对比 | planned |
-| costmap 可视化与验收脚本沉淀 | planned |
-
-所有实验数据必须在真实运行后写入报告，不能在文档中预设结果。
+- 定量结果来自 WSL2/Gazebo，不代表实体硬件导航性能。
+- Factory Patrol 没有提交经过审阅的 occupancy map；默认展示 profile 可不启用 Nav2。
+- Gazebo settling 与积分 odometry 可能有不同 origin，影响几何和路径误差解释。
+- RPP 与 MPPI 的统一对比、全局动态障碍层和现场调参属于未来工作。

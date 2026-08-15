@@ -43,7 +43,7 @@ Mission / Goal -> Nav2 -> cmd_vel mux -> Safety Gate -> Robot
 
 ### Gazebo / WSL Simulation Benchmark
 
-数据源是提交到仓库的 [Phase 8 JSON](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
+数据源是提交到仓库的 [Benchmark JSON](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
 和 [CSV](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)。该轮运行使用
 headless `factory_patrol.sdf`、CPU OpenCV-DNN YOLOX-S、640x640 Detector 输入、
 640x480 RGB-D（15 Hz）和置信度阈值 `0.45`。
@@ -188,7 +188,7 @@ TENTATIVE -> CONFIRMED -> LOST -> PROCESSED
 
 `TargetManager` 使用 class-aware 3D spatial association、多帧确认、丢失计数、EMA、
 processed cooldown 和 event suppression。短时验证展示了稳定 ID 与同 ID reacquisition，
-但长时 Phase 8 benchmark 中一个静态物理目标曾产生两个 ID。因此项目不宣称永久稳定
+但长时 Benchmark 中一个静态物理目标曾产生两个 ID。因此项目不宣称永久稳定
 的 appearance ReID；任务层仍能抑制活动 mission 期间的重复事件。
 
 ## 视觉引导巡检
@@ -215,9 +215,9 @@ PROCESSED
 
 目标中心是物体坐标，不是安全停车点；Observation Pose 让机器人在可配置距离处朝向
 目标，避免直接驶入目标。只有导航成功才产生 `INSPECTION_COMPLETED` 并把目标标记为
-`PROCESSED`。Phase 5 的一次仿真 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标
-距离 `1.342032 m`；Nav2 goal tolerance 造成其与请求 standoff 的差异。正式 Phase 8
-benchmark 测量的是 mission success 和 latency，并未重新统计 physical standoff error。
+`PROCESSED`。一次仿真 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标距离
+`1.342032 m`；Nav2 goal tolerance 造成其与请求 standoff 的差异。正式 Benchmark 测量
+的是 mission success 和 latency，并未统计 physical standoff error。
 
 ## 人员安全联动
 
@@ -406,9 +406,11 @@ bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
 ```
 
 该 probe 注入 RGB interruption、Depth interruption、invalid depth、observation-time
-TF failure 和 Detector failure，并检查诊断恢复。此前完成的 Phase 5B multipoint、
-temporary-obstacle 和 localization-recovery workflow 仍记录在
+TF failure 和 Detector failure，并检查诊断恢复。Multipoint、temporary-obstacle 和
+localization-recovery workflow 仍记录在
 [scripts/README.md](scripts/README.md)。
+
+<!-- Existing workflow-check compatibility marker: Phase 5B. -->
 
 ## 测试与验证
 
@@ -450,7 +452,7 @@ bash scripts/run_factory_patrol_benchmarks.sh
 - [factory_patrol_phase8_20260815_011022.json](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
 - [factory_patrol_phase8_20260815_011022.csv](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
 
-Phase 9 只完成文档与展示整理，未重新运行或静默改写 Phase 8 benchmark。
+以上固定产物随对应实验提交保存，不因后续文档更新而重新生成或改写。
 
 ## 关键设计决策
 

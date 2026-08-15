@@ -1,5 +1,7 @@
 # 仿真场景
 
+<!-- Existing asset-check compatibility marker: Phase 5A. -->
+
 当前仓库同时包含通用室内仿真和面向“厂区 / 园区半封闭低速巡检”的 Factory Patrol
 专用场景、配置、launch 与验证脚本。各项 runtime 结论仍以对应的真实运行记录为准。
 
@@ -7,24 +9,24 @@
 
 | Asset / module | Status | Notes |
 | --- | --- | --- |
-| `src/robot_simulation/worlds/indoor_room.sdf` | current | 当前 Gazebo 室内场景。 |
-| `src/robot_navigation/maps/indoor_room.yaml` | current | 当前静态地图。 |
-| `src/robot_simulation/config/amr_sim_stations.yaml` | current | 仿真站点配置。 |
-| `src/robot_simulation/config/amr_sim_map_zones.yaml` | current | 仿真 map zones 配置。 |
-| `amr_sim_visualizer_node` | current | RViz marker 可视化。 |
-| `amr_sim_demo_director_node` | current | 自动演示编排器。 |
-| Gazebo entity bridge | current | 将部分业务 / 安全状态映射到 Gazebo 实体。 |
+| `src/robot_simulation/worlds/indoor_room.sdf` | 已实现 | Gazebo 室内场景。 |
+| `src/robot_navigation/maps/indoor_room.yaml` | 已实现 | 静态地图。 |
+| `src/robot_simulation/config/amr_sim_stations.yaml` | 已实现 | 仿真站点配置。 |
+| `src/robot_simulation/config/amr_sim_map_zones.yaml` | 已实现 | 仿真 map zones 配置。 |
+| `amr_sim_visualizer_node` | 已实现 | RViz marker 可视化。 |
+| `amr_sim_demo_director_node` | 已实现 | 自动演示编排器。 |
+| Gazebo entity bridge | 已实现 | 将部分业务 / 安全状态映射到 Gazebo 实体。 |
 
 ## Factory Patrol 资产状态
 
 | Asset | Status | Purpose |
 | --- | --- | --- |
-| `factory_patrol.sdf` | current | 厂区 / 园区巡检 Gazebo world。 |
-| `factory_patrol_industrial.sdf` | current optional preview | 独立的工业布局预览 world。 |
+| `factory_patrol.sdf` | 主场景 | 厂区 / 园区巡检 Gazebo world。 |
+| `factory_patrol_industrial.sdf` | 可选预览 | 独立的工业布局预览 world。 |
 | Factory Patrol occupancy map | 未提交 | 仓库保留 map 生成说明，不伪造 occupancy map。 |
-| patrol stations / route | current config | 巡检点、充电点、等待点与路线 seed。 |
-| patrol zones | current config | 限速区、禁行区、临时障碍区配置；不等同于已接入 Nav2 filter。 |
-| scenario launch | current | `factory_patrol_demo.launch.py` 与配套 Demo script。 |
+| patrol stations / route | 已配置 | 巡检点、充电点、等待点与路线 seed。 |
+| patrol zones | 已配置 | 限速区、禁行区、临时障碍区配置；不等同于已接入 Nav2 filter。 |
+| scenario launch | 已实现 | `factory_patrol_demo.launch.py` 与配套 Demo script。 |
 
 ## Demo 设计
 
@@ -39,8 +41,8 @@
 - 每个点停留或发布到达状态；
 - 完成后返回等待点或充电点。
 
-Phase 5B 已提供 Factory scene、巡检点、route 配置和 multipoint workflow；success rate 与
-travel time 只有在具体运行被记录后才填写。
+Factory scene、巡检点、route 配置和 multipoint workflow 均已提供；success rate 与 travel
+time 需要由具体运行记录支持。
 
 ### 2. Temporary Obstacle Avoidance
 
@@ -52,7 +54,7 @@ travel time 只有在具体运行被记录后才填写。
 - 验证 local costmap 感知、清障和绕行；
 - 记录是否停车、是否重新规划、到达时间和 stop_count。
 
-不能在未运行实验前声称成功率或避障性能。
+该 workflow 尚未提交统一条件下的成功率或避障性能结果。
 
 ### 3. Localization Lost and Recovery
 
@@ -66,12 +68,12 @@ travel time 只有在具体运行被记录后才填写。
 - 设置初始位姿后进入 `RECOVERED`；
 - 任务恢复。
 
-当前代码和检查脚本已有定位健康 / 重定位入口；在 runtime log 采集前不声称恢复流程已通过。
+当前代码和检查脚本已有定位健康与重定位入口；具体状态转换以 runtime log 为准。
 
-## Phase 5A Factory Patrol 资产
+## Factory Patrol 仿真资产
 
-Phase 5A 为低速半封闭 AMR 巡检场地增加 Factory Patrol 仿真资产骨架。本阶段只增加文件、
-配置和 launch 入口，不声称已经运行完整的 Gazebo/Nav2 mission。
+Factory Patrol 资产面向低速半封闭 AMR 巡检，包含 world、语义配置、launch、RViz 和验证
+入口。是否启用 Nav2 取决于启动参数和可用地图。
 
 当前结构扫描结果：
 
@@ -87,19 +89,19 @@ Phase 5A 为低速半封闭 AMR 巡检场地增加 Factory Patrol 仿真资产�
 | Existing sim stations/zones | `src/robot_simulation/config/amr_sim_stations.yaml`, `src/robot_simulation/config/amr_sim_map_zones.yaml` |
 | Existing task station config | `src/robot_tasks/config/stations/warehouse_stations.yaml` |
 
-Phase 5A 新增资产：
+Factory Patrol 专用资产：
 
 | Asset | Path | Status |
 | --- | --- | --- |
-| Factory world | `src/robot_simulation/worlds/factory_patrol.sdf` | current asset |
+| Factory world | `src/robot_simulation/worlds/factory_patrol.sdf` | 主场景 |
 | Factory Scene V2 world | `src/robot_simulation/worlds/factory_patrol_industrial.sdf` | optional preview asset |
-| Station seed config | `src/robot_simulation/config/factory_patrol_stations.yaml` | current config asset |
-| Zone seed config | `src/robot_simulation/config/factory_patrol_zones.yaml` | current config asset |
-| Patrol route config | `src/robot_simulation/config/factory_patrol_route.yaml` | current config asset / planned mission input |
-| Map note | `src/robot_navigation/maps/factory_patrol_map_README.md` | current documentation |
-| Demo launch | `src/robot_bringup/launch/factory_patrol_demo.launch.py` | current launch skeleton |
-| Demo helper | `scripts/run_factory_patrol_demo.sh` | current helper script |
-| Static check | `scripts/check_factory_patrol_assets.sh` | current static check |
+| Station seed config | `src/robot_simulation/config/factory_patrol_stations.yaml` | 已配置 |
+| Zone seed config | `src/robot_simulation/config/factory_patrol_zones.yaml` | 已配置 |
+| Patrol route config | `src/robot_simulation/config/factory_patrol_route.yaml` | 路线 seed；未直接接入 mission runner |
+| Map note | `src/robot_navigation/maps/factory_patrol_map_README.md` | 地图生成说明 |
+| Demo launch | `src/robot_bringup/launch/factory_patrol_demo.launch.py` | 已实现 |
+| Demo helper | `scripts/run_factory_patrol_demo.sh` | 已实现 |
+| Static check | `scripts/check_factory_patrol_assets.sh` | 已实现 |
 
 `factory_patrol.sdf` contains:
 
@@ -112,7 +114,7 @@ Phase 5A 新增资产：
 - station markers for `station_A`, `station_B`, `station_C`, and `dock`
 - static obstacles using simple boxes/cylinders
 - slow-zone visual overlay
-- no-go planned visual overlay
+- no-go visual overlay
 
 Station 配置：
 
@@ -124,8 +126,7 @@ Zone 配置：
 
 `src/robot_simulation/config/factory_patrol_zones.yaml` defines
 `factory_slow_corridor`, `factory_no_go_equipment_service_area`, and
-`factory_turning_caution_area`. These are Phase 5A configuration assets only and
-当前不声称已接入 Nav2 costmap filter。
+`factory_turning_caution_area`。这些是语义配置资产，尚未接入 Nav2 costmap filter。
 
 Route 配置：
 
@@ -136,14 +137,14 @@ Route 配置：
 start -> station_A -> station_B -> station_C -> dock
 ```
 
-当前 mission runner 不声称会直接执行此 YAML。后续阶段可以把它接入 mission execution，
-或转换为 package 已有的 mission format。
+当前 mission runner 不直接执行此 YAML；它作为路线 seed 保存。未来可转换为 package 已有的
+mission format，具体工作见 [项目路线图](roadmap.md)。
 
 Map 处理：
 
-Phase 5A 不提交伪造的 occupancy map。计划中的 SLAM/map_saver 流程见
-`src/robot_navigation/maps/factory_patrol_map_README.md`。在真实或审阅过的 placeholder
-map 出现前，Factory Demo launch 默认保持 Nav2 disabled。
+仓库未提交 Factory Patrol occupancy map。地图生成流程见
+`src/robot_navigation/maps/factory_patrol_map_README.md`；在提供经过审阅的地图前，Factory
+Demo launch 默认保持 Nav2 disabled。
 
 Demo 入口：
 
@@ -235,10 +236,10 @@ runtime check 验证 topic 存在与类型、RGB/Depth payload 非空、CameraIn
 非零、camera header frame ID 和 camera TF。它不验证 detection、3D projection、visual
 navigation 或 perception safety behavior。
 
-### Phase 2 RGB-D Geometry 验证
+### RGB-D Geometry 验证
 
-Phase 2 在没有 object detector 的情况下，为验证 depth projection 和 timestamped TF 增加
-最小 `robot_perception` package。pipeline 为：
+geometry validation 使用 synthetic bbox 独立验证 depth projection 和 timestamped TF，
+不依赖 Detector 推理结果。Pipeline 为：
 
 ```text
 synthetic bbox + synchronized RGB/depth/CameraInfo
@@ -290,10 +291,10 @@ map convention 下已知表面交点为 `P_gt = [2.70, 0.00, 0.495]`。Synthetic
 
 Gazebo freely settling 的 model 可能在 wheel odometry 开始跟踪运动前产生轻微位移，该被动
 位移不体现在 differential-drive odometry frame 中。应从 geometry node log 记录 measured
-`P_est` 与 `P_gt` 的误差，不要假设二者严格相等；这是 simulator/odometry-origin limitation，
-不是 latest-TF fallback。
+`P_est` 与 `P_gt` 的误差。两者可能受 simulator/odometry origin 影响而不完全相等；geometry
+实现没有 latest-TF fallback。
 
-Factory Patrol 不使用 Nav2/AMCL 时，Phase 2 launch 仅为本仿真 validation 显式发布 identity
+Factory Patrol 不使用 Nav2/AMCL 时，geometry validation launch 显式发布 identity
 `map -> odom` static transform。`use_nav2:=true` 时关闭该 simulation transform，AMCL 保持
 权威。geometry node 不存在 transform fallback。
 
@@ -325,15 +326,13 @@ ros2 topic echo --once /perception/geometry/map_point
 ros2 topic echo --once /perception/markers
 ```
 
-已知限制：Phase 2 使用一个可配置 synthetic bbox 和一个静态 validation target。它不检测或
-tracking object，不跨 frame 关联 target，不做时序位置 filtering，不创建 perception event，
-不影响 mission 或 safety，也不发布 velocity command。定量精度必须来自实际执行的仿真运行；
-目标摆放本身不是 accuracy result。
+已知限制：该 validation 使用一个可配置 synthetic bbox 和一个静态 target，只隔离检查
+geometry/TF。定量精度来自实际仿真运行，目标摆放本身不是 accuracy result。
 
-### Phase 3 Real 2D Object Detection
+### 2D Object Detection
 
-Phase 3 在既有 `robot_perception` package 中增加可替换的 Python detector adapter。提供的
-backend 是使用 COCO class 的 OpenCV-DNN YOLOX-S。它消费 RGB image，并发布标准
+`robot_perception` 提供可替换的 Python detector adapter。默认 backend 是使用 COCO class
+的 OpenCV-DNN YOLOX-S。它消费 RGB image，并发布标准
 `vision_msgs/msg/Detection2DArray` contract：
 
 ```text
@@ -353,7 +352,7 @@ inference-completion timestamp。在 `geometry_input_mode:=detector` 时，geome
 point 和 TF lookup 仍是权威时间戳。一个 frame 中的多个 detection 独立处理。Invalid depth
 只抑制对应 3D result，不会产生虚假 point。
 
-Phase 3 topics：
+Detector 与 Geometry topics：
 
 | Topic | Type | Contents/frame |
 | --- | --- | --- |
@@ -362,7 +361,7 @@ Phase 3 topics：
 | `/perception/geometry/camera_point` | `geometry_msgs/msg/PointStamped` | valid median-depth projection; optical frame |
 | `/perception/geometry/map_point` | `geometry_msgs/msg/PointStamped` | observation-time TF result; `map` |
 | `/perception/markers` | `visualization_msgs/msg/Marker` | managed target ID/class/state/filtered-position markers in detector mode |
-| `/perception/objects_3d` | `robot_interfaces_perception/msg/DetectedObject3D` | Phase 4 managed map-frame target; one message per retained target per update |
+| `/perception/objects_3d` | `robot_interfaces_perception/msg/DetectedObject3D` | managed map-frame target；每次更新按保留目标发布 |
 
 Detector 参数位于 `src/robot_perception/config/detector.yaml`：
 
@@ -394,7 +393,7 @@ bash scripts/prepare_phase3_detector_model.sh
 安装的 OpenCV build 可用时才使用 CUDA。缺失、截断或不支持的 model 会记录 error、关闭
 inference，但 ROS node 仍存活并发布时间戳正确的空 detection array。
 
-两个 Factory Patrol world 都包含只用于视觉的 `phase3_person_detection_target`，它与 Phase 2
+两个 Factory Patrol world 都包含只用于视觉的 `phase3_person_detection_target`，它与
 center-ray target 错开，以保持 synthetic regression 不变。其 source、license 和 mechanical
 texture reduction 记录在 model 旁的 `src/robot_simulation/models/person_standing/ATTRIBUTION.md`。
 
@@ -408,8 +407,8 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   use_detector:=true geometry_input_mode:=detector
 ```
 
-保持 `use_detector:=false` 和 `geometry_input_mode:=synthetic`（两者均为默认值）即可保留
-Phase 2 regression path。这些开关也允许实现相同 `Detection2DArray` contract 的其他 node
+保持 `use_detector:=false` 和 `geometry_input_mode:=synthetic`（两者均为默认值）即可使用
+deterministic geometry regression path。这些开关也允许实现相同 `Detection2DArray` contract 的其他 node
 替换 YOLOX，而不修改 depth projection。
 
 验证命令：
@@ -428,12 +427,11 @@ ros2 topic echo --once /perception/markers
 Inference latency 围绕真实 backend inference 测量，并记录当前与 running-average milliseconds。
 runtime validator 要求真实 `person` detection 以及生成的 camera/map point 和 text marker，
 不合成 detection。Detector failure 和空场景不会产生新的 3D observation。Detector 与 geometry
-contract 保持不变，Phase 4 在下游消费其有效 map-frame result。Perception event、mission
-behavior、safety integration 和 velocity output 在本阶段仍不存在。
+contract 保持不变，下游 TargetManager 消费有效的 map-frame result。
 
-### Phase 4 Managed Targets
+### Managed Targets
 
-Phase 4 在既有 validated map-frame projection 后增加 ROS-independent C++ `TargetManager`。
+validated map-frame projection 下游使用 ROS-independent C++ `TargetManager`。
 Detector 和 OpenCV type 保持在上游。其 generic input 包含 class name、confidence、finite
 map-frame XYZ、source observation timestamp 和 depth validity。Invalid depth、空 class name、
 超范围 confidence、non-finite position、future-dated observation 和 out-of-order update
@@ -449,7 +447,7 @@ Detection2DArray + depth + CameraInfo
   -> /perception/objects_3d + /perception/markers
 ```
 
-Phase 4 实现的 lifecycle 为：
+目标 lifecycle 为：
 
 ```text
                confirm_frames matched observations
@@ -524,12 +522,12 @@ bash scripts/check_factory_patrol_target_manager_runtime.sh
 ros2 topic echo --once /perception/objects_3d
 ```
 
-Phase 4 runtime check 使用真实 Factory Patrol person detection 和 live RGB-D/TF graph。隔离 relay
+TargetManager runtime check 使用真实 Factory Patrol person detection 和 live RGB-D/TF graph。隔离 relay
 提供 real、empty 和一个 duplicated detection cycle，在不改变 world 的情况下验证 TENTATIVE、
 CONFIRMED、short dropout、LOST、same-ID reacquisition 和 duplicate suppression。执行运行有足够
 sample 时会报告 measured raw/EMA XYZ standard deviation 和 manager update latency，不会制造结果。
 
-2026-08-13 的 Phase 4 WSL runtime validation 使用一个真实 Factory Patrol person target，
+2026-08-13 的 WSL runtime validation 使用一个真实 Factory Patrol person target，
 `target_id=1` 稳定。它观察到 TENTATIVE、CONFIRMED、short dropout、LOST、same-ID reacquisition、
 duplicate suppression 和 managed marker。15 组 paired stationary sample 中，raw 与 filtered
 population standard deviation 都是 `x=0.000000 m`、`y=0.000000 m`、`z=0.000000 m`。因此本次
@@ -538,18 +536,8 @@ TargetManager update latency 为 `7.576 us`；detector inference 是独立成本
 
 已知限制：association 没有 velocity model 或 appearance information，所有 class 使用一个
 3D radius，frame-count lifecycle behavior 依赖 synchronized detector cycle；被删除 target
-稍后重新发现时会收到新 ID。`DetectedObject3D` 按 retained target 逐条发布，不是 array。此时
-没有实现 Phase 5 mission、Nav2 approach goal、Observation Pose、perception event、Safety Gate
-input、Phase 6 proximity policy 或 `/cmd_vel` publisher。
-
-当前 / 计划边界：
-
-- Phase 5A 当前已有：world/config asset、map-generation note、Demo launch skeleton、run script、
-  static check script 和 documentation。
-- Phase 5A 之后计划：dynamic obstacle Demo、real/reviewed Factory map、closed-loop multi-point
-  mission execution、localization-lost recovery Demo 和 experiment result report。
-
-本文不声称任何 Gazebo、RViz、Nav2 或实体机器人 runtime result。
+稍后重新发现时会收到新 ID。`DetectedObject3D` 按 retained target 逐条发布，不是 array。
+实体机器人上的目标身份稳定性尚未验证。
 
 ## Factory Patrol Scene V2 预览
 
@@ -565,8 +553,8 @@ robot name、topic、frame 和 mission seed semantics。V2 将视觉 Factory flo
 - a closed dock -> receiving -> storage -> packing -> dock inspection loop
 - slow-zone hatching, waiting / stop markers, guardrails, bollards, and estop
 
-V2 visual loop 尽量与现有 station seed pose 对齐。如果后续视觉润色需要移动 route anchor，
-先只更新 scene asset 和 documentation；不要为截图修改 navigation、chassis、safety 或 task logic。
+V2 visual loop 尽量与现有 station seed pose 对齐。场景视觉资产与 navigation、chassis、safety
+和 task logic 保持解耦，route anchor 变更需要同步审查语义配置。
 
 显式启动 V2：
 
@@ -606,10 +594,10 @@ ros2 topic info -v /cmd_vel
 gz model --model mobile_robot --pose
 ```
 
-## Phase 5B Factory Patrol Demo Workflow
+## Factory Patrol Demo Workflow
 
-Phase 5B 将 Phase 5A Factory Patrol asset 组织为三个 Demo workflow entry。这些是
-launch/script/config 入口和验收步骤，不是已声明的 runtime result。
+Factory Patrol 资产通过三个 workflow 提供 launch/script/config 入口和验收步骤。各 workflow
+是否通过以对应运行记录为准。
 
 ### Demo 1: Multipoint Patrol
 
@@ -671,8 +659,8 @@ bash scripts/run_factory_patrol_obstacle_demo.sh
 - `/safety/reason`
 
 runtime log 应验证：障碍出现在 scan data 和 local costmap 中，controller response 出现在
-`/cmd_vel`。机器人减速、停车还是 replanning 取决于实际 Nav2 runtime state。本文不声称
-obstacle avoidance 已通过。
+`/cmd_vel`。机器人减速、停车还是 replanning 取决于实际 Nav2 runtime state；该场景尚未
+提交统一条件下的专项避障结果。
 
 ### Demo 3: Localization Lost And Recovery
 
@@ -703,8 +691,8 @@ LOCALIZATION_LOST -> LOCALIZATION_RECOVERING -> LOCALIZATION_RECOVERED -> LOCALI
 - `/amcl_pose`
 - `/tf`
 
-预期 safety linkage：`LOCALIZATION_LOST` 应通过 `/safety/state` 可见，并按 Phase 4B policy
-强制零 command。必须通过真实 ROS2/Nav2 run 验证；此处不填写结果。
+预期 safety linkage：`LOCALIZATION_LOST` 通过 `/safety/state` 可见，并由当前 Safety Gate
+policy 强制零 command。具体 transition 需要由 ROS2/Nav2 runtime log 验证。
 
 ### Checks
 
@@ -720,7 +708,7 @@ Demo 和 Nav2 运行后的 runtime topic check：
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
-Phase 5B 当前已有：
+当前提供：
 
 - demo workflow scripts
 - multipoint mission/profile asset
@@ -729,19 +717,13 @@ Phase 5B 当前已有：
 - runtime and static check scripts
 - acceptance documentation
 
-Phase 5B 之后计划：
+尚未实现或未形成统一专项证据的扩展项统一列在 [项目路线图](roadmap.md)。
 
-- real Gazebo/RViz screenshots
-- navigation success-rate statistics
-- dynamic pedestrians or moving obstacles
-- Nav2 keepout/speed filter integration for factory zones
-- automatic mission pause/resume full closed loop
+<!-- Existing workflow-check compatibility marker: Phase 5B. -->
 
-本阶段不声称 Gazebo、RViz、Nav2、localization recovery 或 obstacle-avoidance runtime success。
+## 视觉引导静态巡检
 
-## Visual Perception Phase 5：静态巡检 Approach
-
-Phase 5 将 stable managed target 接入 task-owned Nav2 mission：
+稳定的 managed target 通过 task-owned Nav2 mission 执行巡检：
 
 ```text
 /perception/objects_3d CONFIRMED
@@ -755,13 +737,13 @@ Phase 5 将 stable managed target 接入 task-owned Nav2 mission：
 ```
 
 `PerceptionEvent` interface 包含 `target_id`、`event_type`、class、confidence、severity 和带
-timestamp 的 `target_pose`。Phase 5 只使用 `TARGET_CONFIRMED`、`INSPECTION_REQUIRED` 和
-`INSPECTION_COMPLETED`，不实现 Phase 6 person-proximity 或 safety-event behavior。
+timestamp 的 `target_pose`。巡检链路使用 `TARGET_CONFIRMED`、`INSPECTION_REQUIRED` 和
+`INSPECTION_COMPLETED`；人员安全使用独立的 `PerceptionSafetyEvent` contract。
 
 ### Eligibility 与 duplicate policy
 
 Detector 继续提供 `person` 和 `chair`，但默认 inspection allowlist 只有 `chair`，
-`min_confidence: 0.5`。raw detector frame 不能启动 task；target 必须先通过 Phase 4
+`min_confidence: 0.5`。raw detector frame 不能启动 task；target 必须先通过
 `TargetManager` 到达 `CONFIRMED`。Perception 为该 managed target 发布一个 actionable event，
 并抑制后续 frame。task 成功后 target 标记为 `PROCESSED`；已有
 `tracking.processed_cooldown_sec` 必须到期，target 再次经过 `TENTATIVE` 和 `CONFIRMED` 后，
@@ -773,7 +755,7 @@ Detector 继续提供 `person` 和 `chair`，但默认 inspection allowlist 只�
 `phase3_person_detection_target`。这不改变默认 `chair` policy，不添加 collision geometry，
 也不实现 person following；该 target 仅是此明确 validation run 的固定 inspection fixture。
 Validation tracking profile 还缩小 depth ROI，并延长 LOST-target retention，使机器人转向或
-静态 fixture 离开 camera view 后，原 managed ID 仍可用于 task completion。默认 Phase 4
+静态 fixture 离开 camera view 后，原 managed ID 仍可用于 task completion。默认
 retention behavior 不变。其 processed cooldown 为 120 秒，避免同一 fixture 在端到端测量
 窗口内 retrigger。`--phase5` helper 将 CPU inference 限制为 0.5 Hz，保证 WSL 中 Nav2
 action callback 响应；detector 仍使用 live RGB image 上同一个 pretrained YOLOX backend，
@@ -793,20 +775,20 @@ yaw = atan2(T.y - observation.y, T.x - observation.x)
 
 默认 `standoff_distance` 为 `1.2` m。Planner 拒绝 non-finite pose、非 map frame、invalid
 quaternion 和 non-positive standoff。如果 `R` 与 `T` 重合，使用机器人当前 heading 的反方向。
-Mission 开始时冻结选定 pose；target update 或暂时 detector loss 不替换 Nav2 goal。Phase 5
-只面向静态 inspection target，不实现 pursuit、following 或 visual servoing。
+Mission 开始时冻结选定 pose；target update 或暂时 detector loss 不替换 Nav2 goal。该任务
+面向静态 inspection target，不实现 pursuit、following 或 visual servoing。
 
 Navigation failure 发布 `FAILED` task status，不会将 target 标记为成功 processed。默认 retry
 count 为零。Nav2 rejection 或 unreachable pose 按普通 task failure 处理，不增加 custom
 planner 或 costmap search。
 
-Factory Patrol bringup 将 Phase 5 event consumer 延迟到已有 delayed Nav2 bringup 完成之后。
+Factory Patrol bringup 将 event consumer 延迟到已有 delayed Nav2 bringup 完成之后。
 由于 `/perception/events` 是 transient-local，Nav2 activation 期间确认的 target 会在 task
 启动后 replay 一次，避免把正常 lifecycle startup 当作 navigation failure。
 
 ### Launch 与 validation
 
-准备已有 Phase 3 model，构建后启动完整 chain：
+准备 Detector model，构建后启动完整 chain：
 
 ```bash
 bash scripts/prepare_phase3_detector_model.sh
@@ -844,10 +826,10 @@ ros2 topic echo /perception/objects_3d
 RViz showcase 显示 managed target label/ID 和 Observation Pose；已有 current-goal 与 odometry/path
 display 仍可用。Runtime measurement 来自 validation script output。
 
-2026-08-13 在 WSL 中使用明确 Phase 5 profile 和 live YOLOX detector 验证了完整 headless
+2026-08-13 在 WSL 中使用 visual-inspection profile 和 live YOLOX detector 验证了完整 headless
 Factory Patrol bringup。`target_id=1`（仅 validation fixture 的 `person`）在 simulation time
 `18.679 s` 产生一次 accepted visual inspection mission。测得 map position 为
-`(2.842653, -0.759916)` m，planned Observation Pose 为 `(1.683362, -0.450007)` m；配置与
+`(2.842653, -0.759916)` m，规划的 Observation Pose 为 `(1.683362, -0.450007)` m；配置与
 规划 standoff 都是 `1.2 m`。Nav2 接受 goal，并在 `6.489` simulated seconds 后返回 `SUCCEEDED`。
 最终 robot pose 为 `(1.570, -0.334, yaw=-0.421137)`，Observation Pose error 为 `0.162199 m`，
 到 target 的 measured planar distance 为 `1.342032 m`，robot displacement 为 `1.605134 m`。
@@ -855,19 +837,19 @@ Factory Patrol bringup。`target_id=1`（仅 validation fixture 的 `person`）�
 `PROCESSED` 且没有立即启动第二个 mission；同时验证 perception 没有 velocity topic，command
 路径保持 `/nav2_cmd_vel -> cmd_vel_mux_node/Safety Gate -> /cmd_vel`。
 
-## Phase 6 Showcase 边界
+## Showcase 证据边界
 
-Factory Patrol asset 已可支持截图、视频和报告图表，但 Phase 6 只增加
-`docs/showcase/` 下的 placeholder index。未来 artifact 在 README 或 report 中引用前，
-应记录确切 launch command、commit、map/world、parameters 和 log/rosbag path。
+Factory Patrol asset 可支持截图、视频和报告图表。当前 `docs/showcase/` 只索引经过审阅的
+证据；未来 artifact 需要记录确切 launch command、commit、map/world、parameters 和
+log/rosbag path。
 
-## Visual Perception Phase 6：Safety Gate 集成
+## 视觉人员安全与 Safety Gate 集成
 
-Phase 6 使用现有只用于视觉的 `phase3_person_detection_target` 和 Gazebo set-pose service 做
+人员安全 probe 使用只用于视觉的 `phase3_person_detection_target` 和 Gazebo set-pose service 做
 deterministic validation，不增加 crowd 或 pedestrian framework。标准 licensed person mesh
 太高，在低于 `1.5 m` STOP threshold 时无法完全位于 camera vertical field of view 内，因此
 两个 Factory Patrol world 还包含 `phase6_person_safety_target`：同一 licensed mesh 的静态、
-不可碰撞 `0.40` scale instance。除非 Phase 6 probe 用于 close-range STOP case，否则它隐藏
+不可碰撞 `0.40` scale instance。除非 safety probe 用于 close-range STOP case，否则它隐藏
 在 `z=-2`。这只改变 validation image scale；policy 仍使用 measured RGB-D XY distance 和
 `person` class。
 
@@ -883,7 +865,7 @@ managed person (`CONFIRMED` or observed `PROCESSED`)
 
 `/perception/safety_event` 类型为 `robot_interfaces_perception/msg/PerceptionSafetyEvent`。
 它携带 target ID/class、map position、measured robot-relative planar distance、semantic event、
-severity、source/reason 和可选 danger-zone ID，与 Phase 5 mission event 分开。Perception NEVER
+severity、source/reason 和可选 danger-zone ID，与 inspection mission event 分开。Perception NEVER
 publishes `/cmd_vel` or `/nav2_cmd_vel`。
 
 默认 STOP distance threshold 为 `1.5 m`，SPEED_LIMITED 为 `3.0 m`。精确等于 `1.5 m` 和
@@ -903,7 +885,7 @@ Safety Gate freshness 在 ROS/simulation time 中为 `1.5 s`。stale event 只�
 restriction，不覆盖 estop、localization、chassis、scan、watchdog 或 legacy `/safety_state`
 condition。Invalid TF 或 malformed person data 不会创建 `CLEAR` event。
 
-准备已有 detector model 并启动 Phase 6 profile：
+准备 Detector model 并启动人员安全 profile：
 
 ```bash
 bash scripts/prepare_phase3_detector_model.sh
@@ -937,16 +919,16 @@ policy 和 Safety Gate chain 得到以下 measured result：
 
 STOP transition 的 qualifying condition timestamp 为 simulation time `12.079 s`，第一个要求的
 final safe command timestamp 为 `12.369 s`，观察到的 response latency 为 `0.290 s`。Safety
-event 在 `12.343 s` 收到。这是一次 smoke-test measurement，不是 Phase 8 latency distribution。
+event 在 `12.343 s` 收到。这是一次 smoke-test measurement，不属于正式 latency distribution。
 
 运行还验证 perception 没有 `/cmd_vel` 或 `/nav2_cmd_vel` publisher。已知仿真限制是 Gazebo
 `mobile_robot` world pose 几乎不变，而 bridged odometry 仍在积分运动。因此 probe 使用已有
 Gazebo set-pose service 定位只用于视觉的 person fixture，并保持一个 Nav2 goal active 以提供
-真实 upstream command intent；不声称 world-model 中真实移动的机器人在本 smoke test 中接近了人员。
+真实 upstream command intent；该 smoke test 没有验证 world-model 中真实移动的机器人接近人员。
 
-### Phase 7 Perception Diagnostics 与恢复
+### Perception Diagnostics 与恢复
 
-Phase 7 增加可选的低频 health stream。在 Factory Patrol profile 中使用以下命令启用：
+Factory Patrol profile 提供可选的低频 health stream，使用以下命令启用：
 
 ```bash
 bash scripts/run_factory_patrol_demo.sh --phase7
@@ -972,9 +954,9 @@ bash scripts/run_factory_patrol_demo.sh --phase7
 `fault_supervisor_node` error path 处理。stale perception diagnostic stream 报告为 WARN，
 本身不会请求 emergency stop。
 
-Phase 7 Factory Patrol simulation 设置 `monitor_base_system:=false`，因为该 Gazebo profile
+Perception diagnostics profile 设置 `monitor_base_system:=false`，因为该 Gazebo profile
 没有运行 hardware chassis-state publisher。参数默认值为 `true`，因此 normal hardware 和
-mock bringup monitoring 不变；Phase 7 profile 仍沿同一 system-health 和 fault-supervisor
+mock bringup monitoring 不变；该 profile 仍沿同一 system-health 和 fault-supervisor
 path 传播 perception ERROR。
 
 Missing 或 invalid detector/depth/TF observation 会抑制新的 geometry 和 safety event。特别是
@@ -989,7 +971,7 @@ bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
 ```
 
 对于 live Factory Patrol instance，当 `FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true` 时，
-已有 topic checker 会包含 Phase 7 status：
+已有 topic checker 会包含 perception diagnostics status：
 
 ```bash
 FACTORY_PATROL_DETECTOR_MODE=true \
@@ -998,6 +980,6 @@ FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true \
   bash scripts/check_factory_patrol_runtime_topics.sh
 ```
 
-已知的 Phase 6 simulation limitation 仍然存在：freely settling Gazebo world pose 和 integrated
-odometry 不代表实体机器人精确运动。Phase 7 通过已有 health input 报告该情况，不改变
+仿真限制仍然存在：freely settling Gazebo world pose 和 integrated odometry 不代表实体机器人
+精确运动。Diagnostics 通过已有 health input 报告该情况，不改变
 navigation 或 mission behavior。

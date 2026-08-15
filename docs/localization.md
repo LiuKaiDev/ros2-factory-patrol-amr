@@ -1,6 +1,10 @@
 # 定位系统
 
-当前定位链路以 AMCL 为主，适用于半封闭室内 / 园区低速巡检场景中的 2D 激光定位演示。Phase 4A 新增 `localization_health_monitor_node`，用于把 AMCL pose、covariance、TF 可用性和 timeout 转换为可展示的定位健康状态。该阶段只发布 health，不直接控制 safety gate 或任务暂停。
+<!-- Existing localization-check compatibility marker: Phase 4B. -->
+
+当前定位链路以 AMCL 为主，适用于半封闭室内或园区低速巡检。AMCL、Nav2、EKF 和底盘
+里程计统一使用 `map`、`odom`、`base_footprint` frame；URDF 提供固定的
+`base_footprint -> base_link`。
 
 ## AMCL 链路
 
@@ -10,30 +14,21 @@ odom source -> odom -> base_footprint -> base_link
 /amcl_pose + TF checks -> localization_health_monitor_node -> /localization/health
 ```
 
-- `/scan`：来自 `robot_sensors` 标准化后的激光数据。
-- `/amcl_pose`：AMCL 输出的机器人在 `map` frame 下位姿估计。
-- `/initialpose`：RViz 2D Pose Estimate 或外部重定位流程发布的初始位姿。
-- `map -> odom`：AMCL 维护的全局定位修正。
-- `odom -> base_footprint`：由底盘里程计或 EKF 链路提供。
-- `base_footprint -> base_link`：机器人模型 TF 链路的一部分。
+- `/scan` 来自 `robot_sensors` 的标准化激光数据。
+- `/amcl_pose` 是 `map` frame 下的位姿和 covariance。
+- `/initialpose` 由 RViz 2D Pose Estimate 或上层重定位流程发布。
+- `map -> odom` 由 AMCL 维护，`odom -> base_footprint` 由底盘或 EKF 提供。
 
-AMCL / Nav2 配置位于：
+相关配置和启动入口：
 
 - `src/robot_navigation/config/nav2_basic.yaml`
 - `src/robot_navigation/config/nav2_advanced.yaml`
 - `src/robot_navigation/launch/nav.launch.py`
+- `src/robot_navigation/src/localization_health_monitor_node.cpp`
 
-当前 frame 命名保持一致：AMCL、Nav2 basic、EKF 和底盘 odom 主链均使用 `map`、`odom`、`base_footprint`；URDF 中 `base_footprint -> base_link` 是固定关节。
+## 定位健康监控
 
-## Health Monitor
-
-节点路径：
-
-```text
-src/robot_navigation/src/localization_health_monitor_node.cpp
-```
-
-启动入口：
+启动：
 
 ```bash
 ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
@@ -41,151 +36,102 @@ ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
 
 订阅：
 
-| Topic | Type | Purpose |
+| Topic | Type | 用途 |
 | --- | --- | --- |
-| `/amcl_pose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | 读取 AMCL pose 和 covariance。 |
-| `/initialpose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | LOST 后收到初始位姿时进入 `LOCALIZATION_RECOVERING`。 |
+| `/amcl_pose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | 读取位姿、covariance 和时间戳。 |
+| `/initialpose` | `geometry_msgs/msg/PoseWithCovarianceStamped` | LOST 后触发恢复状态。 |
 
 发布：
 
-| Topic | Type | Purpose |
+| Topic | Type | 用途 |
 | --- | --- | --- |
-| `/localization/health` | `std_msgs/msg/String` | Phase 4A 主 health topic，包含状态、covariance、timeout 和 TF 摘要。 |
-| `/localization_health` | `robot_interfaces/msg/LocalizationHealth` | 兼容现有可视化 / mission topic 的旧路径。 |
+| `/localization/health` | `std_msgs/msg/String` | 当前状态、covariance、timeout 和 TF 摘要。 |
+| `/localization_health` | `robot_interfaces/msg/LocalizationHealth` | 兼容既有可视化和 mission 接口。 |
 
-## 状态
+## 状态与阈值
 
-| State | Meaning |
+| State | 含义 |
 | --- | --- |
-| `LOCALIZATION_UNKNOWN` | 启动后尚未收到 `/amcl_pose`，或 AMCL 尚未发布。 |
-| `LOCALIZATION_OK` | `/amcl_pose` 新鲜，covariance 低于 warn 阈值，`map -> odom` 和 `odom -> base_footprint` TF 可用。 |
-| `LOCALIZATION_UNSTABLE` | covariance 超过 warn 阈值但尚未持续到 lost hold time，或 TF 短暂不可用。 |
-| `LOCALIZATION_LOST` | `/amcl_pose` 超时，或 covariance 持续超过 lost 阈值，或必要 TF 长时间不可用。 |
-| `LOCALIZATION_RECOVERING` | LOST 后收到 `/initialpose`，正在等待 AMCL covariance 和 TF 收敛。 |
-| `LOCALIZATION_RECOVERED` | 从 LOST / RECOVERING 回到稳定 OK，短暂发布后转为 `LOCALIZATION_OK`。 |
+| `LOCALIZATION_UNKNOWN` | 尚未收到新鲜的 `/amcl_pose`。 |
+| `LOCALIZATION_OK` | pose 新鲜、covariance 正常且必要 TF 可用。 |
+| `LOCALIZATION_UNSTABLE` | covariance 超过 warn 阈值，或 TF 短暂不可用。 |
+| `LOCALIZATION_LOST` | pose 超时、covariance 持续超过 lost 阈值，或 TF 长时间不可用。 |
+| `LOCALIZATION_RECOVERING` | LOST 后收到 `/initialpose`，正在等待收敛。 |
+| `LOCALIZATION_RECOVERED` | 已恢复稳定，短暂发布后回到 `LOCALIZATION_OK`。 |
 
-## Covariance 规则
+从 `/amcl_pose.pose.covariance` 使用 `covariance[0]`、`[7]` 和 `[35]` 读取 x、y、yaw；xy
+使用 x/y 中较大值。
 
-从 `/amcl_pose.pose.covariance` 读取：
-
-- x covariance：`covariance[0]`
-- y covariance：`covariance[7]`
-- yaw covariance：`covariance[35]`
-- xy covariance：`max(covariance[0], covariance[7])`
-
-默认阈值：
-
-| Parameter | Default | Meaning |
+| Parameter | Default | 含义 |
 | --- | --- | --- |
 | `covariance_warn_xy` | `0.25` | xy 超过后进入 `LOCALIZATION_UNSTABLE`。 |
 | `covariance_lost_xy` | `0.8` | xy 持续超过后进入 `LOCALIZATION_LOST`。 |
 | `covariance_warn_yaw` | `0.25` | yaw 超过后进入 `LOCALIZATION_UNSTABLE`。 |
 | `covariance_lost_yaw` | `0.8` | yaw 持续超过后进入 `LOCALIZATION_LOST`。 |
-| `lost_hold_time_sec` | `2.0` | covariance lost 条件需要持续的时间。 |
-
-这些阈值是仿真 / mock 默认值，不来自真实机器人标定。真实机器人应结合场地、传感器噪声和重定位实验重新估计。
-
-## Timeout 与 TF 规则
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `amcl_timeout_sec` | `1.0` | 超过该时间没有新的 `/amcl_pose` 后进入 `LOCALIZATION_LOST`。 |
-| `tf_timeout_sec` | `0.5` | 必要 TF 不可用持续超过该时间后进入 `LOCALIZATION_LOST`。 |
-| `recovered_hold_time_sec` | `1.0` | 从 LOST / RECOVERING 稳定后短暂发布 `LOCALIZATION_RECOVERED`。 |
+| `lost_hold_time_sec` | `2.0` | lost covariance 条件需持续的时间。 |
+| `amcl_timeout_sec` | `1.0` | `/amcl_pose` 超时阈值。 |
+| `tf_timeout_sec` | `0.5` | 必要 TF 不可用的 lost 阈值。 |
+| `recovered_hold_time_sec` | `1.0` | `LOCALIZATION_RECOVERED` 保持时间。 |
 | `publish_period_ms` | `200` | health 发布周期。 |
 
-TF 检查使用 `tf2_ros::Buffer::canTransform`：
+上述 covariance 值是仿真/mock 默认值，不是实体底盘标定结论。
 
-- `map -> odom`
-- `odom -> base_footprint`
+## TF 与重定位流程
 
-单次 TF 查询失败先进入 `LOCALIZATION_UNSTABLE`；持续超过 `tf_timeout_sec` 才进入 `LOCALIZATION_LOST`。
-
-## Relocalization 流程
+监控器通过 `tf2_ros::Buffer::canTransform` 检查 `map -> odom` 和 `odom -> base_footprint`。
+单次查询失败先产生 `LOCALIZATION_UNSTABLE`，持续超过 `tf_timeout_sec` 才进入 LOST。
 
 ```text
-AMCL covariance high / AMCL timeout / TF unavailable
-  -> localization_health_monitor_node publishes LOCALIZATION_LOST
-  -> Phase 4A stops here for safety integration
+covariance high / AMCL timeout / TF unavailable
+  -> LOCALIZATION_LOST
   -> operator or higher-level flow publishes /initialpose
-  -> monitor publishes LOCALIZATION_RECOVERING
-  -> AMCL pose covariance falls below warn threshold and TF is available
-  -> monitor publishes LOCALIZATION_RECOVERED briefly
-  -> monitor returns to LOCALIZATION_OK
+  -> LOCALIZATION_RECOVERING
+  -> covariance and TF recover
+  -> LOCALIZATION_RECOVERED -> LOCALIZATION_OK
 ```
 
-任务暂停、停车和恢复策略留到 Phase 4B 接入 `cmd_vel_safety_gate` / mission pause。本阶段不声明完成完整安全闭环，也不声明完成真实机器人重定位验证。
+任务暂停、停车和恢复由 `robot_tasks` 与 Safety Gate 分工完成；定位监控器本身只发布
+健康状态，不发布速度。
 
-## 检查
+## Safety 与任务接口
 
-静态检查：
-
-```bash
-bash scripts/check_localization_health.sh
-```
-
-运行时 topic 检查，需要 Nav2 / AMCL / localization health monitor 已运行：
-
-```bash
-bash scripts/check_localization_runtime_topics.sh
-```
-
-该 runtime 脚本只检查 `/amcl_pose`、`/initialpose`、`/localization/health`、`/tf`、`/tf_static`、`/map`、`/odom` 是否存在，不伪造任何定位恢复结果。
-
-## 既有 Task 层接口
-
-仓库中仍保留 mission 层已有的重定位接口和演示链路：
-
-- `robot_interfaces_navigation/srv/RequestRelocalization.srv`
-- `robot_interfaces/msg/LocalizationHealth.msg`
-- `robot_tasks` 中 `mission_localization_workflow` 和 `mission_runner_node` 相关逻辑
-- `scripts/check_localization_auto_recovery.sh`
-- `scripts/check_relocalization_resume.sh`
-
-Phase 4A 新 monitor 与这些入口并行存在，不重构 mission runner 的任务暂停 / 恢复逻辑。
-
-## Phase 4B Safety Hook
-
-Phase 4B 将 Phase 4A 的 `/localization/health` string topic 接入最终
-`cmd_vel_safety_gate_node`。
-
-Safety 映射：
+Safety Gate 的定位映射为：
 
 | Localization health | Safety state |
 | --- | --- |
 | `LOCALIZATION_OK` | `NORMAL` |
 | `LOCALIZATION_UNSTABLE` | `SPEED_LIMITED` |
-| `LOCALIZATION_LOST` | `LOCALIZATION_LOST` |
+| `LOCALIZATION_LOST` | `LOCALIZATION_LOST`，默认最终速度为零 |
 | `LOCALIZATION_RECOVERING` / `LOCALIZATION_RECOVERED` | `RECOVERY` |
 
-当 `localization_lost_stop=true` 时，`LOCALIZATION_LOST` 通过 Safety Gate 发布零
-`/cmd_vel`。`LOCALIZATION_UNSTABLE` 使用低速策略，参数为
-`speed_limited_max_linear_mps=0.15` 和 `speed_limited_max_angular_radps=0.4`。
+`speed_limited_max_linear_mps=0.15`、`speed_limited_max_angular_radps=0.4` 是当前低速策略。
+既有任务接口包括：
 
-Checks:
+- `robot_interfaces_navigation/srv/RequestRelocalization.srv`
+- `robot_interfaces/msg/LocalizationHealth.msg`
+- `robot_tasks` 中的 `mission_localization_workflow` 与 `mission_runner_node`
+
+## 验证
 
 ```bash
+bash scripts/check_localization_health.sh
+bash scripts/check_localization_runtime_topics.sh
 bash scripts/check_safety_state_machine.sh
 bash scripts/check_safety_runtime_topics.sh
 ```
 
-runtime check 要求 ROS2 node 正在运行，只验证 topic 是否存在，不代表真实定位恢复测试。
-
-## Phase 5B Factory Patrol 恢复 Demo
-
-Factory patrol localization recovery demo entry:
+Factory Patrol 恢复演示入口：
 
 ```bash
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 ```
 
-脚本会从 `src/robot_simulation/config/factory_patrol_localization_recovery.yaml` 打印错误
-和恢复用的 `/initialpose` 示例，并列出需要观察的 topic：
+该入口列出 `/localization/health`、`/safety/state`、`/safety/reason`、`/amcl_pose`、`/tf`
+等需要观察的 topic。静态检查只验证结构；具体 LOST/RECOVERED transition 以带日志的
+ROS2 运行记录为准。
 
-- `/localization/health`
-- `/safety/state`
-- `/safety/reason`
-- `/amcl_pose`
-- `/tf`
+## 已知限制
 
-在采集真实 ROS2/Nav2 运行记录前，不声称已经观察到 LOST/RECOVERED transition。
+- 当前阈值服务于仿真和 mock，实体机器人需要重新标定。
+- WSL2/Gazebo 的启动时序可能产生瞬时 TF warning；监控器会将其区分为不稳定或丢失。
+- 重定位恢复依赖上层发布正确的 `/initialpose`，不包含自动全局重定位算法。

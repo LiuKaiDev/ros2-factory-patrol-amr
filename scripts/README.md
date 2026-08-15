@@ -83,7 +83,7 @@ cache；普通 ROS launch 不会下载权重。Detector-mode Demo 运行时，
 和 TF graph，验证 stable ID、lifecycle transition、duplicate suppression、marker 以及
 raw/filter position statistics。
 
-加载 Phase 5 validation profile 后，`check_factory_patrol_visual_inspection_runtime.sh`
+加载 visual-inspection validation profile 后，`check_factory_patrol_visual_inspection_runtime.sh`
 验证一次 task-owned Nav2 approach、Observation standoff 和 yaw、机器人运动、完成反馈、
 target 的 `PROCESSED` 状态，以及不变的 mux/Safety Gate velocity path。
 
@@ -93,10 +93,10 @@ map-zone 场景，比较真实 `/nav2_cmd_vel` intent 与最终 `/cmd_vel`，测
 恢复；Perception 不发送任何 Twist。
 
 `run_factory_patrol_demo.sh --phase7` 增加标准 perception diagnostics、system health 和
-fault supervision。Phase 7 check 注入 camera、depth-quality、observation-time TF 和
+fault supervision。Diagnostics check 注入 camera、depth-quality、observation-time TF 和
 detector fault，并验证恢复，不发布 velocity 或 synthetic safety event。
 
-`run_factory_patrol_benchmarks.sh` 执行隔离的 headless Phase 8 detector、geometry、mission、
+`run_factory_patrol_benchmarks.sh` 执行隔离的 headless detector、geometry、mission、
 safety 和 invalid-depth profile。成功后在 `src/robot_experiments/results/` 写入带时间戳的
 JSON 和 summary CSV。已审核的结果对记录在 `docs/experiment_report.md`；运行时间会随主机
 负载变化。
@@ -109,7 +109,7 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=true use_rviz:=true
 ```
 
-手动 motion smoke test 应发布到 `/virtual_rc/cmd_vel`，不要直接发布到 `/cmd_vel`：
+手动 motion smoke test 的输入 topic 是 `/virtual_rc/cmd_vel`；`/cmd_vel` 保留为最终输出：
 
 ```bash
 ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
@@ -126,5 +126,5 @@ ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 
 bash scripts/check_project_showcase_readiness.sh
 ```
 
-该脚本检查 Phase 9 landing 文档、local Markdown path、提交的 Phase 8 JSON/CSV 一致性、
-CI、evidence policy 和主要 validation 入口；它不能替代 ROS runtime check。
+该脚本检查首页与工程文档、local Markdown path、提交的 Benchmark JSON/CSV 一致性、CI、
+evidence policy 和主要 validation 入口；它不能替代 ROS runtime check。

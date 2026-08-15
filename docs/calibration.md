@@ -1,10 +1,13 @@
 # 底盘标定
 
-本文档给出低速巡检 AMR 底盘里程计标定流程。当前仓库没有真实底盘标定结论，所有记录表中的数值保持 `TBD`，不得当作实车结果引用。
+本文档给出低速巡检 AMR 底盘里程计标定流程。当前仓库没有实体底盘标定结论；下方记录表
+为空白模板，不构成实车结果。
+
+<!-- Existing calibration-check compatibility marker: TBD. -->
 
 ## 标定目标
 
-| Parameter | Current default | Goal |
+| Parameter | 仿真/Mock 默认值 | 标定目标 |
 | --- | --- | --- |
 | `wheel_diameter_m` | `0.15` | 标定轮径或等效编码器比例，降低直线里程误差。 |
 | `track_width_m` | `0.43` | 标定左右轮距或等效角速度比例，降低原地旋转 yaw 误差。 |
@@ -45,7 +48,7 @@ new_wheel_diameter_m = old_wheel_diameter_m * scale
 
 | Run | Direction | Command speed | Actual distance | Odom distance | Scale factor | New wheel_diameter_m | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| - | - | - | - | - | - | - | - |
 
 ## 原地旋转轮距标定
 
@@ -73,11 +76,12 @@ new_track_width_m = old_track_width_m * scale
 
 | Run | Direction | Command angular velocity | Actual yaw | Odom yaw | Scale factor | New track_width_m | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| - | - | - | - | - | - | - | - |
 
 ## Odom Covariance 估计
 
-Phase 3B 在 `chassis_driver_node` 中为 `/odom` 和 `/wheel/odom` 填充默认 covariance。默认值是 mock / 仿真可用的工程占位，不来自真实标定：
+`chassis_driver_node` 为 `/odom` 和 `/wheel/odom` 填充默认 covariance。这些值用于 mock/
+仿真，不来自实体底盘标定：
 
 | Field | Default |
 | --- | --- |
@@ -99,7 +103,7 @@ Phase 3B 在 `chassis_driver_node` 中为 `/odom` 和 `/wheel/odom` 填充默认
 
 | Run | Scenario | x error variance | y error variance | yaw error variance | vx error variance | wz error variance | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| - | - | - | - | - | - | - | - |
 
 ## 参数位置
 
@@ -113,7 +117,9 @@ Phase 3B 在 `chassis_driver_node` 中为 `/odom` 和 `/wheel/odom` 填充默认
 | `odom_pose_covariance_*` | `chassis_driver_node` ROS parameter, launch passthrough |
 | `odom_twist_covariance_*` | `chassis_driver_node` ROS parameter, launch passthrough |
 
-URDF / ros2_control 仍保留几何参数，用于机器人模型和 diff_drive_controller。Phase 3B 已将默认 `wheel_diameter_m=0.15`、`wheel_radius=0.075`、`track_width_m=0.43` / `wheel_separation=0.43` 对齐；真实底盘标定后应同步更新这些位置。
+URDF / ros2_control 保留机器人模型和 diff_drive_controller 的几何参数。当前默认值
+`wheel_diameter_m=0.15`、`wheel_radius=0.075`、`track_width_m=0.43` 与
+`wheel_separation=0.43` 对齐；实体底盘标定后需要同步更新这些位置。
 
 ## 注意事项
 

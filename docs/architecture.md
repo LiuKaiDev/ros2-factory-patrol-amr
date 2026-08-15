@@ -1,7 +1,8 @@
 # 系统架构
 
 本项目是一个低速工厂巡检 AMR。导航、控制、安全、感知和诊断路径具有明确的职责边界。
-视觉升级扩展了既有的 Nav2 机器人，不替换导航栈，也不创建第二套速度控制器。
+RGB-D 感知、视觉巡检和人员安全扩展在既有 Nav2 机器人上运行，不替换导航栈，也不创建
+第二套速度控制器。
 
 ## 端到端闭环
 
@@ -99,7 +100,7 @@ TENTATIVE -> CONFIRMED -> LOST
 
 确认机制避免单帧 detection 启动任务。丢失帧处理支持短时 reacquisition；EMA 在需要时
 减少位置突变；processed cooldown 和 task state 抑制重复动作。这是短时空间 tracking，
-不是 appearance ReID。较长的 Phase 8 运行中，一个静态目标经历生命周期转换后曾出现两个 ID。
+不是 appearance ReID。正式长时 Benchmark 中，一个静态目标经历生命周期转换后曾出现两个 ID。
 
 对于符合条件的 confirmed target：
 
@@ -160,6 +161,6 @@ Nav2 禁用时，Perception validation 发布 identity `map -> odom`；Nav2 启�
 
 ## 证据边界
 
-正式定量证据是 [experiment_report.md](experiment_report.md) 中记录的 Phase 8 WSL2/Gazebo
-benchmark。`simulation_scenarios.md` 中早期 Phase 2/3/5/6 数值均标记为 smoke run，
-不汇总到最终 benchmark。实体硬件行为仍未验证。
+正式定量证据是 [experiment_report.md](experiment_report.md) 中记录的 WSL2/Gazebo
+Benchmark。`simulation_scenarios.md` 中的单次 smoke run 只用于链路调试，不汇总到正式
+统计。实体硬件行为仍未验证。

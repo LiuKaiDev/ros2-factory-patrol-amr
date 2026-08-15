@@ -1,7 +1,7 @@
 # 项目文档
 
-这里是 ROS2 工厂巡检 AMR 项目的中文工程文档索引。README 首页用于快速了解项目定位、
-能力、已验证指标和 Demo；本页按主题组织详细设计、验证方法和工程边界。
+这里是 ROS2 工厂巡检 AMR 的详细工程文档索引。项目首页用于快速了解系统和已验证指标，
+本页按架构、仿真、验证和工程边界组织技术资料。
 
 ## 系统设计
 
@@ -9,7 +9,7 @@
 - [导航系统](navigation.md)
 - [定位系统](localization.md)
 - [控制系统](control.md)
-- [安全状态机](safety_state_machine.md)
+- [Safety 状态机](safety_state_machine.md)
 
 ## 仿真与硬件
 
@@ -29,16 +29,13 @@
 - [Showcase 证据规范](showcase/README.md)
 - [验证脚本清单](../scripts/README.md)
 
-## 文档约定
+## 文档说明
 
-- 文中的 package、node、ROS Topic、message/interface、TF frame、parameter、command 和
-  file path 保持代码中的英文标识。
-- `TBD` 表示尚未由真实、可追溯运行填充；仿真结果不会被描述为实体硬件验收。
-- Phase 8 JSON/CSV 是 Benchmark 数值的 source of truth；文档中的指标不得脱离产物修改。
-- 文档整理不会改变 ROS runtime code、配置、算法、Safety Gate、Nav2 或实验产物。
+- ROS package、Topic、interface、TF frame、parameter 和 command 保留源码中的英文标识。
+- 未实际验证的能力明确标记为“未验证”。
+- 仿真结果不等同于实体硬件验证。
+- Benchmark 数据以提交的 JSON/CSV 实验产物为准。
 
 ## 开发历史
 
-视觉感知升级规划属于已完成 Phase 0–9 的 design history，保留在
-[docs/upgrade/visual_perception_upgrade_plan.md](upgrade/visual_perception_upgrade_plan.md)，
-不作为项目首页的主要阅读入口。
+项目早期设计与视觉感知升级规划保留在 [`upgrade/`](upgrade/)，用于记录系统演进过程。
