@@ -1,133 +1,80 @@
-# ROS2 Factory Patrol AMR with Visual Perception, Navigation and Safety Integration
+# ROS2 工厂巡检 AMR 自主导航与视觉感知系统
 
-A ROS 2 Jazzy factory patrol AMR that integrates RGB-D perception with the
-existing Nav2, AMCL/localization, velocity arbitration, and Safety Gate
-infrastructure. It detects objects, projects robust depth through TF2 into the
-map frame, manages target lifecycle, starts task-owned visual inspection
-missions, and turns person observations into semantic safety events.
+> ROS2 Factory Patrol AMR with Visual Perception, Navigation and Safety Integration
 
-The engineering story is the complete robot loop, not a detector demo:
+这是一个基于 ROS 2 Jazzy 的低速工厂巡检 AMR 系统。项目在已有 Nav2、AMCL
+定位、速度仲裁和 Safety Gate 闭环的基础上，接入 RGB-D 视觉感知，通过目标检测、
+鲁棒深度恢复和 TF2 完成目标三维定位，再由 `TargetManager`、视觉巡检任务和人员
+安全事件把视觉结果接入任务与安全闭环。
+
+当前验证环境为 **WSL2、Ubuntu 24.04、ROS 2 Jazzy 和 Gazebo simulation**。
+本文中的性能与行为结果均来自软件仿真，不代表真实工厂或实体机器人部署验收。
+
+项目的主角是 AMR 的完整闭环，视觉模型只是可替换的 Perception 输入模块：
 
 ```text
 Perception -> Spatial Understanding -> Decision -> Navigation -> Control -> Safety
 ```
 
-The detector is one replaceable perception backend. Nav2 remains the navigation
-stack, `robot_tasks` owns mission execution, and perception never publishes
-`/cmd_vel` or `/nav2_cmd_vel`.
-
-Current validation platform: **WSL2, Ubuntu 24.04, ROS 2 Jazzy, and Gazebo
-simulation**. No physical-robot or production-factory deployment is claimed.
-
-## Project Overview
-
-The original navigation and control path was preserved:
+原有控制权保持不变：
 
 ```text
 Mission / Goal -> Nav2 -> cmd_vel mux -> Safety Gate -> Robot
 ```
 
-The visual upgrade adds spatial and semantic inputs around that path:
+`robot_perception` 只发布检测、几何、目标和语义安全事件；**Perception never publishes
+`/cmd_vel` or `/nav2_cmd_vel`.** 最终速度仍由现有 cmd_vel mux 和 Safety Gate 决定。
 
-```text
-RGB-D Camera -> Detector -> Depth + CameraInfo -> 3D Localization -> TF2 (map)
-                                                          |
-                                                   Target Manager
-                                                    /          \
-                                             robot_tasks      Safety event
-                                                  |               |
-                                                Nav2          Safety Gate
-                                                  \              /
-                                                   Robot motion
-```
+## 核心能力
 
-Implemented capabilities include:
+- ROS2 Jazzy 多 package AMR 软件架构与 Factory Patrol Gazebo 仿真。
+- Nav2 / AMCL 导航定位，以及现有速度仲裁、watchdog、estop 和 Safety Gate。
+- 640x480、15 Hz 的 RGB-D Camera，提供 RGB、Depth、CameraInfo 和完整 TF 链。
+- 可替换的 OpenCV-DNN YOLOX-S Detector，输出标准 `vision_msgs` `Detection2DArray`。
+- Robust Depth Sampling：从检测框中心 ROI 过滤无效深度并取 median。
+- 通过 CameraInfo 内参和 TF2 将相机坐标系点转换到 `map`。
+- `TargetManager` 的多帧确认、空间关联、丢失、处理、冷却和重复任务抑制。
+- 由 `robot_tasks` 管理的 Visual Inspection Mission、Observation Pose 和 Nav2 Approach。
+- 人员距离与危险区域判断，生成 `PerceptionSafetyEvent` 并接入最终 Safety Gate。
+- 独立的 Camera、Detector、Depth、TF、Pipeline Diagnostics 与故障恢复检查。
+- 可复现的 Evaluation / Benchmark，以及提交到仓库的 JSON / CSV 结果。
 
-- RGB-D simulation at 640x480 and 15 Hz with ROS image, depth, and CameraInfo topics.
-- Replaceable OpenCV-DNN YOLOX-S 2D detection using `vision_msgs` output.
-- Median depth projection from a bbox ROI, invalid-depth rejection, and
-  observation-time TF2 conversion to `map`.
-- Stateful 3D targets with confirmation, loss, processing, cooldown, spatial
-  association, and duplicate mission suppression.
-- Visual inspection goals planned at a configured standoff and executed through
-  the existing Nav2 adapter.
-- Person distance/zone decisions integrated into the existing final velocity
-  gate without granting perception motion authority.
-- Standard diagnostics for camera, detector, depth quality, TF, and pipeline
-  health, connected to the existing monitor and fault supervisor.
+## 已验证结果
 
-## Demo / What the Robot Can Do
+### Gazebo / WSL Simulation Benchmark
 
-### Demo 1: RGB-D Detection and 3D Localization
+数据源是提交到仓库的 [Phase 8 JSON](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
+和 [CSV](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)。该轮运行使用
+headless `factory_patrol.sdf`、CPU OpenCV-DNN YOLOX-S、640x640 Detector 输入、
+640x480 RGB-D（15 Hz）和置信度阈值 `0.45`。
 
-```text
-RGB-D -> Detection2D -> robust depth -> optical-frame point
-      -> observation-time TF2 -> map-frame target -> RViz marker
-```
+| 指标 | 样本数 | Mean | P50 | P95 | Max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Detector inference | 30 | 526.189 ms | 519.714 ms | 568.830 ms | 656.778 ms |
+| 3D localization error | 30 | 0.02045 m | 0.01645 m | 0.05239 m | 0.07075 m |
+| Detection to confirmation | 5 | 1.970 s | 2.023 s | 2.405 s | 2.405 s |
+| Confirmation to inspection event | 5 | 0.000 s | 0.000 s | 0.000 s | 0.000 s |
+| Inspection event to Nav2 goal | 5 | 0.080 s | 0.002 s | 0.385 s | 0.385 s |
+| Detection to Nav2 goal | 5 | 2.050 s | 2.034 s | 2.790 s | 2.790 s |
+| Safety STOP response | 10 | 0.1806 s | 0.173 s | 0.214 s | 0.214 s |
 
-After model preparation and workspace sourcing:
+摘要：
 
-```bash
-ros2 launch robot_bringup factory_patrol_demo.launch.py \
-  gui:=true use_rviz:=true use_detector:=true geometry_input_mode:=detector
-```
+- 3D 定位 RMSE 为 `0.02351 m`（约 2.35 cm），P95 为 `0.05239 m`（约 5.24 cm）。
+- Visual Inspection 任务 `5/5` 成功，0 次失败，0 次 false mission starts。
+- `20/20` 组无效深度被正确拒绝，`0` 次 false-valid outputs。
+- `SPEED_LIMITED` 将真实上游 `0.35 m/s` Nav2 请求限制为 `0.15 m/s`，响应时间 `0.226 s`。
+- 长时运行中一个静态目标曾被分配两个 target ID；任务层 duplicate suppression
+  阻止了重复 mission start。
+- 32 组静态目标观测的原始 x/y/z 标准差为 `0.00161 / 0.00167 / 0.00540 m`，
+  EMA 为 `0.00181 / 0.00197 / 0.00607 m`，本轮没有证明 EMA 带来稳定性改善。
+- 三个高负载 mission trial 共记录 13 个瞬时非 OK `perception/tf` 样本，均恢复，
+  未发出失败 lookup 的坐标，所有任务仍完成。
 
-Inspect `/perception/detections_2d`, `/perception/objects_3d`,
-`/perception/debug_image`, and `/perception/markers`.
+最新完整软件基线为 **21 ROS 2 packages、648 tests、0 errors、0 failures、0 skipped**。
+这是仿真/软件验证结果，不是硬件验收结果。
 
-### Demo 2: Visual Inspection / Nav2 Approach
-
-```text
-CONFIRMED -> INSPECTION_REQUIRED -> robot_tasks -> observation pose
-          -> NavigateSequence -> Nav2 -> arrival -> PROCESSED
-```
-
-```bash
-bash scripts/run_factory_patrol_demo.sh --phase5
-```
-
-The planner uses a `1.2 m` target standoff and faces the target rather than
-driving to its center. A recorded Phase 5 smoke run returned Nav2 `SUCCEEDED`
-with a final robot-target distance of `1.342032 m`; Nav2 goal tolerance
-contributed to the difference from the requested standoff. The formal Phase 8
-benchmark measured mission success and latency, not physical standoff error.
-
-### Demo 3: Person Safety Integration
-
-```text
-Person -> TargetManager -> PerceptionSafetyPolicy
-       -> /perception/safety_event -> Safety Gate -> final /cmd_vel
-```
-
-```bash
-bash scripts/run_factory_patrol_demo.sh --phase6
-```
-
-The validation profile exercises `CLEAR`, `SPEED_LIMITED`, distance-based
-`STOP`, danger-zone `STOP`, and recovery. **Perception never publishes
-`/cmd_vel`; the Safety Gate remains the final velocity authority.**
-
-### Demo 4: Perception Fault Handling
-
-```bash
-bash scripts/run_factory_patrol_demo.sh --phase7
-```
-
-In another sourced shell:
-
-```bash
-bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
-```
-
-The runtime probe injects RGB interruption, depth interruption, invalid depth,
-observation-time TF failure, and detector failure, then verifies diagnostic
-recovery. Invalid or stale inputs suppress downstream coordinates and mission
-triggers instead of fabricating targets or treating unknown perception as a
-clear environment.
-
-## System Architecture
-
-### Closed-Loop Pipeline
+## 系统架构（Closed-Loop Pipeline）
 
 ```mermaid
 flowchart TD
@@ -154,27 +101,48 @@ flowchart TD
   Feedback --> Monitor
 ```
 
-The combined Factory Patrol simulation node implements muxing and safety gating
-in one process; the authority boundary remains the same. Other safety inputs
-(estop, watchdog, localization, chassis, scan, manual takeover, and legacy
-safety state) are resolved with the perception restriction using the most
-restrictive state.
+Factory Patrol 仿真节点把 mux 和安全门控组合在一个进程中，但权限边界不变：
+其他安全输入（estop、watchdog、定位、底盘、scan、手动接管和 legacy safety state）
+与 Perception 限制一起按最严格状态解析。Perception 与 velocity controller 是两个
+不同的职责边界，架构中不存在 `Perception -> /cmd_vel` 直连。
 
-Detailed architecture: [docs/architecture.md](docs/architecture.md) and
-[docs/safety_state_machine.md](docs/safety_state_machine.md).
+详细说明见 [docs/architecture.md](docs/architecture.md) 和
+[docs/safety_state_machine.md](docs/safety_state_machine.md)。
 
-## Perception Pipeline
+## 视觉感知与三维定位
 
-`robot_perception` owns detector adaptation, depth projection, geometry/TF,
-target management, inspection event policy, perception safety policy, and
-diagnostics. Its detector backend emits standard `Detection2DArray`; depth, TF,
-tracking, mission, and safety code do not depend on YOLO-specific output.
+`robot_perception` 负责 Detector 适配、Depth 投影、Geometry/TF、目标管理、巡检事件、
+人员安全策略和 Diagnostics。Detector 只输出标准 `Detection2DArray`，因此深度、TF、
+Tracking、Mission 和 Safety 逻辑不依赖 YOLO 专用输出。
 
-### Robust depth projection
+```text
+RGB
+  ↓
+Detector
+  ↓
+2D bbox + Depth + CameraInfo
+  ↓
+Robust Depth
+  ↓
+3D Point in camera_color_optical_frame
+  ↓
+TF2
+  ↓
+map-frame position
+```
 
-The projector samples the central `0.3` portion of the detection bbox, rejects
-zero, NaN, Inf, and values outside `0.2-8.0 m`, requires at least five valid
-samples, and takes their median. With CameraInfo intrinsics:
+### Robust Depth Projection
+
+投影器不会只读取 bbox 中心的单个像素，而是采样检测框中心的 `0.3` 区域：
+
+```text
+bbox center ROI
+    -> 过滤 0 / NaN / Inf / 超出 0.2-8.0 m 的值
+    -> 至少保留 5 个有效样本
+    -> median
+```
+
+使用 `CameraInfo` 内参后，针孔投影公式保持如下：
 
 ```text
 X = (u - cx) * Z / fx
@@ -182,50 +150,95 @@ Y = (v - cy) * Z / fy
 Z = depth
 ```
 
-This avoids relying on a single center pixel. Invalid depth or intrinsics
-produce no 3D point.
+其中 `(u, v)` 是检测框参考像素，`fx, fy, cx, cy` 来自 `CameraInfo`，`Z` 是鲁棒
+深度。输出点位于 `camera_color_optical_frame`，随后由 TF2 转换到 `map`。深度或
+内参无效时不产生 3D 点，也不会凭空生成目标。
 
-### Target lifecycle
+## 坐标系与 TF
 
-Targets progress through `TENTATIVE`, `CONFIRMED`, `LOST`, and `PROCESSED`.
-The manager uses class-aware 3D spatial association, three-frame confirmation,
-five-frame loss, EMA (`alpha=0.4`), processed cooldown, and event suppression.
-Short validation demonstrated stable IDs and same-ID reacquisition. The longer
-Phase 8 run assigned two IDs to one static target after lifecycle transitions,
-so long-term identity persistence is not claimed.
+```text
+map
+ ↓
+odom
+ ↓
+base_footprint
+ ↓
+base_link
+ ↓
+camera_link
+ ↓
+camera_color_optical_frame
+```
 
-## Visual Inspection Workflow
+RGB-D Camera 的唯一外参由 robot description 中的 Xacro/URDF 定义，并与 Factory
+Patrol Gazebo 模型保持一致。`camera_color_optical_frame` 使用 ROS optical-frame
+约定：x 向右、y 向下、z 向前。
 
-Single-frame detections do not start missions. An allowlisted confirmed target
-causes `INSPECTION_REQUIRED`; `robot_tasks` validates it, plans a map-frame
-observation pose approximately `1.2 m` from the target, points the robot toward
-the target, and uses the existing `/navigate_sequence` adapter and Nav2. Only a
-successful navigation result produces `INSPECTION_COMPLETED` and marks the
-target `PROCESSED`.
+几何节点使用与图像观测对应的 observation timestamp 查询 TF2，再把点转换到 `map`。
+不会用 latest TF 掩盖时间同步错误。未启用 Nav2 时，仿真 profile 发布 identity
+`map -> odom`；启用 Nav2 时由 AMCL 提供权威定位。
 
-This design avoids target-center collisions and keeps retries, goal lifecycle,
-and duplicate mission suppression in the task layer.
+## 目标管理
 
-## Perception Safety Integration
+目标状态为：
 
-For currently observed eligible person targets, planar map-frame distance and
-configured danger-zone membership produce:
+```text
+TENTATIVE -> CONFIRMED -> LOST -> PROCESSED
+```
 
-| Condition | Semantic state | Final gate behavior |
+`TargetManager` 使用 class-aware 3D spatial association、多帧确认、丢失计数、EMA、
+processed cooldown 和 event suppression。短时验证展示了稳定 ID 与同 ID reacquisition，
+但长时 Phase 8 benchmark 中一个静态物理目标曾产生两个 ID。因此项目不宣称永久稳定
+的 appearance ReID；任务层仍能抑制活动 mission 期间的重复事件。
+
+## 视觉引导巡检
+
+单帧检测不会直接启动任务。allowlisted 且已确认的目标触发 `INSPECTION_REQUIRED`，
+`robot_tasks` 验证事件、在 `map` 中规划约 `1.2 m` 的 Observation Pose，使机器人朝向
+目标，并通过现有 `/navigate_sequence` adapter 调用 Nav2：
+
+```text
+CONFIRMED Target
+        ↓
+INSPECTION_REQUIRED
+        ↓
+robot_tasks
+        ↓
+Observation Pose Planner (standoff 1.2 m)
+        ↓
+Nav2
+        ↓
+Arrival
+        ↓
+PROCESSED
+```
+
+目标中心是物体坐标，不是安全停车点；Observation Pose 让机器人在可配置距离处朝向
+目标，避免直接驶入目标。只有导航成功才产生 `INSPECTION_COMPLETED` 并把目标标记为
+`PROCESSED`。Phase 5 的一次仿真 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标
+距离 `1.342032 m`；Nav2 goal tolerance 造成其与请求 standoff 的差异。正式 Phase 8
+benchmark 测量的是 mission success 和 latency，并未重新统计 physical standoff error。
+
+## 人员安全联动
+
+对当前可见且符合条件的人员目标，系统在 `map` 中计算平面距离并判断 danger zone，
+发布 `/perception/safety_event`：
+
+| 条件 | 语义状态 | Safety Gate 行为 |
 | --- | --- | --- |
-| Distance `> 3.0 m` | `CLEAR` / normal | No perception restriction |
-| Distance `1.5-3.0 m` | `SPEED_LIMITED` | Clamp to configured low speed |
-| Distance `< 1.5 m` | `STOP` | Publish zero final velocity |
-| Inside danger zone | `STOP` | Publish zero final velocity |
+| 距离 `> 3.0 m` | `CLEAR` / normal | 不增加 Perception 限制 |
+| 距离 `1.5-3.0 m` | `SPEED_LIMITED` | 限制到配置的低速 |
+| 距离 `< 1.5 m` | `STOP` | 发布零最终速度 |
+| 位于 danger zone | `STOP` | 发布零最终速度 |
 
-Hysteresis prevents boundary chatter, and three valid clear observations are
-required for recovery. A stale perception restriction cannot override another
-active safety source. This is supervisory simulation behavior, not a
-functional-safety certification.
+边界使用 hysteresis，恢复需要连续三个有效 clear observation。过期的 Perception
+限制不能解除其他仍然有效的安全来源。这是 supervisory simulation behavior，不是
+functional-safety certification；Perception 仍不拥有速度发布权，Safety Gate 仍是最终
+velocity authority。
 
-## Fault Handling / Diagnostics
+## 感知诊断与故障处理
 
-The standard `/perception/diagnostics` stream contains:
+标准 `/perception/diagnostics` 流包含以下独立状态：
 
 ```text
 perception/camera_rgb
@@ -241,74 +254,41 @@ perception/pipeline
 Perception diagnostics -> system_monitor -> fault_supervisor -> Safety Gate
 ```
 
-Camera freshness, CameraInfo validity, detector health, observation-time TF,
-and depth quality remain distinct so a perception failure is not confused with
-a safe empty scene. Fault injection and recovery details are in
-[docs/simulation_scenarios.md](docs/simulation_scenarios.md).
+Camera freshness、CameraInfo 有效性、Detector health、observation-time TF 和 depth
+quality 分开诊断，因此“感知故障”不会被误判为空场景。故障注入会中断 RGB、Depth、
+无效深度、观测时刻 TF 和 Detector，并验证诊断恢复；无效或过期输入会抑制下游坐标
+和任务触发。
 
-## Quantitative Evaluation
+详细故障场景见 [docs/simulation_scenarios.md](docs/simulation_scenarios.md)。
 
-### Gazebo / WSL Simulation Benchmark
+## 性能评估
 
-Source of truth: the committed [JSON](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
-and [CSV](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv).
-The run used headless `factory_patrol.sdf`, CPU OpenCV-DNN YOLOX-S, 640x640
-detector input, 640x480 RGB-D at 15 Hz, and confidence threshold `0.45`.
+Benchmark runner 使用隔离的 DDS domain 和 Gazebo partition 启动多个 headless profile，
+输出带时间戳的 JSON / CSV 到 `src/robot_experiments/results/`。百分位数、排除项和解释
+见 [docs/experiment_report.md](docs/experiment_report.md)。上方指标来自固定提交产物，不
+因 README 中文化而重新生成或调整。
 
-| Metric | Samples | Mean | P50 | P95 | Max |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Detector inference | 30 | 526.189 ms | 519.714 ms | 568.830 ms | 656.778 ms |
-| 3D localization error | 30 | 0.02045 m | 0.01645 m | 0.05239 m | 0.07075 m |
-| Detection to confirmation | 5 | 1.970 s | 2.023 s | 2.405 s | 2.405 s |
-| Confirmation to inspection event | 5 | 0.000 s | 0.000 s | 0.000 s | 0.000 s |
-| Inspection event to Nav2 goal | 5 | 0.080 s | 0.002 s | 0.385 s | 0.385 s |
-| Detection to Nav2 goal | 5 | 2.050 s | 2.034 s | 2.790 s | 2.790 s |
-| Safety STOP response | 10 | 0.1806 s | 0.173 s | 0.214 s | 0.214 s |
+## 软件包结构
 
-The 3D localization RMSE was `0.02351 m` across the tested `1.7-3.7 m` range.
-All `5/5` visual inspection trials succeeded with zero failures and zero false
-mission starts. Invalid depth was correctly rejected in `20/20` cases with zero
-false-valid outputs. SPEED_LIMITED clamped a real upstream `0.35 m/s` Nav2
-request to `0.15 m/s` in `0.226 s`.
-
-Three additional `INSPECTION_REQUIRED` events from newly assigned IDs arrived
-while a task was already active. The task node ignored them, so five intended
-trials produced exactly five mission starts.
-
-For 32 paired stationary-target observations, raw x/y/z standard deviations
-were `0.00161 / 0.00167 / 0.00540 m`; EMA values were
-`0.00181 / 0.00197 / 0.00607 m`. **This benchmark did not demonstrate an EMA
-stability improvement.** Filtering remains available, but the deterministic
-static simulation sample was slightly worse after EMA.
-
-Thirteen transient non-OK `perception/tf` samples occurred across three mission
-trials. Diagnostics detected them, all recovered, and all missions completed;
-no coordinate is emitted for a failed lookup.
-
-See [docs/experiment_report.md](docs/experiment_report.md) for method,
-exclusions, and interpretation.
-
-## Package Architecture
-
-| Package | Responsibility |
+| Package | 职责 |
 | --- | --- |
-| `robot_bringup` | Composes Factory Patrol simulation, Nav2, tasks, perception, and monitoring profiles. |
-| `robot_description` | Xacro/URDF model, camera extrinsic, optical frame, and robot assets. |
-| `robot_simulation` | Gazebo worlds, ROS-Gazebo bridges, fixtures, configs, and RViz views. |
-| `robot_navigation` | Nav2, AMCL, maps, costmaps, localization health, and navigation parameters. |
-| `robot_teleop` | Velocity-source arbitration, manual input, Safety Gate, watchdog, estop, and limits. |
-| `robot_tasks` | Mission lifecycle, observation-pose planning, visual inspection, and Nav2 action ownership. |
-| `robot_perception` | Detection, depth/TF geometry, target management, semantic policies, and diagnostics. |
-| `robot_utils` | System health aggregation and fault supervision. |
-| `robot_experiments` | Repeatable benchmark probes, statistics, and JSON/CSV output. |
-| `robot_interfaces_perception` | 3D target, mission event, and semantic safety message definitions. |
-| `robot_interfaces*` | Core, navigation, mission, facility, fleet, business, and site interfaces. |
+| `robot_bringup` | 组合 Factory Patrol 仿真、Nav2、任务、Perception 和监控 profile。 |
+| `robot_description` | Xacro/URDF 机器人模型、Camera extrinsic、optical frame 和机器人资源。 |
+| `robot_simulation` | Gazebo world、ROS-Gazebo bridge、fixtures、配置和 RViz 视图。 |
+| `robot_navigation` | Nav2、AMCL、地图、costmap、定位健康和导航参数。 |
+| `robot_teleop` | 速度源仲裁、手动输入、Safety Gate、watchdog、estop 和速度限制。 |
+| `robot_tasks` | Mission lifecycle、Observation Pose 规划、视觉巡检和 Nav2 action 所有权。 |
+| `robot_perception` | Detection、Depth/TF geometry、TargetManager、语义策略和 Diagnostics。 |
+| `robot_utils` | 系统健康聚合和故障监督。 |
+| `robot_experiments` | 可重复 Benchmark probe、统计和 JSON/CSV 输出。 |
+| `robot_interfaces_perception` | 3D 目标、Mission event 和语义 Safety message 定义。 |
+| `robot_interfaces*` | Core、navigation、mission、facility、fleet、business 和 site interfaces。 |
 
-The workspace currently contains 21 ROS 2 packages.
+当前 workspace 包含 21 个 ROS 2 packages。
 
-## ROS Topics and Interfaces
+## 关键 ROS Topics
 
-| Area | Topic | Type |
+| 类别 | Topic | Type |
 | --- | --- | --- |
 | Camera | `/camera/color/image_raw` | `sensor_msgs/msg/Image` |
 | Camera | `/camera/depth/image_raw` | `sensor_msgs/msg/Image` (`32FC1`) |
@@ -326,72 +306,111 @@ The workspace currently contains 21 ROS 2 packages.
 | Safety/control | `/safety/state`, `/safety/reason` | `std_msgs/msg/String` |
 | Control | `/nav2_cmd_vel`, `/cmd_vel` | `geometry_msgs/msg/Twist` |
 
-Custom perception interfaces:
+Camera 图像使用 `camera_color_optical_frame` 作为相关 frame ID。RGB-D 的仿真分辨率为
+640x480、发布频率为 15 Hz；Depth 编码为 `32FC1`。Detector 默认输入 640x640，
+置信度阈值 `0.45`，NMS `0.5`。深度有效范围为 `0.2-8.0 m`，ROI 比例 `0.3`，至少
+需要 5 个有效样本。Tracking 默认确认 3 帧、丢失 5 帧、最大匹配距离 `0.5 m`、
+EMA `alpha=0.4`、cooldown `10 s`。视觉巡检 standoff 参数为 `1.2 m`，人员安全
+slow/stop 阈值为 `3.0 m` / `1.5 m`，低速为 `0.15 m/s`。
 
-- [DetectedObject3D.msg](src/robot_interfaces_perception/msg/DetectedObject3D.msg)
-  carries a map-frame target ID, class, confidence, 3D position, depth validity,
-  and lifecycle state.
-- [PerceptionEvent.msg](src/robot_interfaces_perception/msg/PerceptionEvent.msg)
-  carries target confirmation, inspection request, and inspection completion
-  events with a map-frame pose.
+## 自定义 Interface
+
+- [DetectedObject3D.msg](src/robot_interfaces_perception/msg/DetectedObject3D.msg) 携带
+  `map` frame 中的 target ID、类别、置信度、3D 位置、深度有效性和生命周期状态。
+  状态常量为 `TENTATIVE`、`CONFIRMED`、`LOST`、`PROCESSED`。
+- [PerceptionEvent.msg](src/robot_interfaces_perception/msg/PerceptionEvent.msg) 携带
+  目标确认、巡检请求和巡检完成事件，以及 `map` frame pose。事件常量包括
+  `TARGET_CONFIRMED`、`INSPECTION_REQUIRED` 和 `INSPECTION_COMPLETED`。
 - [PerceptionSafetyEvent.msg](src/robot_interfaces_perception/msg/PerceptionSafetyEvent.msg)
-  carries clear/near/too-close/zone semantics, requested safety state, distance,
-  source, and reason. It does not carry velocity commands.
+  携带 `CLEAR`、`PERSON_NEAR`、`PERSON_TOO_CLOSE`、`PERSON_IN_DANGER_ZONE` 语义、
+  requested safety state、distance、source 和 reason；它不携带 velocity command。
 
-## TF / Coordinate Frames
+## 快速开始
 
-```text
-map -> odom -> base_footprint -> base_link -> camera_link
-                                             -> camera_color_optical_frame
-```
-
-Projection starts in `camera_color_optical_frame`. The geometry node looks up
-TF at the image observation timestamp and transforms the point to `map`, which
-is the common frame for association, inspection goals, robot-person distance,
-and safety zones. The validated path does not fall back to latest TF to hide
-synchronization errors. Without Nav2, the simulation profile publishes an
-identity `map -> odom`; with Nav2 enabled, AMCL is authoritative.
-
-## Quick Start
-
-Prerequisites are Ubuntu 24.04 with ROS 2 Jazzy desktop and project dependencies
-available through `rosdep`.
+前置条件：Ubuntu 24.04、ROS 2 Jazzy desktop，以及可由 `rosdep` 解析的项目依赖。
 
 ```bash
 source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash
+```
+
+准备 Detector 模型并启动一次视觉巡检 Demo：
+
+```bash
 bash scripts/prepare_phase3_detector_model.sh
 bash scripts/run_factory_patrol_demo.sh --phase5
 ```
 
-The model script downloads the official OpenCV Zoo YOLOX-S ONNX file into the
-user cache and verifies SHA-256
-`c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063`.
-Weights are not committed and normal launch never downloads them. The current
-backend is CPU OpenCV-DNN; CUDA, TensorRT, and ONNX Runtime are not implemented.
+模型脚本把官方 OpenCV Zoo YOLOX-S ONNX 文件下载到用户 cache，并校验 SHA-256：
 
-## Demo Commands
+```text
+c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063
+```
+
+权重不会提交到仓库，普通 launch 也不会自动下载。当前 backend 是 CPU OpenCV-DNN；
+CUDA、TensorRT 和 ONNX Runtime **尚未实现**。
+
+## Demo
+
+### 1. RGB-D Detection 与 3D Localization
+
+```text
+RGB-D -> Detection2D -> robust depth -> optical-frame point
+      -> observation-time TF2 -> map-frame target -> RViz marker
+```
 
 ```bash
-# Core Factory Patrol Gazebo + RViz
-bash scripts/run_factory_patrol_demo.sh --launch
+ros2 launch robot_bringup factory_patrol_demo.launch.py \
+  gui:=true use_rviz:=true use_detector:=true geometry_input_mode:=detector
+```
 
-# RGB-D detector, 3D targets, task-owned inspection, and Nav2
+检查 `/perception/detections_2d`、`/perception/objects_3d`、`/perception/debug_image`
+和 `/perception/markers`。
+
+### 2. Visual Inspection / Nav2 Approach
+
+```text
+CONFIRMED -> INSPECTION_REQUIRED -> robot_tasks -> observation pose
+          -> NavigateSequence -> Nav2 -> arrival -> PROCESSED
+```
+
+```bash
 bash scripts/run_factory_patrol_demo.sh --phase5
+```
 
-# Detector, person policy, Nav2 intent, and final Safety Gate
+### 3. Person Safety Integration
+
+```text
+Person -> TargetManager -> PerceptionSafetyPolicy
+       -> /perception/safety_event -> Safety Gate -> final /cmd_vel
+```
+
+```bash
 bash scripts/run_factory_patrol_demo.sh --phase6
+```
 
-# Phase 6 plus perception diagnostics and fault supervision
+该 profile 覆盖 `CLEAR`、`SPEED_LIMITED`、距离 `STOP`、danger-zone `STOP` 和恢复。
+
+### 4. Perception Fault Handling
+
+```bash
 bash scripts/run_factory_patrol_demo.sh --phase7
 ```
 
-The earlier Phase 5B multipoint, temporary-obstacle, and localization-recovery
-workflows remain documented in [scripts/README.md](scripts/README.md).
+在另一个已 source 的 shell 中运行：
 
-## Validation / Tests
+```bash
+bash scripts/check_factory_patrol_perception_diagnostics_runtime.sh
+```
+
+该 probe 注入 RGB interruption、Depth interruption、invalid depth、observation-time
+TF failure 和 Detector failure，并检查诊断恢复。此前完成的 Phase 5B multipoint、
+temporary-obstacle 和 localization-recovery workflow 仍记录在
+[scripts/README.md](scripts/README.md)。
+
+## 测试与验证
 
 ### Validation Scripts
 
@@ -412,13 +431,11 @@ bash scripts/check_safety_state_machine.sh
 bash scripts/check_project_showcase_readiness.sh
 ```
 
-Runtime scripts require the matching demo profile in another sourced shell.
-The latest full WSL2 baseline is **21 packages, 648 tests, 0 errors, 0 failures,
-0 skipped**. This is a simulation/software validation result, not hardware
-acceptance. The complete script inventory is in
-[scripts/README.md](scripts/README.md).
+Runtime scripts 需要在另一个已 source 的 shell 中启动匹配的 Demo profile。完整脚本清单
+见 [scripts/README.md](scripts/README.md)。最新完整基线为 **21 packages, 648 tests,
+0 errors, 0 failures, 0 skipped**。
 
-## Benchmark Reproduction
+## 复现 Benchmark
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -426,69 +443,67 @@ source install/setup.bash
 bash scripts/run_factory_patrol_benchmarks.sh
 ```
 
-The runner uses isolated DDS domains and Gazebo partitions for multiple
-headless profiles. It writes timestamped JSON and CSV under
-`src/robot_experiments/results/`; runtime varies with host load. The reviewed
-artifacts cited above are:
+运行器会为多个 headless profile 使用隔离的 DDS domain 和 Gazebo partition，并把带时间
+戳的 JSON 与 CSV 写入 `src/robot_experiments/results/`。运行时间会随主机负载变化。本文
+引用的固定产物为：
 
 - [factory_patrol_phase8_20260815_011022.json](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
 - [factory_patrol_phase8_20260815_011022.csv](src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
 
-Phase 9 changes documentation only, so the Phase 8 runtime benchmark is not
-rerun or silently altered.
+Phase 9 只完成文档与展示整理，未重新运行或静默改写 Phase 8 benchmark。
 
-## Design Decisions
+## 关键设计决策
 
-1. **RGB-D instead of RGB-only:** metric depth enables explicit 3D coordinates,
-   standoff goals, and distance-based policies without monocular scale guesses.
-2. **Replaceable detector:** `Detection2DArray` separates backend inference from
-   depth, TF, target, mission, and safety logic.
-3. **Geometry before detector integration:** deterministic synthetic bboxes made
-   camera intrinsics, optical conventions, depth filtering, and TF independently testable.
-4. **No velocity from perception:** semantic policy is separated from the final
-   Safety Gate, preserving all existing safety sources and control ownership.
-5. **Observation pose instead of target center:** the robot stops at a safe,
-   view-oriented standoff instead of colliding with the object coordinate.
-6. **Confirmed targets only:** multi-frame evidence and task suppression prevent
-   single-frame detections and repeated events from starting duplicate missions.
-7. **Distinct diagnostics:** failed/stale perception is unknown, not evidence of
-   an empty safe environment.
-8. **Deferred acceleration and ReID:** TensorRT and advanced identity tracking
-   would expand deployment scope and invalidate the measured baseline.
+1. **RGB-D 而不是 RGB-only：** metric depth 提供显式 3D 坐标、standoff goal 和距离策略，
+   不需要猜测单目尺度。
+2. **Replaceable detector：** `Detection2DArray` 把 backend inference 与深度、TF、目标、
+   mission 和 safety 逻辑解耦。
+3. **先验证 Geometry：** deterministic synthetic bbox 让相机内参、optical convention、
+   深度过滤和 TF 可以独立测试。
+4. **Perception 不发布速度：** semantic policy 与最终 Safety Gate 分离，保留所有既有
+   safety source 和 control ownership。
+5. **Observation Pose 而非目标中心：** 机器人在安全、朝向目标的 standoff 停车，而不是
+   驶入物体坐标。
+6. **只用确认目标：** 多帧证据和 task suppression 避免单帧检测或重复事件启动重复任务。
+7. **诊断状态独立：** 失败或过期的 Perception 是 unknown，不是“环境为空且安全”的证据。
+8. **延后加速与 ReID：** TensorRT 和 advanced identity tracking 会扩大部署范围，因此
+   不纳入当前已测 baseline。
 
-## Known Limitations
+## 已知限制（Known Limitations）
 
-- **Simulation only:** quantitative results are from WSL2/Gazebo, not physical hardware.
-- **CPU detector:** OpenCV-DNN YOLOX-S inference is CPU-bound (P95 `568.830 ms`).
-- **Target identity:** one static target produced two IDs in a longer run;
-  task-level suppression prevented duplicate mission starts. Appearance ReID is absent.
-- **EMA result:** filtered standard deviation was slightly worse than raw data
-  in the 32-pair static sample; no stability improvement is claimed.
-- **TF transients:** 13 non-OK TF diagnostic samples occurred across three
-  high-load mission trials, recovered, and caused no permanent mission failure.
-- **Gazebo pose/odometry alignment:** passive model settling and bridged wheel
-  odometry can use different origins; measured geometry error includes this effect.
-- **Static inspection target:** the mission plans a fixed observation pose. It
-  is not moving-target pursuit or visual servoing.
-- **Scope:** no SLAM/VIO upgrade, 3D detector, functional-safety certification,
-  hardware deployment, or production object dataset is claimed.
+- **仅仿真：** 定量结果来自 WSL2/Gazebo，不是实体硬件。
+- **CPU Detector：** OpenCV-DNN YOLOX-S 受 CPU 约束，P95 为 `568.830 ms`。
+- **目标身份：** 长时运行中一个静态目标产生过两个 ID；任务层抑制了重复任务，尚无
+  appearance ReID。
+- **EMA 结果：** 32 组静态样本中，过滤后的标准差略高于原始数据，不能宣称稳定性改善。
+- **TF 瞬态：** 三个高负载 mission trial 记录 13 个非 OK TF 诊断样本，随后恢复且没有
+  永久任务失败。
+- **Gazebo 位姿/里程计对齐：** 被动模型 settling 和 bridged wheel odometry 可能使用
+  不同 origin，测得几何误差包含此影响。
+- **静态巡检目标：** Mission 规划固定 Observation Pose，不是 moving-target pursuit
+  或 visual servoing。
+- **范围边界：** 当前没有 SLAM/VIO upgrade、3D detector、functional-safety
+  certification、hardware deployment 或 production object dataset。
 
-## Roadmap / Optional Future Work
+## 后续可扩展方向
 
-- C++ inference and evaluated ONNX Runtime/TensorRT backends.
-- Physical-robot calibration, deployment, and real-factory validation.
-- Appearance-aware target re-identification and more robust lifecycle persistence.
-- Adaptive filtering evaluated against rosbag replay and dynamic targets.
-- Expanded labeled factory-object datasets and additional benchmark repetitions.
-- Reviewed runtime screenshots/video with command, commit, parameters, and logs.
+以下均为后续方向，当前版本**尚未实现**：
 
-## Documentation
+- C++ inference，以及经过独立评估的 ONNX Runtime / TensorRT backend。
+- 实体机器人标定、部署和真实工厂验证。
+- Appearance-aware target re-identification 与更持久的 lifecycle。
+- 针对 rosbag replay 和 dynamic target 的自适应滤波评估。
+- 更大的工厂目标标注数据集和更多 benchmark 重复试验。
+- 带命令、commit、参数和日志的审核后 runtime 截图/视频。
+- VLM、Visual SLAM、DeepSORT、ByteTrack 和 semantic segmentation 等能力的专项评估。
 
-- [Engineering project summary](docs/project_summary.md)
-- [Detailed architecture](docs/architecture.md)
-- [Simulation scenarios and runtime evidence](docs/simulation_scenarios.md)
-- [Benchmark method and results](docs/experiment_report.md)
+## 文档
+
+- [工程项目总结](docs/project_summary.md)
+- [详细系统架构](docs/architecture.md)
+- [仿真场景与运行证据](docs/simulation_scenarios.md)
+- [Benchmark 方法与结果](docs/experiment_report.md)
 - [Safety state machine](docs/safety_state_machine.md)
-- [Visual perception upgrade plan](docs/upgrade/visual_perception_upgrade_plan.md)
-- [Showcase evidence policy](docs/showcase/README.md)
-- [Validation script inventory](scripts/README.md)
+- [视觉感知升级计划](docs/upgrade/visual_perception_upgrade_plan.md)
+- [Showcase 证据规范](docs/showcase/README.md)
+- [Validation 脚本清单](scripts/README.md)
