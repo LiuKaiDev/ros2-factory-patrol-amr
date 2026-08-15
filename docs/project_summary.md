@@ -1,27 +1,22 @@
-# Engineering Project Summary
+# 工程项目总结
 
-## Project
+## 项目定位
 
-**ROS2 Factory Patrol AMR with Visual Perception, Navigation and Safety
-Integration**
+**ROS2 Factory Patrol AMR with Visual Perception, Navigation and Safety Integration**
 
-This project extends an existing ROS 2 Jazzy patrol robot with a modular RGB-D
-perception loop while preserving Nav2, AMCL/localization, velocity arbitration,
-and the final Safety Gate. Validation is currently WSL2 Ubuntu 24.04 and Gazebo
-simulation; it is not a physical-robot deployment.
+本项目在既有 ROS 2 Jazzy 巡检机器人上增加模块化 RGB-D perception loop，同时保留 Nav2、
+AMCL/localization、velocity arbitration 和最终 Safety Gate。当前验证平台是 WSL2、
+Ubuntu 24.04 与 Gazebo simulation，不是实体机器人部署。
 
-## Problem
+## 要解决的问题
 
-The original AMR could execute planned patrol/navigation goals, arbitrate
-velocity sources, and stop or limit motion through a safety gate. It could not
-turn camera observations into stable map-frame targets, task-owned inspection
-goals, or semantic person restrictions.
+原始 AMR 可以执行规划巡检/导航目标、仲裁速度源，并通过 Safety Gate 停车或限速；但不能
+把相机观察转换为稳定的 map-frame target、task-owned inspection goal 或语义化人员限制。
 
-The upgrade needed to add those capabilities without creating a parallel
-navigation stack, allowing perception to command motion, or coupling the whole
-system to one detector model.
+升级必须在不创建平行 navigation stack、不允许 perception 控制运动、也不把系统耦合到单一
+detector model 的前提下补齐这些能力。
 
-## Implemented Architecture
+## 已实现架构
 
 ```text
 RGB-D -> Detection2D -> robust depth -> optical-frame 3D
@@ -36,146 +31,117 @@ RGB-D -> Detection2D -> robust depth -> optical-frame 3D
                              final /cmd_vel
 ```
 
-Key ownership boundaries:
+关键 ownership boundary：
 
-- `robot_perception` produces detections, geometry, managed targets, semantic
-  mission/safety events, markers, and diagnostics.
-- `robot_tasks` owns observation-pose planning, action lifecycle, and the
-  existing `/navigate_sequence` to Nav2 path.
-- Nav2 remains responsible for planning and control and publishes
-  `/nav2_cmd_vel` into the existing mux.
-- The Safety Gate remains the only component that resolves all safety sources
-  before final `/cmd_vel`.
-- Perception publishes neither `/cmd_vel` nor `/nav2_cmd_vel`.
+- `robot_perception` 产生 detection、geometry、managed target、semantic mission/safety event、
+  marker 和 diagnostics。
+- `robot_tasks` 负责 Observation Pose 规划、action lifecycle，以及既有
+  `/navigate_sequence` 到 Nav2 的路径。
+- Nav2 仍负责 planning 和 control，把 `/nav2_cmd_vel` 写入既有 mux。
+- Safety Gate 仍是解析所有 safety source 并输出最终 `/cmd_vel` 的唯一组件。
+- Perception 既不发布 `/cmd_vel`，也不发布 `/nav2_cmd_vel`。
 
-## Engineering Work to Discuss
+## 工程工作内容
 
-### Sensor and geometry integration
+### Sensor 与 Geometry 集成
 
-- Added one authoritative camera extrinsic in Xacro and matching Gazebo RGB-D
-  sensor poses in both Factory Patrol worlds.
-- Added conventional `camera_color_optical_frame`, ROS-Gazebo topic bridges,
-  and RGB/depth/CameraInfo validation.
-- Implemented synchronized 2D/depth/CameraInfo processing, bbox-center ROI
-  median depth, invalid depth rejection, pinhole projection, and
-  observation-time TF2 conversion into `map`.
+- 在 Xacro 中加入唯一 camera extrinsic，并在两个 Factory Patrol world 中保持 Gazebo RGB-D
+  sensor pose 一致。
+- 加入 conventional `camera_color_optical_frame`、ROS-Gazebo topic bridge 和 RGB/Depth/CameraInfo validation。
+- 实现同步的 2D/Depth/CameraInfo 处理、bbox-center ROI median depth、invalid-depth rejection、
+  pinhole projection，以及通过 observation-time TF2 转换到 `map`。
 
-### Replaceable detector boundary
+### 可替换 Detector 边界
 
-- Wrapped CPU OpenCV-DNN YOLOX-S behind `DetectorBackend`.
-- Published standard `vision_msgs/msg/Detection2DArray`, leaving geometry,
-  tracking, mission, and safety code independent of YOLO-specific details.
-- Added a checksum-verified model preparation script; weights are not committed
-  or downloaded implicitly at launch.
+- 使用 `DetectorBackend` 封装 CPU OpenCV-DNN YOLOX-S。
+- 发布标准 `vision_msgs/msg/Detection2DArray`，使 geometry、tracking、mission 和 safety
+  code 不依赖 YOLO 专用细节。
+- 增加带 checksum 校验的 model preparation script；权重不提交，也不会在 launch 时隐式下载。
 
-### Stateful targets and decisions
+### 有状态目标与决策
 
-- Added class-aware spatial association and the target lifecycle `TENTATIVE`,
-  `CONFIRMED`, `LOST`, and `PROCESSED`.
-- Added multi-frame confirmation, loss/reacquisition behavior, EMA, cooldown,
-  and semantic inspection events.
-- Kept mission duplicate suppression in `robot_tasks`, including suppression of
-  new target-ID events while a mission is active. The long benchmark recorded
-  three such extra events and zero false mission starts.
+- 增加 class-aware spatial association 和 `TENTATIVE`、`CONFIRMED`、`LOST`、`PROCESSED`
+  lifecycle。
+- 增加多帧确认、丢失/reacquisition、EMA、cooldown 和 semantic inspection event。
+- duplicate suppression 保持在 `robot_tasks`，包括 mission 活动时抑制新 target-ID event。
+  长时 benchmark 记录了三个额外 event，但 false mission starts 为零。
 
-### Navigation integration
+### Navigation 集成
 
-- Planned an observation pose at a configured `1.2 m` standoff and oriented the
-  robot toward the target rather than navigating to the object center.
-- Reused the existing `NavigateSequence` adapter and Nav2; no visual servoing or
-  perception velocity publisher was introduced.
-- A Phase 5 smoke run returned Nav2 `SUCCEEDED` with a measured `1.342032 m`
-  final robot-target distance. Nav2 goal tolerance explains part of the
-  difference; this value is not part of the formal Phase 8 standoff metrics.
+- 在配置的 `1.2 m` standoff 处规划 Observation Pose，并让机器人朝向目标，而不是驶向物体中心。
+- 复用既有 `NavigateSequence` adapter 与 Nav2；没有 visual servoing，也没有 perception velocity publisher。
+- Phase 5 smoke run 返回 Nav2 `SUCCEEDED`，最终机器人与目标距离 `1.342032 m`。Nav2 goal tolerance
+  解释了部分差异；该值不属于正式 Phase 8 standoff metrics。
 
-### Safety and fault handling
+### Safety 与故障处理
 
-- Converted confirmed person observations into semantic CLEAR, SPEED_LIMITED,
-  STOP, and danger-zone STOP events.
-- Integrated those events into both existing Safety Gate variants using the
-  most restrictive active source.
-- Added standard diagnostics for camera streams, CameraInfo, detector, TF,
-  depth quality, and pipeline health, then connected them to the existing
-  system monitor and fault supervisor.
-- Validated that interrupted or invalid perception suppresses downstream output
-  rather than generating false coordinates or tasks.
+- 将 confirmed person observation 转为 semantic `CLEAR`、`SPEED_LIMITED`、`STOP` 和 danger-zone `STOP` event。
+- 这些 event 接入两种既有 Safety Gate，并按最严格活动 source 解析。
+- 增加 camera stream、CameraInfo、detector、TF、depth quality 和 pipeline 的标准 diagnostics，
+  再连接既有 system monitor 和 fault supervisor。
+- 验证中断或无效 perception 会抑制下游输出，而不是产生虚假坐标或任务。
 
-### Reproducible evaluation
+### 可复现评估
 
-- Added isolated headless profiles for detector, geometry, mission, safety, and
-  invalid-depth measurements.
-- Recorded clock policy, warmup/exclusions, source commit/tree state,
-  configuration, raw samples, and derived nearest-rank statistics in JSON and
-  CSV artifacts.
-- Kept early smoke observations separate from the formal benchmark.
+- 增加 detector、geometry、mission、safety 和 invalid-depth 的隔离 headless profile。
+- 在 JSON/CSV 中记录 clock policy、warmup/exclusion、source commit/tree state、configuration、
+  raw sample 和 nearest-rank statistic。
+- 早期 smoke observation 与正式 benchmark 分开保存。
 
-## Resume-ready Verified Metrics
+## 简历可用的已验证指标（Resume-ready Verified Metrics）
 
-All values below are Gazebo/WSL simulation results from the committed Phase 8
-artifact, not physical-robot guarantees.
+以下全部是已提交 Phase 8 artifact 的 Gazebo/WSL simulation 结果，不是实体机器人的保证：
 
-- 3D localization RMSE: `0.02351 m` over 30 samples at `1.7-3.7 m`; P95 error
-  `0.05239 m`.
-- CPU OpenCV-DNN YOLOX-S inference: 30 samples, mean `526.189 ms`, P95
-  `568.830 ms`.
-- Detection-to-Nav2-goal: 5 runs, mean `2.050 s`, P95 `2.790 s`.
-- Safety STOP response: 10 runs, mean `0.1806 s`, P95 `0.214 s`.
-- Visual inspection: `5/5` successful, zero categorized failures, zero false
-  mission starts.
-- Invalid-depth rejection: `20/20`, zero false-valid 3D outputs.
-- Speed limiting: upstream `0.35 m/s` clamped to `0.15 m/s` in `0.226 s`.
-- Full ROS 2 baseline: 21 packages, 648 tests, 0 errors, 0 failures, 0 skipped.
+- 3D localization RMSE：`0.02351 m`，30 个样本，距离 `1.7-3.7 m`；P95 error `0.05239 m`。
+- CPU OpenCV-DNN YOLOX-S inference：30 个样本，Mean `526.189 ms`，P95 `568.830 ms`。
+- Detection-to-Nav2-goal：5 次，Mean `2.050 s`，P95 `2.790 s`。
+- Safety STOP response：10 次，Mean `0.1806 s`，P95 `0.214 s`。
+- Visual inspection：`5/5` successful，分类失败为零，false mission starts 为零。
+- Invalid-depth rejection：`20/20`，false-valid 3D output 为零。
+- Speed limiting：上游 `0.35 m/s` 在 `0.226 s` 内被限制为 `0.15 m/s`。
+- Full ROS 2 baseline：21 packages，648 tests，0 errors，0 failures，0 skipped。
 
-Evidence:
+证据：
 
 - [Phase 8 JSON](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
 - [Phase 8 CSV](../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
-- [Experiment method and interpretation](experiment_report.md)
+- [实验方法与解释](experiment_report.md)
 
-## Results That Must Not Be Overstated
+## 不能夸大的结果
 
-For 32 paired stationary observations, raw x/y/z standard deviation was
-`0.00161 / 0.00167 / 0.00540 m`, while EMA was
-`0.00181 / 0.00197 / 0.00607 m`. EMA was slightly worse on all axes in this
-sample, so no filtering improvement is claimed.
+32 组配对静态观测中，原始 x/y/z 标准差为 `0.00161 / 0.00167 / 0.00540 m`，EMA 为
+`0.00181 / 0.00197 / 0.00607 m`。本样本中 EMA 三个轴都略差，因此不宣称 filtering improvement。
 
-One static physical target produced two IDs during a longer run. Short tests
-demonstrated same-ID reacquisition, and task-level suppression prevented extra
-events from starting duplicate missions, but persistent appearance identity is
-not implemented.
+一次长时运行中，一个静态 physical target 产生了 `two IDs`。短时测试展示了同 ID reacquisition，
+任务层 suppression 防止额外 event 启动重复 mission，但 persistent appearance identity 尚未实现。
 
-Thirteen transient non-OK `perception/tf` samples were observed across three
-mission trials. They recovered and all missions succeeded; failed TF lookups do
-not produce map coordinates.
+三个 mission trial 中观察到 `Thirteen transient` non-OK `perception/tf` sample；它们均恢复且任务
+成功，失败 TF lookup 不产生 map coordinate。
 
-## Major Design Decisions
+## 主要设计决策
 
-| Decision | Reason |
+| 决策 | 原因 |
 | --- | --- |
-| RGB-D rather than RGB-only | Provides metric geometry without monocular scale assumptions. |
-| Standard detector output | Makes the inference backend replaceable. |
-| Geometry validated before detector | Separates camera/TF correctness from model variability. |
-| Confirm before action | Prevents one-frame detections from triggering missions or safety transitions. |
-| Observation pose | Preserves standoff and view orientation instead of driving to target center. |
-| Semantic safety event | Keeps motion authority in the existing final gate. |
-| Distinct health channels | Prevents perception failure from being interpreted as an empty safe scene. |
-| Defer TensorRT and ReID | Avoids unsupported deployment claims and keeps the benchmarked scope coherent. |
+| RGB-D 而非 RGB-only | 提供 metric geometry，不依赖单目尺度假设。 |
+| 标准 detector output | 让 inference backend 可替换。 |
+| 先验证 Geometry | 将 camera/TF 正确性与 model variability 分开。 |
+| Confirm 后再 action | 防止单帧 detection 触发 mission 或 safety transition。 |
+| Observation Pose | 保留 standoff 和朝向，不驶向 target center。 |
+| Semantic safety event | 保持运动权限在既有 final gate。 |
+| 独立 health channel | 防止 perception failure 被当作空场景且安全。 |
+| 延后 TensorRT 与 ReID | 避免不支持的部署声明，保持 benchmark scope 一致。 |
 
-## Known Limitations
+## 已知限制
 
-- Metrics are WSL2/Gazebo only; hardware calibration, timing, and safety remain
-  unvalidated.
-- CPU inference is slow and currently dominates perception latency.
-- Tracking is short-horizon spatial association without appearance ReID.
-- EMA did not improve stability in the collected static sample.
-- Transient TF warnings occurred under mission load and recovered.
-- Passive Gazebo settling and integrated wheel odometry can have different
-  origins, contributing to geometry error.
-- Inspection assumes a static target and fixed observation goal; it is not
-  pursuit or visual servoing.
+- 指标仅来自 WSL2/Gazebo；hardware calibration、timing 和 safety 尚未验证。
+- CPU inference 较慢，是当前 perception latency 的主要来源。
+- Tracking 是短时空间关联，没有 appearance ReID。
+- EMA 没有改善收集到的静态样本稳定性。
+- Mission 负载下出现过瞬时 TF warning，随后恢复。
+- Gazebo settling 与积分 wheel odometry 可能有不同 origin，影响 geometry error。
+- Inspection 假设目标静止且使用固定 Observation Pose，不是 pursuit 或 visual servoing。
 
-## Implementation Status
+## 实现状态
 
-Visual perception upgrade Phases 0 through 9 are complete. Phase 9 finalized
-documentation, reproducible commands, evidence links, and the portfolio
-presentation without changing benchmarked runtime behavior.
+视觉感知升级 Phase 0 到 Phase 9 已完成。Phase 9 只完成 documentation、可复现命令、证据
+链接和 portfolio presentation，没有改变 benchmark 的 runtime behavior。

@@ -1,8 +1,8 @@
-# Localization
+# 定位系统
 
 当前定位链路以 AMCL 为主，适用于半封闭室内 / 园区低速巡检场景中的 2D 激光定位演示。Phase 4A 新增 `localization_health_monitor_node`，用于把 AMCL pose、covariance、TF 可用性和 timeout 转换为可展示的定位健康状态。该阶段只发布 health，不直接控制 safety gate 或任务暂停。
 
-## AMCL Chain
+## AMCL 链路
 
 ```text
 /scan + static map -> AMCL -> /amcl_pose + map -> odom
@@ -53,7 +53,7 @@ ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
 | `/localization/health` | `std_msgs/msg/String` | Phase 4A 主 health topic，包含状态、covariance、timeout 和 TF 摘要。 |
 | `/localization_health` | `robot_interfaces/msg/LocalizationHealth` | 兼容现有可视化 / mission topic 的旧路径。 |
 
-## States
+## 状态
 
 | State | Meaning |
 | --- | --- |
@@ -64,7 +64,7 @@ ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
 | `LOCALIZATION_RECOVERING` | LOST 后收到 `/initialpose`，正在等待 AMCL covariance 和 TF 收敛。 |
 | `LOCALIZATION_RECOVERED` | 从 LOST / RECOVERING 回到稳定 OK，短暂发布后转为 `LOCALIZATION_OK`。 |
 
-## Covariance Rules
+## Covariance 规则
 
 从 `/amcl_pose.pose.covariance` 读取：
 
@@ -85,7 +85,7 @@ ros2 launch robot_navigation localization_health.launch.py use_sim_time:=true
 
 这些阈值是仿真 / mock 默认值，不来自真实机器人标定。真实机器人应结合场地、传感器噪声和重定位实验重新估计。
 
-## Timeout And TF Rules
+## Timeout 与 TF 规则
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -101,7 +101,7 @@ TF 检查使用 `tf2_ros::Buffer::canTransform`：
 
 单次 TF 查询失败先进入 `LOCALIZATION_UNSTABLE`；持续超过 `tf_timeout_sec` 才进入 `LOCALIZATION_LOST`。
 
-## Relocalization Flow
+## Relocalization 流程
 
 ```text
 AMCL covariance high / AMCL timeout / TF unavailable
@@ -116,7 +116,7 @@ AMCL covariance high / AMCL timeout / TF unavailable
 
 任务暂停、停车和恢复策略留到 Phase 4B 接入 `cmd_vel_safety_gate` / mission pause。本阶段不声明完成完整安全闭环，也不声明完成真实机器人重定位验证。
 
-## Checks
+## 检查
 
 静态检查：
 
@@ -132,7 +132,7 @@ bash scripts/check_localization_runtime_topics.sh
 
 该 runtime 脚本只检查 `/amcl_pose`、`/initialpose`、`/localization/health`、`/tf`、`/tf_static`、`/map`、`/odom` 是否存在，不伪造任何定位恢复结果。
 
-## Existing Task-Layer Hooks
+## 既有 Task 层接口
 
 仓库中仍保留 mission 层已有的重定位接口和演示链路：
 
@@ -146,10 +146,10 @@ Phase 4A 新 monitor 与这些入口并行存在，不重构 mission runner 的�
 
 ## Phase 4B Safety Hook
 
-Phase 4B connects the Phase 4A `/localization/health` string topic to the final
-`cmd_vel_safety_gate_node`.
+Phase 4B 将 Phase 4A 的 `/localization/health` string topic 接入最终
+`cmd_vel_safety_gate_node`。
 
-Safety mapping:
+Safety 映射：
 
 | Localization health | Safety state |
 | --- | --- |
@@ -158,10 +158,9 @@ Safety mapping:
 | `LOCALIZATION_LOST` | `LOCALIZATION_LOST` |
 | `LOCALIZATION_RECOVERING` / `LOCALIZATION_RECOVERED` | `RECOVERY` |
 
-`LOCALIZATION_LOST` publishes zero `/cmd_vel` through the safety gate when
-`localization_lost_stop=true`. `LOCALIZATION_UNSTABLE` uses the low-speed policy
-with `speed_limited_max_linear_mps=0.15` and
-`speed_limited_max_angular_radps=0.4`.
+当 `localization_lost_stop=true` 时，`LOCALIZATION_LOST` 通过 Safety Gate 发布零
+`/cmd_vel`。`LOCALIZATION_UNSTABLE` 使用低速策略，参数为
+`speed_limited_max_linear_mps=0.15` 和 `speed_limited_max_angular_radps=0.4`。
 
 Checks:
 
@@ -170,10 +169,9 @@ bash scripts/check_safety_state_machine.sh
 bash scripts/check_safety_runtime_topics.sh
 ```
 
-The runtime check requires ROS2 nodes to be running and only verifies topic
-presence. It does not claim a real localization recovery test.
+runtime check 要求 ROS2 node 正在运行，只验证 topic 是否存在，不代表真实定位恢复测试。
 
-## Phase 5B Factory Patrol Recovery Demo
+## Phase 5B Factory Patrol 恢复 Demo
 
 Factory patrol localization recovery demo entry:
 
@@ -181,9 +179,8 @@ Factory patrol localization recovery demo entry:
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 ```
 
-The script prints bad and recovery `/initialpose` examples from
-`src/robot_simulation/config/factory_patrol_localization_recovery.yaml` and lists
-topics to observe:
+脚本会从 `src/robot_simulation/config/factory_patrol_localization_recovery.yaml` 打印错误
+和恢复用的 `/initialpose` 示例，并列出需要观察的 topic：
 
 - `/localization/health`
 - `/safety/state`
@@ -191,5 +188,4 @@ topics to observe:
 - `/amcl_pose`
 - `/tf`
 
-It does not claim the LOST/RECOVERED transitions have been observed until a real
-ROS2/Nav2 run is captured.
+在采集真实 ROS2/Nav2 运行记录前，不声称已经观察到 LOST/RECOVERED transition。

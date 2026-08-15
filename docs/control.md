@@ -1,4 +1,4 @@
-# Control
+# 控制系统
 
 本项目涉及两类控制链路：Nav2 controller 下的局部控制，以及 standalone path tracking experiment 下的路径跟踪控制器。两者用途不同，文档和实验报告中需要分开描述。
 
@@ -15,7 +15,7 @@ Nav2 controller 的输出不是直接发到底盘，而是进入 cmd_vel 仲裁�
 Nav2 controller -> /nav2_cmd_vel or mux input -> cmd_vel_mux / twist_mux -> cmd_vel_safety_gate -> /cmd_vel
 ```
 
-## Standalone Path Tracking Experiment
+## 独立 Path Tracking 实验
 
 | Controller | Package | Status | Role |
 | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ Nav2 controller -> /nav2_cmd_vel or mux input -> cmd_vel_mux / twist_mux -> cmd_
 
 `path_publisher_node` 发布 `/reference_path`，两个 standalone controller 订阅 `/odom` 和 `/reference_path`，输出 `/tracking_cmd_vel`，并发布统一字段的 `/tracking_error`。Phase 2A 增加可选 CSV logging，默认关闭，不会在普通运行中自动生成结果文件。
 
-## Phase 2A CSV Metrics
+## Phase 2A CSV 指标
 
 Pure Pursuit 和 Stanley 支持相同参数：
 
@@ -105,7 +105,7 @@ bash scripts/run_tracking_experiment_demo.sh stanley
 - `max_abs_angular_velocity`
 - `final_distance_to_goal`
 
-## Phase 2B Visualization and Comparison
+## Phase 2B 可视化与对比
 
 Phase 2B 增加从 tracking CSV 到展示材料的脚本。它们只处理真实运行后得到的 CSV，不生成或伪造实验数据。
 
@@ -148,7 +148,7 @@ bash scripts/run_tracking_analysis_workflow.sh <pure_pursuit.csv> <stanley.csv>
 
 该脚本会依次运行 `analyze_tracking_result.py` 和 `plot_tracking_result.py`；多个 CSV 时会额外输出 Markdown 对比表。它不需要 ROS2 环境，但绘图需要 `matplotlib`。如果当前环境没有 `matplotlib`，绘图脚本会提示安装 `python3-matplotlib`。
 
-## Interpreting Tracking Metrics
+## 如何解读 Tracking 指标
 
 | Metric | How to read it |
 | --- | --- |
@@ -168,7 +168,7 @@ Pure Pursuit / Stanley 公平比较建议：
 - 使用同一段运行窗口，不截取对某个控制器更有利的片段；
 - 报告中同时给出 CSV 路径、commit、launch 参数和图表目录。
 
-## Metric Meaning
+## 指标含义
 
 Phase 2A/2B 建立基础指标输出、分析和绘图能力，不声称任何控制器优劣。
 
@@ -183,18 +183,14 @@ Phase 2A/2B 建立基础指标输出、分析和绘图能力，不声称任何�
 | `cmd_vel_curve` | 线速度 / 角速度曲线 | current plotting script |
 | `RPP / MPPI comparison` | Nav2 controller 对比 | planned Phase 2B 或后续 |
 
-## Experiment Boundary
+## 实验边界
 
-Phase 6 final notes:
+Phase 6 最终说明：
 
-- Nav2 controller configs remain RPP for basic navigation and MPPI for advanced
-  navigation.
-- Standalone tracking experiments remain Pure Pursuit and Stanley CSV logging,
-  analysis, comparison, and plotting workflows.
-- Reported results remain `TBD` until real CSV files, launch parameters, maps,
-  and commit IDs are recorded.
-- Generated tracking CSV files and figures are ignored by default so unreviewed
-  experiment artifacts are not accidentally committed.
+- Nav2 controller config 仍分别使用 basic navigation 的 RPP 和 advanced navigation 的 MPPI。
+- Standalone tracking experiment 仍提供 Pure Pursuit 和 Stanley 的 CSV logging、分析、对比与绘图 workflow。
+- 在记录真实 CSV、launch parameter、map 和 commit ID 前，报告结果保持 `TBD`。
+- Generated tracking CSV 和 figure 默认被 ignore，避免未审阅的实验产物误提交。
 
 - 可以说明项目中存在 Pure Pursuit / Stanley / RPP / MPPI 配置和代码。
 - 可以说明 Pure Pursuit / Stanley 已有 standalone CSV 指标输出基础。

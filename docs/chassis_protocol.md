@@ -1,8 +1,8 @@
-# Chassis Protocol
+# 底盘通信协议
 
 底盘适配层目标是把 ROS2 上位机中的速度指令、里程计、底盘状态和故障状态，与具体底盘控制器或仿真后端连接起来。它不是 VCU 固件开发，也不声称覆盖真实底盘内部电机控制。
 
-## Current Chassis Adapter
+## 当前底盘 Adapter
 
 `robot_hardware` 当前包含：
 
@@ -15,7 +15,7 @@
 - `chassis_hardware_interface`：ros2_control SystemInterface；
 - `chassis_system_adapter`：底盘系统适配逻辑。
 
-## Current Line Protocol
+## 当前行协议
 
 当前头文件中存在以下数据结构和编解码入口：
 
@@ -38,7 +38,7 @@ STATE -> 底盘或后端反馈状态
 
 实际字段以 `src/robot_hardware/include/robot_hardware/chassis_packet.hpp` 和对应 `.cpp` 实现为准。
 
-## Backends
+## Backend
 
 | Backend | Status | Responsibility |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ STATE -> 底盘或后端反馈状态
 | UDP | current adapter | 通过 UDP 连接外部底盘控制器或模拟器。 |
 | Mick binary frame | partial current | 仓库中存在相关 frame 编解码入口，具体设备适配能力以代码和测试为准。 |
 
-## Feedback Topics
+## 反馈 Topics
 
 底盘层需要支撑以下反馈链路：
 
@@ -138,7 +138,7 @@ Frame 约定当前保持一致：`chassis_driver_node` 发布 `odom -> base_foot
 
 标定流程见 `docs/calibration.md`，真实底盘标定结果仍为 TBD，不在本文档中伪造。
 
-## Protocol v2 Remaining Plan
+## Protocol v2 后续计划
 
 | Field / mechanism | Purpose | Status |
 | --- | --- | --- |
@@ -152,13 +152,12 @@ Frame 约定当前保持一致：`chassis_driver_node` 发布 `odom -> base_foot
 
 真实底盘联调后，需要补充串口波特率、UDP 端口、坐标系约定、速度单位、故障码表和安全超时策略。
 
-## Phase 4B Safety Mapping
+## Phase 4B Safety 映射
 
-Phase 4B reads `/chassis/state` in `cmd_vel_safety_gate_node`. The message still
-uses the existing `connected` field and the Phase 3A `status` string, so no
-interface migration is required in this phase.
+Phase 4B 在 `cmd_vel_safety_gate_node` 中读取 `/chassis/state`。message 仍使用已有
+`connected` field 和 Phase 3A `status` string，因此本阶段不需要 interface migration。
 
-Mapping used by the safety gate:
+Safety Gate 使用的映射：
 
 | Chassis input | Safety state |
 | --- | --- |
@@ -170,12 +169,11 @@ Mapping used by the safety gate:
 | `fault_code=MALFORMED_PACKET(...)` | `CHASSIS_FAULT` |
 | `fault_code=ESTOP_ACTIVE(...)` or `estop=1` | `EMERGENCY_STOP` |
 
-`CMD_TIMEOUT` is treated as `SENSOR_STALE` because the driver has already
-detected a stale command stream and sent zero speed. Backend heartbeat and
-disconnect faults are communication failures; malformed packets are treated as
-chassis faults.
+`CMD_TIMEOUT` 按 `SENSOR_STALE` 处理，因为 driver 已检测到 stale command stream 并发送
+零速度。Backend heartbeat 和 disconnect fault 属于 communication failure；malformed packet
+按 chassis fault 处理。
 
-Static validation:
+静态验证：
 
 ```bash
 bash scripts/check_safety_state_machine.sh

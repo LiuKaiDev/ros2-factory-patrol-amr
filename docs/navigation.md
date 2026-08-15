@@ -1,8 +1,8 @@
-# Navigation
+# 导航系统
 
 本项目的导航链路基于 Nav2。Phase 1A 已补强 basic Nav2 配置，使其更适合低速巡检 AMR 的规控岗位展示：local costmap 增加 LaserScan obstacle layer，补充 footprint、inflation scaling 和 RPP regulated 参数。Phase 1B 增加 Nav2 basic 调试 RViz 配置和最小验收脚本，方便检查 `/scan`、TF、odom、costmap、global path 和 cmd_vel 链路。
 
-## Nav2 Components
+## Nav2 组件
 
 ```text
 map_server -> AMCL -> planner_server -> controller_server -> /cmd_vel candidate
@@ -16,7 +16,7 @@ map_server -> AMCL -> planner_server -> controller_server -> /cmd_vel candidate
 - `global_costmap`：面向全局路径搜索，使用 map frame。
 - `local_costmap`：面向局部避障与控制，使用 odom frame 和 rolling window。
 
-## Current Configurations
+## 当前配置
 
 | File | Global planner | Local controller | Costmap status |
 | --- | --- | --- | --- |
@@ -25,14 +25,14 @@ map_server -> AMCL -> planner_server -> controller_server -> /cmd_vel candidate
 
 basic 配置适合展示清晰、低复杂度的导航闭环：Navfn 做全局规划，RPP 做低速局部跟随，local costmap 使用 2D LaserScan obstacle layer 表达近场动态障碍。advanced 配置适合展示更接近工程调参的组合：SmacPlanner2D、MPPI 和 voxel layer。
 
-## Map and Costmap Relationship
+## Map 与 Costmap 关系
 
 - 静态地图由 map_server 加载，提供给 AMCL 和 global costmap。
 - AMCL 输出 `map -> odom`，让全局规划与机器人局部里程计链路对齐。
 - global costmap 负责路径可行区域，local costmap 负责机器人附近动态环境表达。
 - controller_server 使用 local costmap 和全局路径输出速度候选值，后续仍需经过 cmd_vel 仲裁和 safety gate。
 
-## Phase 1A Basic Costmap Update
+## Phase 1A Basic Costmap 更新
 
 `src/robot_navigation/config/nav2_basic.yaml` 当前补强内容：
 
@@ -48,7 +48,7 @@ basic 配置适合展示清晰、低复杂度的导航闭环：Navfn 做全局�
 
 本阶段没有在 basic global costmap 中加入 obstacle layer。原因是 basic 配置的定位是清晰、可解释的低速巡检导航闭环：全局路径由静态地图和 footprint 约束给出，近场动态障碍由 local obstacle layer 处理。若后续需要让动态障碍触发全局绕行，可在后续调参阶段增加 global obstacle layer 并配套验证。
 
-## Phase 1A RPP Update
+## Phase 1A RPP 更新
 
 basic `FollowPath` 继续使用 `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`，并补充以下低速巡检参数：
 
@@ -121,7 +121,7 @@ bash scripts/check_nav2_runtime_topics.sh
 
 该脚本检查 `/scan`、`/tf`、`/tf_static`、`/odom`、`/map`、`/plan`、`/cmd_vel`、`/local_costmap/costmap`、`/global_costmap/costmap` 是否存在。它需要真实 ROS2 graph，不能用静态文件检查替代。
 
-## Runtime Verification Notes
+## Runtime 验证说明
 
 - 验证 `/scan` 是否进入 local costmap：启动 Nav2 basic 后，在 RViz 打开 Laser Scan 和 Local Costmap；移动或模拟障碍应改变 `/local_costmap/costmap`。该结论需要 Gazebo / mock sensor 运行验证。
 - 验证 footprint / inflation 是否生效：在 RViz 中叠加 Robot Model、Global Costmap 和 Local Costmap，观察机器人外形附近是否形成合理代价边界。具体半径和通道通过性需要后续调参。
@@ -129,7 +129,7 @@ bash scripts/check_nav2_runtime_topics.sh
 - 验证 cmd_vel 链路：Nav2 controller 输出经 cmd_vel 仲裁和 safety gate 后，应在完整 bringup 中出现 `/cmd_vel`。单独启动 Nav2 时可能只有 `/nav2_cmd_vel`，因此 runtime topic 检查应在完整 basic demo 链路运行后执行。
 - 本文档不记录实验成功率、到达时间或误差指标；这些属于后续真实运行报告。
 
-## Remaining Phase 1 / Later Plan
+## Phase 1 后续计划
 
 | Item | Status |
 | --- | --- |

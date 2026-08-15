@@ -1,7 +1,7 @@
-# Scripts
+# 验证脚本
 
-Scripts are grouped by purpose. Static checks can run without a live ROS2 graph.
-Runtime checks require ROS2 topics to exist.
+脚本按用途分组。Static check 不需要运行中的 ROS2 graph；runtime check 要求对应的
+ROS2 topic 已经存在。
 
 ## Nav2
 
@@ -11,7 +11,11 @@ bash scripts/check_nav2_costmap_obstacle_layer.sh
 bash scripts/check_nav2_runtime_topics.sh
 ```
 
-## Tracking Experiments
+`run_nav2_basic_demo.sh` 输出 basic Nav2 和 RViz debug 的启动提示；costmap 脚本检查
+`/scan` obstacle layer 等静态配置；runtime 脚本检查 `/scan`、TF、odom、map、path、
+costmap 和 cmd_vel topic。
+
+## Tracking 实验
 
 ```bash
 bash scripts/run_tracking_experiment_demo.sh
@@ -21,14 +25,20 @@ python3 scripts/compare_tracking_results.py --format markdown <a.csv> <b.csv>
 python3 scripts/plot_tracking_result.py <tracking.csv> --output-dir src/robot_experiments/results/figures
 ```
 
-## Chassis And Calibration
+这些脚本对真实运行生成的 tracking CSV 做统计、绘图和 Pure Pursuit/Stanley 对比，
+不会凭空生成实验数据。
+
+## 底盘与标定
 
 ```bash
 bash scripts/check_chassis_protocol_v2.sh
 bash scripts/check_chassis_odom_calibration.sh
 ```
 
-## Localization And Safety
+前者检查 protocol v2 的结构、driver hook 和单测锚点；后者检查底盘 odom 参数与
+calibration 文档入口。二者都不代表真实串口/UDP 或实体底盘验收。
+
+## 定位与安全
 
 ```bash
 bash scripts/check_localization_health.sh
@@ -36,6 +46,8 @@ bash scripts/check_localization_runtime_topics.sh
 bash scripts/check_safety_state_machine.sh
 bash scripts/check_safety_runtime_topics.sh
 ```
+
+静态脚本检查源码和配置；runtime 脚本只检查真实 graph 中的 topic、TF 和状态入口。
 
 ## Factory Patrol
 
@@ -58,44 +70,38 @@ bash scripts/run_factory_patrol_benchmarks.sh
 bash scripts/check_factory_patrol_demo_runtime.sh
 ```
 
-`run_factory_patrol_demo.sh` reports the default
-`src/robot_simulation/rviz/factory_patrol_showcase.rviz` layout for the
-non-Nav2 Gazebo/RViz showcase. `check_factory_patrol_runtime_topics.sh` requires
-a running ROS2 graph and prints topic counts, `/scan` QoS hints, sampled frame
-IDs, and odom TF connectivity diagnostics.
+`run_factory_patrol_demo.sh` 在 non-Nav2 Gazebo/RViz showcase 中使用默认
+`src/robot_simulation/rviz/factory_patrol_showcase.rviz`。`check_factory_patrol_runtime_topics.sh`
+要求 ROS2 graph 正在运行，并输出 topic 数量、`/scan` QoS 提示、采样 frame ID 和 odom TF
+连通性诊断。
 
-`prepare_phase3_detector_model.sh` explicitly downloads and verifies the
-official OpenCV Zoo YOLOX-S model into the user cache. Normal ROS launch never
-downloads weights. With the detector-mode demo running,
-`check_factory_patrol_detector_runtime.sh` validates the real 2D-to-3D chain.
-`check_factory_patrol_target_manager_runtime.sh` reuses that live detector,
-depth, CameraInfo, and TF graph to validate stable IDs, lifecycle transitions,
-duplicate suppression, markers, and raw-versus-filtered position statistics.
-With the explicit Phase 5 validation profiles loaded,
-`check_factory_patrol_visual_inspection_runtime.sh` validates one accepted
-task-owned Nav2 approach, observation standoff and yaw, robot motion,
-completion feedback, the target's `PROCESSED` state, and the unchanged
-mux/Safety Gate velocity path.
+`prepare_phase3_detector_model.sh` 会显式下载并校验官方 OpenCV Zoo YOLOX-S 模型到用户
+cache；普通 ROS launch 不会下载权重。Detector-mode Demo 运行时，
+`check_factory_patrol_detector_runtime.sh` 检查 2D 到 3D 的真实链路。
 
-`run_factory_patrol_demo.sh --phase6` starts the live detector, the managed
-person safety policy, Nav2, and the existing combined mux/Safety Gate.
-`check_factory_patrol_perception_safety_runtime.sh` moves the existing
-visual-only person fixture through distance and map-zone cases, then compares
-real `/nav2_cmd_vel` intent with final `/cmd_vel`, measures STOP response time,
-and verifies recovery without sending any Twist from perception.
+`check_factory_patrol_target_manager_runtime.sh` 复用 live detector、Depth、CameraInfo
+和 TF graph，验证 stable ID、lifecycle transition、duplicate suppression、marker 以及
+raw/filter position statistics。
 
-`run_factory_patrol_demo.sh --phase7` adds the standard perception diagnostic
-stream and existing system health/fault supervision. The Phase 7 runtime check
-injects camera, depth-quality, observation-time TF, and detector faults and
-verifies recovery without publishing velocity or synthetic safety events.
+加载 Phase 5 validation profile 后，`check_factory_patrol_visual_inspection_runtime.sh`
+验证一次 task-owned Nav2 approach、Observation standoff 和 yaw、机器人运动、完成反馈、
+target 的 `PROCESSED` 状态，以及不变的 mux/Safety Gate velocity path。
 
-`run_factory_patrol_benchmarks.sh` executes the isolated headless Phase 8
-detector, geometry, mission, safety, and invalid-depth profiles. Successful runs
-write timestamped JSON and summary CSV files under
-`src/robot_experiments/results/`. The committed reviewed pair is documented in
-`docs/experiment_report.md`; runtime varies with host load.
+`run_factory_patrol_demo.sh --phase6` 启动 live detector、managed person safety policy、
+Nav2 和既有 combined mux/Safety Gate。对应 runtime check 让 person fixture 经过距离与
+map-zone 场景，比较真实 `/nav2_cmd_vel` intent 与最终 `/cmd_vel`，测量 STOP 响应并验证
+恢复；Perception 不发送任何 Twist。
 
-To preview the independent Factory Patrol Scene V2 industrial world:
+`run_factory_patrol_demo.sh --phase7` 增加标准 perception diagnostics、system health 和
+fault supervision。Phase 7 check 注入 camera、depth-quality、observation-time TF 和
+detector fault，并验证恢复，不发布 velocity 或 synthetic safety event。
+
+`run_factory_patrol_benchmarks.sh` 执行隔离的 headless Phase 8 detector、geometry、mission、
+safety 和 invalid-depth profile。成功后在 `src/robot_experiments/results/` 写入带时间戳的
+JSON 和 summary CSV。已审核的结果对记录在 `docs/experiment_report.md`；运行时间会随主机
+负载变化。
+
+预览独立的 Factory Patrol Scene V2 industrial world：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py \
@@ -103,25 +109,22 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=true use_rviz:=true
 ```
 
-Manual motion smoke tests should publish to `/virtual_rc/cmd_vel`, not directly
-to `/cmd_vel`:
+手动 motion smoke test 应发布到 `/virtual_rc/cmd_vel`，不要直接发布到 `/cmd_vel`：
 
 ```bash
 ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
 ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-`/teleop_cmd_vel` is the `virtual_rc_node` output into the mux. `/cmd_vel` is
-the final mux / safety output consumed by the Gazebo bridge. Useful checks are
-`/cmd_vel`, `/odom`, `/safety_state`, `/cmd_vel_mux/active_source`, and
-`gz model --model mobile_robot --pose`.
+`/teleop_cmd_vel` 是 `virtual_rc_node` 进入 mux 的输出，`/cmd_vel` 是 Gazebo bridge
+消费的最终 mux/safety 输出。常用检查项包括 `/cmd_vel`、`/odom`、`/safety_state`、
+`/cmd_vel_mux/active_source` 和 `gz model --model mobile_robot --pose`。
 
-## Final Readiness
+## 最终就绪检查
 
 ```bash
 bash scripts/check_project_showcase_readiness.sh
 ```
 
-This final readiness script checks the Phase 9 landing documentation, local
-Markdown paths, committed Phase 8 JSON/CSV consistency, CI, evidence policy,
-and major validation entry points. It does not replace ROS runtime checks.
+该脚本检查 Phase 9 landing 文档、local Markdown path、提交的 Phase 8 JSON/CSV 一致性、
+CI、evidence policy 和主要 validation 入口；它不能替代 ROS runtime check。

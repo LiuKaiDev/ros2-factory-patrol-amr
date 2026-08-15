@@ -1,53 +1,47 @@
-# Showcase
+# Showcase 证据规范
 
-This directory stores reviewed showcase evidence and the policy for future
-media. Phase 8 quantitative JSON/CSV artifacts live under
-`src/robot_experiments/results/`; no screenshots, GIFs, or video have been
-fabricated for Phase 9.
+本目录保存审阅过的 Showcase 证据和未来 media 的管理规则。Phase 8 定量 JSON/CSV artifact
+位于 `src/robot_experiments/results/`；Phase 9 没有伪造 screenshot、GIF 或 video。
 
-Do not add screenshots, videos, CSV-derived figures, or demo claims unless they
-are tied to a real command, commit, parameter set, map/world, and log or rosbag
-path.
+只有当 screenshot、video、CSV-derived figure 或 Demo claim 关联真实 command、commit、
+parameter set、map/world 和 log/rosbag path 时，才可以加入。
 
-## Media Artifact Index
+## Media Artifact 索引
 
-| Artifact | Directory | Status | Notes |
+| Artifact | Directory | 状态 | 说明 |
 | --- | --- | --- | --- |
-| RViz visual-perception screenshot | `screenshots/` | not recorded | Add only after a reviewed runtime capture. |
-| Gazebo Factory Patrol screenshot | `screenshots/` | not recorded | Add only after a reviewed runtime capture. |
-| Benchmark-derived figure | `figures/` | not generated | JSON/CSV remain the canonical Phase 8 evidence. |
-| Demo video | external | not recorded | Do not add a link without command/commit/run evidence. |
+| RViz visual-perception screenshot | `screenshots/` | 未记录 | 只在 runtime capture 被审阅后加入。 |
+| Gazebo Factory Patrol screenshot | `screenshots/` | 未记录 | 只在 runtime capture 被审阅后加入。 |
+| Benchmark-derived figure | `figures/` | 未生成 | JSON/CSV 仍是 Phase 8 权威证据。 |
+| Demo video | external | 未记录 | 没有 command/commit/run 证据时不添加链接。 |
 
-## Validation Summaries
+## Validation 总结
 
-These concise summaries record build, test, and static-check evidence. They do
-not claim physical robot deployment or real factory operation.
+以下简短总结记录 build、test 和 static-check 证据，不声称实体机器人部署或真实工厂运行：
 
-- [WSL2 full validation summary](wsl2_full_validation_summary.md): historical
-  pre-perception WSL2 Ubuntu 24.04 + ROS2 Jazzy desktop validation with 514
-  tests after a package-level retry for one transient Nav2 `/map` timeout.
-- [Server Docker validation summary](server_docker_validation_summary.md):
-  Alibaba Cloud Linux 3 + `ros:jazzy-ros-base` partial validation with 17
-  packages finished and 104 tests passing while excluding `robot_tasks` because
-  the low-memory server killed `cc1plus` during compilation.
+- [WSL2 full validation summary](wsl2_full_validation_summary.md)：历史 pre-perception
+  WSL2 Ubuntu 24.04 + ROS2 Jazzy desktop 验证；package-level retry 处理一次瞬时 Nav2
+  `/map` timeout 后，共 514 个测试。
+- [Server Docker validation summary](server_docker_validation_summary.md)：Alibaba Cloud Linux 3
+  + `ros:jazzy-ros-base` 部分验证；17 packages 完成、104 tests 通过。低内存 server 在编译
+  `robot_tasks` 时终止 `cc1plus`，因此该 package 被排除。
 
-The current full workspace baseline after the visual-perception upgrade is 21
-packages and 648 tests with zero errors, failures, or skipped tests. Formal
-perception/mission measurements are recorded in:
+视觉感知升级后的当前 full workspace baseline 为 21 packages、648 tests、0 errors、
+0 failures、0 skipped。正式 perception/mission 测量记录在：
 
 - [Phase 8 JSON](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.json)
 - [Phase 8 CSV](../../src/robot_experiments/results/factory_patrol_phase8_20260815_011022.csv)
-- [Experiment report](../experiment_report.md)
+- [实验与 Benchmark 报告](../experiment_report.md)
 
-## Gazebo + RViz Simulation Debugging
+## Gazebo + RViz 仿真调试
 
-Default Factory Patrol simulation launch:
+默认 Factory Patrol simulation launch：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
 ```
 
-Optional Scene V2 industrial layout preview:
+可选 Scene V2 industrial layout preview：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py \
@@ -55,81 +49,71 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=true use_rviz:=true
 ```
 
-Headless launch:
+Headless launch：
 
 ```bash
 ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false
 ```
 
-Runtime topic check:
+Runtime topic check：
 
 ```bash
 bash scripts/check_factory_patrol_runtime_topics.sh
 ```
 
-The default RViz config is
-`src/robot_simulation/rviz/factory_patrol_showcase.rviz`. It uses `odom` as the
-fixed frame and focuses on robot model, laser scan, odometry, odom path, and
-`/amr_simulation/markers` so the default non-Nav2 demo is screenshot-friendly.
-`src/robot_simulation/rviz/factory_patrol_debug.rviz` remains available when a
-more verbose TF-oriented view is useful.
+默认 RViz config 为 `src/robot_simulation/rviz/factory_patrol_showcase.rviz`。它使用 `odom`
+作为 fixed frame，重点显示 robot model、laser scan、odometry、odom path 和
+`/amr_simulation/markers`，适合 non-Nav2 Demo 截图。需要更详细的 TF view 时，可使用
+`src/robot_simulation/rviz/factory_patrol_debug.rviz`。
 
-For the showcase layout, the Factory Semantics marker layer is included but
-disabled by default to avoid a debug-looking red marker overlay. Enable it from
-the Displays panel when semantic zones, reservations, or state markers need to
-be inspected.
+Showcase layout 包含 Factory Semantics marker layer，但默认关闭，避免红色 debug marker
+overlay 影响画面。需要检查 semantic zone、reservation 或 state marker 时，可在 Displays
+panel 中启用。
 
-The Gazebo world is procedural and lightweight: a 16 m x 12 m factory floor,
-widened AMR aisles, receiving buffer details, back storage rack rows, packing
-workcell props, dock guidance, safety rails, landmark plates, muted station
-signs, floor finish seams, scuff marks, and orthogonal inspection-route floor
-markings are modeled with SDF primitives rather than downloaded third-party
-assets.
-The independent `factory_patrol_industrial.sdf` Scene V2 preview keeps the
-original robot topics, frames, and mission seed poses while expanding the visual
-factory footprint to 24 m x 16 m. It adds clearer receiving, storage, packing,
-dock, slow-zone, guardrail, and closed-loop inspection-route visual layers for
-portfolio screenshots after real WSL2 visual review.
+Gazebo world 使用 procedural lightweight asset：16 m x 12 m Factory floor、加宽 AMR aisle、
+receiving buffer、后部 storage rack、packing workcell prop、dock guidance、safety rail、
+landmark plate、低饱和 station sign、floor seam、scuff mark 和正交 inspection-route marking
+均由 SDF primitive 建模，不依赖下载的第三方资产。
 
-The world config keeps the standard Scene Manager, Camera Tracking, and
-Interactive view control plugins enabled so Gazebo can render the 3D scene and
-provide camera control services. Fold the right-side panels manually before
-capturing screenshots when a cleaner frame is needed.
+独立 `factory_patrol_industrial.sdf` Scene V2 preview 保持原 robot topic、frame 和 mission
+seed pose，同时把视觉 Factory footprint 扩展到 24 m x 16 m。它增加更清晰的 receiving、
+storage、packing、dock、slow-zone、guardrail 和 closed-loop inspection-route visual layer；
+只有经过真实 WSL2 视觉审阅后才用于 portfolio screenshot。
 
-Motion smoke-test commands for a live simulation:
+world config 保留标准 Scene Manager、Camera Tracking 和 Interactive view control plugin，
+使 Gazebo 可以渲染 3D scene 并提供 camera control service。截图前可手动折叠右侧 panel。
+
+Live simulation 的 motion smoke-test command：
 
 ```bash
 ros2 topic pub --rate 10 /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
 ros2 topic pub --once /virtual_rc/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-Use `/virtual_rc/cmd_vel` as the recommended manual input. `/teleop_cmd_vel` is
-the `virtual_rc_node` output into `cmd_vel_mux_node`, while `/cmd_vel` is the
-final mux / safety output bridged into Gazebo. Avoid directly publishing to
-`/cmd_vel` during manual tests unless intentionally debugging the final bridge.
+建议手动 input 使用 `/virtual_rc/cmd_vel`。`/teleop_cmd_vel` 是 `virtual_rc_node` 进入
+`cmd_vel_mux_node` 的 output；`/cmd_vel` 是 bridge 到 Gazebo 的 final mux/safety output。
+除非有意调试 final bridge，否则手动测试不要直接发布到 `/cmd_vel`。
 
-If the AMR does not move, inspect `/cmd_vel`, `/odom`, `/safety_state`,
-`/cmd_vel_mux/active_source`, `ros2 topic info -v /cmd_vel`, and
-`gz model --model mobile_robot --pose` before changing any navigation, safety,
-chassis, or task code.
+如果 AMR 不移动，在修改 navigation、safety、chassis 或 task code 前，先检查 `/cmd_vel`、
+`/odom`、`/safety_state`、`/cmd_vel_mux/active_source`、`ros2 topic info -v /cmd_vel` 和
+`gz model --model mobile_robot --pose`。
 
-Expected topics include `/clock`, `/tf`, `/joint_states`, `/odom`, `/scan`,
-`/cmd_vel`, `/mission_runner/state`, `/safety_state`, `/localization/health`,
-`/amr_simulation/markers`, and `/amr_simulation/demo_timeline`.
+预期 topic 包括 `/clock`、`/tf`、`/joint_states`、`/odom`、`/scan`、`/cmd_vel`、
+`/mission_runner/state`、`/safety_state`、`/localization/health`、
+`/amr_simulation/markers` 和 `/amr_simulation/demo_timeline`。
 
-After Windows-side edits, final visual review should be done in WSL2 Ubuntu
-24.04 with ROS2 Jazzy by launching the demo, checking runtime topics, and
-capturing screenshots only after the scene is visually reviewed.
+Windows 侧编辑完成后，应在 WSL2 Ubuntu 24.04 + ROS2 Jazzy 中完成最终视觉审阅：启动 Demo、
+检查 runtime topic，并只在 scene 经过审阅后截图。
 
-## Future Artifact Checklist
+## Future Artifact 检查清单
 
-For every future artifact, record:
+每个未来 artifact 都需要记录：
 
 - commit hash
-- command used to launch the run
-- map/world and parameter files
-- relevant logs or rosbag path
-- whether the run was simulation, mock backend, or real hardware
+- 启动运行所用 command
+- map/world 与 parameter file
+- 相关 log 或 rosbag path
+- 运行属于 simulation、mock backend 还是实体 hardware
 
-Showcase screenshots and videos are not yet validated by the presence of these
-directories. Documentation never references a missing image as runtime proof.
+仅创建这些目录不代表 Showcase screenshot 和 video 已验证（not yet validated）。文档不会把
+缺失的 image 当作 runtime proof。

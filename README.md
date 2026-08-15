@@ -78,25 +78,25 @@ headless `factory_patrol.sdf`、CPU OpenCV-DNN YOLOX-S、640x640 Detector 输入
 
 ```mermaid
 flowchart TD
-  Camera[RGB-D Camera] --> Perception[robot_perception]
-  Perception --> Detector[Replaceable Detector]
-  Detector --> Geometry[DepthProjector and TF2]
-  Geometry --> Targets[TargetManager]
-  Targets --> Events[Inspection Event Policy]
-  Targets --> SafetyPolicy[Perception Safety Policy]
-  Geometry --> Diagnostics[Perception Diagnostics]
-  Events --> Tasks[robot_tasks]
-  Tasks --> Nav2[Nav2 and AMCL]
-  Nav2 --> NavCmd[/nav2_cmd_vel]
-  NavCmd --> Mux[cmd_vel mux]
-  Mux --> Gate[Safety Gate]
-  SafetyPolicy --> SafetyEvent[/perception/safety_event]
+  Camera["RGB-D Camera"] --> Perception["robot_perception"]
+  Perception --> Detector["Replaceable Detector"]
+  Detector --> Geometry["DepthProjector + TF2"]
+  Geometry --> Targets["TargetManager"]
+  Targets --> Events["Inspection Event Policy"]
+  Targets --> SafetyPolicy["Perception Safety Policy"]
+  Geometry --> Diagnostics["Perception Diagnostics"]
+  Events --> Tasks["robot_tasks"]
+  Tasks --> Nav2["Nav2 + AMCL"]
+  Nav2 --> NavCmd["/nav2_cmd_vel"]
+  NavCmd --> Mux["cmd_vel mux"]
+  Mux --> Gate["Safety Gate"]
+  SafetyPolicy --> SafetyEvent["/perception/safety_event"]
   SafetyEvent --> Gate
-  Diagnostics --> Monitor[system_monitor and fault_supervisor]
+  Diagnostics --> Monitor["system_monitor + fault_supervisor"]
   Monitor --> Gate
-  Gate --> Cmd[/cmd_vel]
-  Cmd --> Robot[Robot or Gazebo]
-  Robot --> Feedback[odom, TF, scan, state]
+  Gate --> Cmd["/cmd_vel"]
+  Cmd --> Robot["Robot / Gazebo"]
+  Robot --> Feedback["odom / TF / scan / state"]
   Feedback --> Nav2
   Feedback --> Monitor
 ```
@@ -497,13 +497,16 @@ Phase 9 只完成文档与展示整理，未重新运行或静默改写 Phase 8 
 - 带命令、commit、参数和日志的审核后 runtime 截图/视频。
 - VLM、Visual SLAM、DeepSORT、ByteTrack 和 semantic segmentation 等能力的专项评估。
 
-## 文档
+## 项目文档
+
+更详细的架构、导航、定位、安全、仿真与实验说明请参阅：
+
+[📚 项目完整文档](docs/README.md)
+
+重点入口：
 
 - [工程项目总结](docs/project_summary.md)
 - [详细系统架构](docs/architecture.md)
-- [仿真场景与运行证据](docs/simulation_scenarios.md)
 - [Benchmark 方法与结果](docs/experiment_report.md)
-- [Safety state machine](docs/safety_state_machine.md)
-- [视觉感知升级计划](docs/upgrade/visual_perception_upgrade_plan.md)
 - [Showcase 证据规范](docs/showcase/README.md)
 - [Validation 脚本清单](scripts/README.md)
