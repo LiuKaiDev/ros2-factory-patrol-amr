@@ -109,8 +109,8 @@ require_grep "ApplySafetyPolicy_SpeedLimitedClampsCommand" "${TEST_CPP}" \
 
 require_grep "/safety/state" "${SAFETY_DOC}" \
   "safety docs do not document /safety/state"
-require_grep "Phase 4B" "${LOCALIZATION_DOC}" \
-  "localization docs do not mention Phase 4B safety integration"
+require_grep "/localization/health" "${LOCALIZATION_DOC}" \
+  "localization docs do not document the health topic"
 require_grep "CMD_TIMEOUT" "${CHASSIS_DOC}" \
   "chassis docs do not document CMD_TIMEOUT safety mapping"
 require_grep "cmd_vel_safety_gate" "${ARCH_DOC}" \

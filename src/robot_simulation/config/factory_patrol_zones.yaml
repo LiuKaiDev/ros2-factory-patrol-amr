@@ -1,4 +1,4 @@
-# Phase 5A factory patrol zone assets.
+# factory patrol zone assets.
 # These polygons are configuration assets only. They are not wired into Nav2
 # keepout/speed filters in this phase.
 zones:

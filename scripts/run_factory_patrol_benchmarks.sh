@@ -125,18 +125,23 @@ safe_source /opt/ros/jazzy/setup.bash
 [[ -f install/setup.bash ]] || fail "install/setup.bash is unavailable; build the workspace first"
 safe_source install/setup.bash
 [[ -f "${CONFIG_FILE}" ]] || fail "benchmark config is missing: ${CONFIG_FILE}"
+[[ -f scripts/check_factory_patrol_assets.sh ]] || fail "asset checker is missing"
+[[ -f scripts/prepare_detector_model.sh ]] || fail "detector model preparation script is missing"
+[[ -f src/robot_bringup/launch/factory_patrol_demo.launch.py ]] ||
+  fail "Factory Patrol launch file is missing"
+[[ -f src/robot_simulation/worlds/factory_patrol.sdf ]] ||
+  fail "Factory Patrol simulation world is missing"
+[[ -f src/robot_perception/config/detector.yaml ]] ||
+  fail "detector configuration is missing"
 command -v setsid >/dev/null || fail "setsid is required for isolated launch cleanup"
 command -v ros2 >/dev/null || fail "ros2 is unavailable after sourcing the workspace"
 export ROS_DOMAIN_ID="${BENCHMARK_DOMAIN_ID}"
 export GZ_PARTITION="${BENCHMARK_GZ_PARTITION}"
 
 BRANCH="$(git branch --show-current)"
-[[ "${BRANCH}" == "feature/visual-perception-upgrade" ]] ||
-  fail "benchmark must run on feature/visual-perception-upgrade, got ${BRANCH}"
-git merge-base --is-ancestor bfb59f9 HEAD || fail "required Phase 7 commit bfb59f9 is not in history"
 
 bash scripts/check_factory_patrol_assets.sh
-bash scripts/prepare_phase3_detector_model.sh
+bash scripts/prepare_detector_model.sh
 
 MODEL_PATH="${XDG_CACHE_HOME:-${HOME}/.cache}/robot_perception/models/object_detection_yolox_2022nov.onnx"
 [[ -s "${MODEL_PATH}" ]] || fail "detector model is missing after prerequisite validation"
@@ -199,8 +204,8 @@ for run_index in $(seq 1 "${MISSION_RUNS}"); do
     use_perception_system_monitor:=true visual_inspection_start_delay:=10.0 \
     detector_model_path:="${MODEL_PATH}" perception_debug_image:=false \
     perception_max_inference_rate_hz:="${DETECTOR_RATE}" \
-    perception_tracking_params:="${REPO_ROOT}/src/robot_perception/config/tracking_phase5_validation.yaml" \
-    visual_inspection_params:="${REPO_ROOT}/src/robot_tasks/config/visual_inspection_phase5_validation.yaml"
+    perception_tracking_params:="${REPO_ROOT}/src/robot_perception/config/tracking_visual_inspection_validation.yaml" \
+    visual_inspection_params:="${REPO_ROOT}/src/robot_tasks/config/visual_inspection_validation.yaml"
   run_probe "mission_${run_index}" profile --profile mission \
     --output "${mission_output}" --run-index "${run_index}" \
     --timeout "${MISSION_TIMEOUT}" --duplicate-window "${MISSION_DUPLICATE_WINDOW}"
@@ -216,7 +221,7 @@ start_stack safety \
   use_perception_system_monitor:=true \
   detector_model_path:="${MODEL_PATH}" perception_debug_image:=false \
   perception_max_inference_rate_hz:="${DETECTOR_RATE}" \
-  perception_tracking_params:="${REPO_ROOT}/src/robot_perception/config/tracking_phase6_validation.yaml"
+  perception_tracking_params:="${REPO_ROOT}/src/robot_perception/config/tracking_safety_validation.yaml"
 run_probe safety profile --profile safety --output "${SAFETY_OUTPUT}" \
   --samples "${SAFETY_RUNS}" --timeout "${SAFETY_TIMEOUT}"
 stop_stack

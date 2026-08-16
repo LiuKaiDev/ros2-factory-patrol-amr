@@ -40,5 +40,3 @@ RGB-D -> 2D detection -> depth/TF -> managed map target
 - 提交带 command、commit、parameter 和日志的审核后截图与视频。
 
 以上项目不属于当前版本的已验证能力。
-
-<!-- Existing readiness-check compatibility marker: Phase 9 complete. -->

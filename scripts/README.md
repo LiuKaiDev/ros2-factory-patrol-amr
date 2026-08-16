@@ -60,7 +60,7 @@ bash scripts/run_factory_patrol_obstacle_demo.sh
 bash scripts/run_factory_patrol_localization_recovery_demo.sh
 bash scripts/check_factory_patrol_demo_workflows.sh
 bash scripts/check_factory_patrol_runtime_topics.sh
-bash scripts/prepare_phase3_detector_model.sh
+bash scripts/prepare_detector_model.sh
 bash scripts/check_factory_patrol_detector_runtime.sh
 bash scripts/check_factory_patrol_target_manager_runtime.sh
 bash scripts/check_factory_patrol_visual_inspection_runtime.sh
@@ -75,7 +75,7 @@ bash scripts/check_factory_patrol_demo_runtime.sh
 要求 ROS2 graph 正在运行，并输出 topic 数量、`/scan` QoS 提示、采样 frame ID 和 odom TF
 连通性诊断。
 
-`prepare_phase3_detector_model.sh` 会显式下载并校验官方 OpenCV Zoo YOLOX-S 模型到用户
+`prepare_detector_model.sh` 会显式下载并校验官方 OpenCV Zoo YOLOX-S 模型到用户
 cache；普通 ROS launch 不会下载权重。Detector-mode Demo 运行时，
 `check_factory_patrol_detector_runtime.sh` 检查 2D 到 3D 的真实链路。
 
@@ -87,12 +87,12 @@ raw/filter position statistics。
 验证一次 task-owned Nav2 approach、Observation standoff 和 yaw、机器人运动、完成反馈、
 target 的 `PROCESSED` 状态，以及不变的 mux/Safety Gate velocity path。
 
-`run_factory_patrol_demo.sh --phase6` 启动 live detector、managed person safety policy、
+`run_factory_patrol_demo.sh --perception-safety` 启动 live detector、managed person safety policy、
 Nav2 和既有 combined mux/Safety Gate。对应 runtime check 让 person fixture 经过距离与
 map-zone 场景，比较真实 `/nav2_cmd_vel` intent 与最终 `/cmd_vel`，测量 STOP 响应并验证
 恢复；Perception 不发送任何 Twist。
 
-`run_factory_patrol_demo.sh --phase7` 增加标准 perception diagnostics、system health 和
+`run_factory_patrol_demo.sh --perception-diagnostics` 增加标准 perception diagnostics、system health 和
 fault supervision。Diagnostics check 注入 camera、depth-quality、observation-time TF 和
 detector fault，并验证恢复，不发布 velocity 或 synthetic safety event。
 

@@ -1,7 +1,5 @@
 # 定位系统
 
-<!-- Existing localization-check compatibility marker: Phase 4B. -->
-
 当前定位链路以 AMCL 为主，适用于半封闭室内或园区低速巡检。AMCL、Nav2、EKF 和底盘
 里程计统一使用 `map`、`odom`、`base_footprint` frame；URDF 提供固定的
 `base_footprint -> base_link`。

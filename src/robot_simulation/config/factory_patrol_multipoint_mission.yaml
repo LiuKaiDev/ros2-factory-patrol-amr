@@ -1,4 +1,4 @@
-# Phase 5B mission_runner-compatible profile derived from
+# mission_runner-compatible profile derived from
 # factory_patrol_route.yaml and factory_patrol_stations.yaml.
 # This is a demo input asset, not a record of a completed run.
 mission_id: factory_patrol_multipoint_demo

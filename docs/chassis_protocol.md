@@ -1,7 +1,5 @@
 # 底盘通信协议
 
-<!-- Existing chassis-check compatibility marker: Phase 3B. -->
-
 底盘适配层目标是把 ROS2 上位机中的速度指令、里程计、底盘状态和故障状态，与具体底盘控制器或仿真后端连接起来。它不是 VCU 固件开发，也不声称覆盖真实底盘内部电机控制。
 
 ## 当前底盘 Adapter

@@ -1,7 +1,5 @@
 # 仿真场景
 
-<!-- Existing asset-check compatibility marker: Phase 5A. -->
-
 当前仓库同时包含通用室内仿真和面向“厂区 / 园区半封闭低速巡检”的 Factory Patrol
 专用场景、配置、launch 与验证脚本。各项 runtime 结论仍以对应的真实运行记录为准。
 
@@ -98,7 +96,7 @@ Factory Patrol 专用资产：
 | Station seed config | `src/robot_simulation/config/factory_patrol_stations.yaml` | 已配置 |
 | Zone seed config | `src/robot_simulation/config/factory_patrol_zones.yaml` | 已配置 |
 | Patrol route config | `src/robot_simulation/config/factory_patrol_route.yaml` | 路线 seed；未直接接入 mission runner |
-| Map note | `src/robot_navigation/maps/factory_patrol_map_README.md` | 地图生成说明 |
+| Map note | `src/robot_navigation/maps/factory_patrol_map_generation.md` | 地图生成说明 |
 | Demo launch | `src/robot_bringup/launch/factory_patrol_demo.launch.py` | 已实现 |
 | Demo helper | `scripts/run_factory_patrol_demo.sh` | 已实现 |
 | Static check | `scripts/check_factory_patrol_assets.sh` | 已实现 |
@@ -143,7 +141,7 @@ mission format，具体工作见 [项目路线图](roadmap.md)。
 Map 处理：
 
 仓库未提交 Factory Patrol occupancy map。地图生成流程见
-`src/robot_navigation/maps/factory_patrol_map_README.md`；在提供经过审阅的地图前，Factory
+`src/robot_navigation/maps/factory_patrol_map_generation.md`；在提供经过审阅的地图前，Factory
 Demo launch 默认保持 Nav2 disabled。
 
 Demo 入口：
@@ -284,7 +282,7 @@ Depth 从 bbox 中心区域采样。`src/robot_perception/config/depth.yaml` 默
 NaN、Inf、低于范围和超出范围的值都会拒绝。Invalid depth 或 intrinsics 不产生点。
 
 两个 Factory Patrol world 都包含只用于视觉、不可碰撞的
-`phase2_geometry_validation_target`。目标视觉中心为 `[2.76, 0.00, 0.66]`，前表面为
+`geometry_validation_target`。目标视觉中心为 `[2.76, 0.00, 0.66]`，前表面为
 `x = 2.70`。默认 bbox center ray 位于 settling 后的 camera/TF 高度 `z = 0.495`，因此
 map convention 下已知表面交点为 `P_gt = [2.70, 0.00, 0.495]`。Synthetic bbox 中心为
 `(320, 240)`，可通过 ROS parameter 修改，无需重新编译。
@@ -382,7 +380,7 @@ OpenCV Zoo model：
 ```bash
 sudo apt install ros-jazzy-cv-bridge ros-jazzy-vision-msgs \
   python3-opencv python3-numpy
-bash scripts/prepare_phase3_detector_model.sh
+bash scripts/prepare_detector_model.sh
 ```
 
 脚本默认将 `object_detection_yolox_2022nov.onnx` 安装到
@@ -393,7 +391,7 @@ bash scripts/prepare_phase3_detector_model.sh
 安装的 OpenCV build 可用时才使用 CUDA。缺失、截断或不支持的 model 会记录 error、关闭
 inference，但 ROS node 仍存活并发布时间戳正确的空 detection array。
 
-两个 Factory Patrol world 都包含只用于视觉的 `phase3_person_detection_target`，它与
+两个 Factory Patrol world 都包含只用于视觉的 `person_detection_target`，它与
 center-ray target 错开，以保持 synthetic regression 不变。其 source、license 和 mechanical
 texture reduction 记录在 model 旁的 `src/robot_simulation/models/person_standing/ATTRIBUTION.md`。
 
@@ -719,7 +717,6 @@ bash scripts/check_factory_patrol_demo_runtime.sh
 
 尚未实现或未形成统一专项证据的扩展项统一列在 [项目路线图](roadmap.md)。
 
-<!-- Existing workflow-check compatibility marker: Phase 5B. -->
 
 ## 视觉引导静态巡检
 
@@ -750,14 +747,14 @@ Detector 继续提供 `person` 和 `chair`，但默认 inspection allowlist 只�
 才能发布新 event。
 
 现有 pretrained model 不能可靠识别 code-native primitive chair。因此 runtime validation
-显式加载 `tracking_phase5_validation.yaml` 和 `visual_inspection_phase5_validation.yaml`，
+显式加载 `tracking_visual_inspection_validation.yaml` 和 `visual_inspection_validation.yaml`，
 其 allowlist 包含 `person`，并在已知 world pose `(2.80, -0.75)` 复用现有只用于视觉的静态
-`phase3_person_detection_target`。这不改变默认 `chair` policy，不添加 collision geometry，
+`person_detection_target`。这不改变默认 `chair` policy，不添加 collision geometry，
 也不实现 person following；该 target 仅是此明确 validation run 的固定 inspection fixture。
 Validation tracking profile 还缩小 depth ROI，并延长 LOST-target retention，使机器人转向或
 静态 fixture 离开 camera view 后，原 managed ID 仍可用于 task completion。默认
 retention behavior 不变。其 processed cooldown 为 120 秒，避免同一 fixture 在端到端测量
-窗口内 retrigger。`--phase5` helper 将 CPU inference 限制为 0.5 Hz，保证 WSL 中 Nav2
+窗口内 retrigger。`--visual-inspection` helper 将 CPU inference 限制为 0.5 Hz，保证 WSL 中 Nav2
 action callback 响应；detector 仍使用 live RGB image 上同一个 pretrained YOLOX backend，
 默认 detector rate 不限速。Validation profile 允许一次 task-owned retry 处理到达时的瞬时
 Nav2 result race；默认 mission profile 仍为 `retry_count: 0`。
@@ -791,11 +788,11 @@ Factory Patrol bringup 将 event consumer 延迟到已有 delayed Nav2 bringup �
 准备 Detector model，构建后启动完整 chain：
 
 ```bash
-bash scripts/prepare_phase3_detector_model.sh
+bash scripts/prepare_detector_model.sh
 source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install
 source install/setup.bash
-bash scripts/run_factory_patrol_demo.sh --phase5
+bash scripts/run_factory_patrol_demo.sh --visual-inspection
 ```
 
 等价的 launch command 为：
@@ -805,8 +802,8 @@ ros2 launch robot_bringup factory_patrol_demo.launch.py \
   gui:=true use_rviz:=true use_nav2:=true use_detector:=true \
   geometry_input_mode:=detector use_visual_inspection:=true \
   perception_max_inference_rate_hz:=0.5 \
-  perception_tracking_params:=$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml \
-  visual_inspection_params:=$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml
+  perception_tracking_params:=$(ros2 pkg prefix --share robot_perception)/config/tracking_visual_inspection_validation.yaml \
+  visual_inspection_params:=$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_validation.yaml
 ```
 
 在另一个已 source 的 shell 中验证 running graph：
@@ -845,10 +842,10 @@ log/rosbag path。
 
 ## 视觉人员安全与 Safety Gate 集成
 
-人员安全 probe 使用只用于视觉的 `phase3_person_detection_target` 和 Gazebo set-pose service 做
+人员安全 probe 使用只用于视觉的 `person_detection_target` 和 Gazebo set-pose service 做
 deterministic validation，不增加 crowd 或 pedestrian framework。标准 licensed person mesh
 太高，在低于 `1.5 m` STOP threshold 时无法完全位于 camera vertical field of view 内，因此
-两个 Factory Patrol world 还包含 `phase6_person_safety_target`：同一 licensed mesh 的静态、
+两个 Factory Patrol world 还包含 `person_safety_target`：同一 licensed mesh 的静态、
 不可碰撞 `0.40` scale instance。除非 safety probe 用于 close-range STOP case，否则它隐藏
 在 `z=-2`。这只改变 validation image scale；policy 仍使用 measured RGB-D XY distance 和
 `person` class。
@@ -888,8 +885,8 @@ condition。Invalid TF 或 malformed person data 不会创建 `CLEAR` event。
 准备 Detector model 并启动人员安全 profile：
 
 ```bash
-bash scripts/prepare_phase3_detector_model.sh
-bash scripts/run_factory_patrol_demo.sh --phase6
+bash scripts/prepare_detector_model.sh
+bash scripts/run_factory_patrol_demo.sh --perception-safety
 ```
 
 在另一个已 source 的 shell 中验证 topic 和端到端 gate：
@@ -931,7 +928,7 @@ Gazebo set-pose service 定位只用于视觉的 person fixture，并保持一�
 Factory Patrol profile 提供可选的低频 health stream，使用以下命令启用：
 
 ```bash
-bash scripts/run_factory_patrol_demo.sh --phase7
+bash scripts/run_factory_patrol_demo.sh --perception-diagnostics
 ```
 
 标准 `diagnostic_msgs/msg/DiagnosticArray` topic 为 `/perception/diagnostics`，发布的 status name 为：

@@ -30,14 +30,14 @@ check_type() {
   fi
 }
 
-echo "[detector-runtime-check] Validating the Phase 3 detector chain..."
+echo "[detector-runtime-check] Validating the detector chain..."
 check_type /perception/detections_2d vision_msgs/msg/Detection2DArray
 check_type /perception/debug_image sensor_msgs/msg/Image
 check_type /perception/geometry/camera_point geometry_msgs/msg/PointStamped
 check_type /perception/geometry/map_point geometry_msgs/msg/PointStamped
 check_type /perception/markers visualization_msgs/msg/Marker
 
-if timeout 30s python3 - <<'PY' >/tmp/factory_patrol_phase3_detection.txt 2>&1
+if timeout 30s python3 - <<'PY' >/tmp/factory_patrol_detector_detection.txt 2>&1
 import rclpy
 from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
@@ -47,7 +47,7 @@ from vision_msgs.msg import Detection2DArray
 
 class DetectionProbe(Node):
     def __init__(self):
-        super().__init__("factory_patrol_phase3_detection_probe")
+        super().__init__("factory_patrol_detector_detection_probe")
         self.debug_headers = set()
         self.detection_headers = set()
         self.camera_point_headers = set()
@@ -144,7 +144,7 @@ rclpy.spin(probe)
 PY
 then
   echo "PASS: real person detection has a source-image stamp, class, score, and valid bbox"
-  sed 's/^/      /' /tmp/factory_patrol_phase3_detection.txt
+  sed 's/^/      /' /tmp/factory_patrol_detector_detection.txt
 else
   echo "FAIL: no valid person detection observed" >&2
   failures=$((failures + 1))
@@ -178,7 +178,7 @@ if timeout 25s ros2 topic echo --once --timeout 23 /perception/markers \
     --no-arr >/dev/null 2>&1; then
   echo "PASS: map marker exposes person confidence/depth/position text"
 else
-  echo "FAIL: expected Phase 3 text marker was not observed" >&2
+  echo "FAIL: expected detector text marker was not observed" >&2
   failures=$((failures + 1))
 fi
 

@@ -4,7 +4,7 @@
   <name>robot_interfaces</name>
   <version>0.0.0</version>
   <description>Shared messages, services, and actions for the mobile robot navigation lab.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

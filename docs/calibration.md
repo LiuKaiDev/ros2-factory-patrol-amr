@@ -3,8 +3,6 @@
 本文档给出低速巡检 AMR 底盘里程计标定流程。当前仓库没有实体底盘标定结论；下方记录表
 为空白模板，不构成实车结果。
 
-<!-- Existing calibration-check compatibility marker: TBD. -->
-
 ## 标定目标
 
 | Parameter | 仿真/Mock 默认值 | 标定目标 |

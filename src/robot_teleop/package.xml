@@ -3,8 +3,8 @@
 <package format="3">
   <name>robot_teleop</name>
   <version>0.0.0</version>
-  <description>Control source mux, watchdog, and emergency stop services.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <description>Velocity source arbitration, watchdog, emergency stop, and final Safety Gate.</description>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

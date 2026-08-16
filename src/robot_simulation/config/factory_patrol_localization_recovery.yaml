@@ -1,4 +1,4 @@
-# Phase 5B localization recovery demo poses.
+# localization recovery demo poses.
 # These are scripted injection examples for /initialpose, not measured results.
 bad_initial_pose:
   frame_id: map

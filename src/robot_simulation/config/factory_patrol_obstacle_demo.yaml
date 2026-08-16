@@ -1,4 +1,4 @@
-# Phase 5B temporary obstacle demo configuration.
+# temporary obstacle demo configuration.
 # This is a placement and observation guide; it does not claim avoidance has
 # been validated in Gazebo/Nav2.
 obstacle_name: temporary_box_obstacle

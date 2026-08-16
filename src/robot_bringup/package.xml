@@ -3,8 +3,8 @@
 <package format="3">
   <name>robot_bringup</name>
   <version>0.0.0</version>
-  <description>Launch and configuration entry points for the mobile robot lab.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <description>Launch and configuration entry points for the Factory Patrol AMR system.</description>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

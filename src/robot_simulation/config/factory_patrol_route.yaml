@@ -1,4 +1,4 @@
-# Phase 5A multi-point patrol route asset.
+# multi-point patrol route asset.
 # Current status: planned/config-only route. The mission runner is not claimed
 # to execute this YAML directly unless a later integration wires it in.
 route:

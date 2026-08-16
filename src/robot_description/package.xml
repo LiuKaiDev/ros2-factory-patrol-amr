@@ -4,7 +4,7 @@
   <name>robot_description</name>
   <version>0.0.0</version>
   <description>URDF, Xacro, and RViz assets for the mobile robot.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
