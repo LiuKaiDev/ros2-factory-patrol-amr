@@ -4,7 +4,7 @@
   <name>robot_perception</name>
   <version>0.1.0</version>
   <description>Replaceable 2D detection, RGB-D geometry, and managed targets for the Factory Patrol AMR.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

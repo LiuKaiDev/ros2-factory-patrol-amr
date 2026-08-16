@@ -4,7 +4,7 @@
   <name>robot_sensors</name>
   <version>0.0.0</version>
   <description>Sensor normalization, filtering, diagnostics, and fake sensor sources.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

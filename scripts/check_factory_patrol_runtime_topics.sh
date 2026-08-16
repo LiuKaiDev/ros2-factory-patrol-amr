@@ -67,7 +67,7 @@ if [[ "${PERCEPTION_SAFETY_MODE}" == "true" && "${VISUAL_INSPECTION_MODE}" != "t
   for index in "${!TOPICS[@]}"; do
     [[ "${TOPICS[$index]}" == "/mission_runner/state" ]] && unset 'TOPICS[index]'
   done
-  echo "[factory-topic-check] Phase 6 safety profile omits /mission_runner/state by design."
+  echo "[factory-topic-check] perception safety profile omits /mission_runner/state by design."
 fi
 if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
   TOPICS+=(
@@ -308,19 +308,19 @@ expect_no_message() {
 
 run_geometry_failure_probe() {
   local mode="$1"
-  local node_name="phase2_${mode}_probe"
+  local node_name="geometry_${mode}_probe"
   local topic_prefix="/perception/validation_${mode}"
   local log_file="/tmp/factory_patrol_${node_name}.log"
   local geometry_node
   geometry_node="$(ros2 pkg prefix robot_perception)/lib/robot_perception/geometry_validation_node"
   local extra_args=()
   if [[ "${mode}" == "tf_failure" ]]; then
-    extra_args=(-p target_frame:=phase2_missing_map_frame)
+    extra_args=(-p target_frame:=geometry_missing_map_frame)
   elif [[ "${mode}" == "missing_input" ]]; then
     extra_args=(
-      -p rgb_topic:=/phase2_missing/rgb
-      -p depth_topic:=/phase2_missing/depth
-      -p camera_info_topic:=/phase2_missing/camera_info
+      -p rgb_topic:=/geometry_missing/rgb
+      -p depth_topic:=/geometry_missing/depth
+      -p camera_info_topic:=/geometry_missing/camera_info
     )
   else
     extra_args=(-p min_depth:=7.0 -p max_depth:=8.0)
@@ -398,14 +398,14 @@ check_camera_frame "/camera/color/camera_info" || failures=$((failures + 1))
 
 if [[ "${PERCEPTION_DIAGNOSTICS_MODE}" == "true" ]]; then
   echo
-  echo "[factory-topic-check] Validating Phase 7 perception diagnostics..."
+  echo "[factory-topic-check] Validating perception diagnostics..."
   check_topic_type "/perception/diagnostics" "diagnostic_msgs/msg/DiagnosticArray" || failures=$((failures + 1))
   check_perception_diagnostics || failures=$((failures + 1))
   check_topic_type "/system_health" "robot_interfaces/msg/RobotState" || failures=$((failures + 1))
 fi
 
 echo
-echo "[factory-topic-check] Validating Phase 2 geometry outputs..."
+echo "[factory-topic-check] Validating geometry outputs..."
 check_topic_type "/perception/geometry/camera_point" "geometry_msgs/msg/PointStamped" || failures=$((failures + 1))
 check_topic_type "/perception/geometry/map_point" "geometry_msgs/msg/PointStamped" || failures=$((failures + 1))
 check_topic_type "/perception/markers" "visualization_msgs/msg/Marker" || failures=$((failures + 1))
@@ -422,20 +422,20 @@ fi
 
 if [[ "${DETECTOR_MODE}" == "true" ]]; then
   echo
-  echo "[factory-topic-check] Delegating Phase 3 detector-chain validation..."
+  echo "[factory-topic-check] Delegating detector-chain validation..."
   bash scripts/check_factory_patrol_detector_runtime.sh || failures=$((failures + 1))
   check_managed_target || failures=$((failures + 1))
 fi
 
 if [[ "${VISUAL_INSPECTION_MODE}" == "true" ]]; then
   echo
-  echo "[factory-topic-check] Delegating Phase 5 visual inspection validation..."
+  echo "[factory-topic-check] Delegating visual inspection validation..."
   bash scripts/check_factory_patrol_visual_inspection_runtime.sh || failures=$((failures + 1))
 fi
 
 if [[ "${PERCEPTION_SAFETY_MODE}" == "true" ]]; then
   echo
-  echo "[factory-topic-check] Validating Phase 6 perception safety interface..."
+  echo "[factory-topic-check] Validating perception safety interface..."
   check_topic_type "/perception/safety_event" \
     "robot_interfaces_perception/msg/PerceptionSafetyEvent" || failures=$((failures + 1))
   check_topic_type "/safety/state" "std_msgs/msg/String" || failures=$((failures + 1))

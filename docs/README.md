@@ -13,6 +13,7 @@
 
 ## 仿真与硬件
 
+- [Demo 手册](demo.md)
 - [仿真场景](simulation_scenarios.md)
 - [底盘通信协议](chassis_protocol.md)
 - [底盘标定说明](calibration.md)
@@ -22,11 +23,9 @@
 - [实验与 Benchmark 报告](experiment_report.md)
 - [工程项目总结](project_summary.md)
 - [项目路线图](roadmap.md)
-- [面试复习要点](interview_notes.md)
 
-## Showcase 与验证
+## 验证
 
-- [Showcase 证据规范](showcase/README.md)
 - [验证脚本清单](../scripts/README.md)
 
 ## 文档说明
@@ -35,7 +34,3 @@
 - 未实际验证的能力明确标记为“未验证”。
 - 仿真结果不等同于实体硬件验证。
 - Benchmark 数据以提交的 JSON/CSV 实验产物为准。
-
-## 开发历史
-
-项目早期设计与视觉感知升级规划保留在 [`upgrade/`](upgrade/)，用于记录系统演进过程。

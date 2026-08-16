@@ -30,7 +30,7 @@ for specification in \
   fi
 done
 
-TEMP_DIR="$(mktemp -d /tmp/factory_patrol_phase4.XXXXXX)"
+TEMP_DIR="$(mktemp -d /tmp/factory_patrol_target_manager.XXXXXX)"
 NODE_LOG="${TEMP_DIR}/target_manager_node.log"
 PROBE_LOG="${TEMP_DIR}/target_manager_probe.log"
 PROBE_PID=""
@@ -46,16 +46,16 @@ trap cleanup EXIT
 
 GEOMETRY_NODE="$(ros2 pkg prefix robot_perception)/lib/robot_perception/geometry_validation_node"
 "${GEOMETRY_NODE}" --ros-args \
-  -r __node:=phase4_target_manager_probe \
+  -r __node:=target_manager_validation_node \
   -p use_sim_time:=true \
   -p geometry_input_mode:=detector \
-  -p detection_topic:=/phase4_validation/detections_2d \
-  -p depth_topic:=/phase4_validation/depth \
-  -p camera_info_topic:=/phase4_validation/camera_info \
-  -p camera_point_topic:=/phase4_validation/camera_point \
-  -p map_point_topic:=/phase4_validation/raw_map_point \
-  -p marker_topic:=/phase4_validation/markers \
-  -p objects_3d_topic:=/phase4_validation/objects_3d \
+  -p detection_topic:=/target_manager_validation/detections_2d \
+  -p depth_topic:=/target_manager_validation/depth \
+  -p camera_info_topic:=/target_manager_validation/camera_info \
+  -p camera_point_topic:=/target_manager_validation/camera_point \
+  -p map_point_topic:=/target_manager_validation/raw_map_point \
+  -p marker_topic:=/target_manager_validation/markers \
+  -p objects_3d_topic:=/target_manager_validation/objects_3d \
   -p ground_truth.enabled:=false \
   -p sync_queue_size:=120 \
   -p tracking.confirm_frames:=3 \
@@ -67,7 +67,7 @@ PROBE_PID=$!
 
 for _ in $(seq 1 30); do
   if timeout 3s ros2 node list 2>/dev/null |
-      grep -Fxq /phase4_target_manager_probe; then
+      grep -Fxq /target_manager_validation_node; then
     break
   fi
   sleep 0.25
@@ -98,15 +98,15 @@ class TargetManagerProbe(Node):
     SAMPLE_COUNT = 12
 
     def __init__(self):
-        super().__init__("factory_patrol_phase4_runtime_probe")
+        super().__init__("factory_patrol_target_manager_runtime_probe")
         self.relay = self.create_publisher(
-            Detection2DArray, "/phase4_validation/detections_2d", 10
+            Detection2DArray, "/target_manager_validation/detections_2d", 10
         )
         self.depth_relay = self.create_publisher(
-            Image, "/phase4_validation/depth", 10
+            Image, "/target_manager_validation/depth", 10
         )
         self.info_relay = self.create_publisher(
-            CameraInfo, "/phase4_validation/camera_info", 10
+            CameraInfo, "/target_manager_validation/camera_info", 10
         )
         self.create_subscription(
             Detection2DArray, "/perception/detections_2d", self.on_source, 10
@@ -119,13 +119,13 @@ class TargetManagerProbe(Node):
             qos_profile_sensor_data,
         )
         self.raw_sub = self.create_subscription(
-            PointStamped, "/phase4_validation/raw_map_point", self.on_raw, 20
+            PointStamped, "/target_manager_validation/raw_map_point", self.on_raw, 20
         )
         self.target_sub = self.create_subscription(
-            DetectedObject3D, "/phase4_validation/objects_3d", self.on_target, 20
+            DetectedObject3D, "/target_manager_validation/objects_3d", self.on_target, 20
         )
         self.marker_sub = self.create_subscription(
-            Marker, "/phase4_validation/markers", self.on_marker, 20
+            Marker, "/target_manager_validation/markers", self.on_marker, 20
         )
         self.stage = "confirm"
         self.target_id = None
@@ -377,7 +377,7 @@ if not success:
     raise SystemExit(1)
 PY
 then
-  echo "FAIL: Phase 4 managed-target runtime validation did not complete" >&2
+  echo "FAIL: TargetManager runtime validation did not complete" >&2
   sed 's/^/      /' "${PROBE_LOG}" >&2
   sed 's/^/      node: /' "${NODE_LOG}" >&2
   exit 1

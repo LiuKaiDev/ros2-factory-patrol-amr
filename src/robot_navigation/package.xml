@@ -3,8 +3,8 @@
 <package format="3">
   <name>robot_navigation</name>
   <version>0.0.0</version>
-  <description>Nav2, SLAM, map, and localization configuration for the mobile robot.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <description>Nav2 navigation, AMCL localization, maps, costmaps, and health monitoring for the Factory Patrol AMR.</description>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

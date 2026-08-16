@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print Phase 5B factory patrol waypoint goals without sending them."""
+"""Print factory patrol waypoint goals without sending them."""
 
 from __future__ import annotations
 
@@ -140,7 +140,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     if args.send:
-        print("FAIL: --send is intentionally not implemented in Phase 5B; dry-run only.")
+        print("FAIL: --send is intentionally not implemented for this dry-run helper; dry-run only.")
         return 1
     return print_goal_examples(args.stations, args.route)
 

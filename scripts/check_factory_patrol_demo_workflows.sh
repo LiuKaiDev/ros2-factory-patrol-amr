@@ -69,15 +69,15 @@ require_grep "/localization/health" "scripts/check_factory_patrol_demo_runtime.s
   "runtime topic check does not include localization health"
 require_grep "/safety/state" "scripts/check_factory_patrol_demo_runtime.sh" \
   "runtime topic check does not include safety state"
-require_grep "Phase 5B" "docs/simulation_scenarios.md" \
-  "simulation docs do not mention Phase 5B"
+require_grep "run_factory_patrol_multipoint_demo.sh" "docs/simulation_scenarios.md" \
+  "simulation docs do not reference the multipoint patrol demo"
 require_grep "Factory Patrol Demo Acceptance" "docs/experiment_report.md" \
   "experiment report does not include factory demo acceptance template"
 require_grep "run_factory_patrol_localization_recovery_demo.sh" "docs/localization.md" \
   "localization docs do not reference factory recovery demo"
 require_grep "/safety/state" "docs/safety_state_machine.md" \
   "safety docs do not reference safety state"
-require_grep "Phase 5B" "README.md" \
-  "README does not mention Phase 5B demo workflows"
+require_grep "run_factory_patrol_demo.sh" "README.md" \
+  "README does not document the Factory Patrol demo entry point"
 
-pass "factory patrol Phase 5B demo workflow scripts, configs, runtime check, docs, and templates are present"
+pass "factory patrol demo workflow scripts, configs, runtime check, docs, and templates are present"

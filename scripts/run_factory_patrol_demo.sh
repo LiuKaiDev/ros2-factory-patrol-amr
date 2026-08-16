@@ -12,9 +12,9 @@ ZONES_FILE="src/robot_simulation/config/factory_patrol_zones.yaml"
 ROUTE_FILE="src/robot_simulation/config/factory_patrol_route.yaml"
 RVIZ_FILE="src/robot_simulation/rviz/factory_patrol_showcase.rviz"
 LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true"
-PHASE5_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true use_nav2:=true use_detector:=true geometry_input_mode:=detector use_visual_inspection:=true perception_max_inference_rate_hz:=0.5 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml visual_inspection_params:=\$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
-PHASE6_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false use_detector:=true geometry_input_mode:=detector use_perception_safety:=true perception_max_inference_rate_hz:=2.0 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
-PHASE7_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false use_detector:=true geometry_input_mode:=detector use_perception_safety:=true use_perception_diagnostics:=true use_perception_system_monitor:=true perception_max_inference_rate_hz:=2.0 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
+VISUAL_INSPECTION_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true use_nav2:=true use_detector:=true geometry_input_mode:=detector use_visual_inspection:=true perception_max_inference_rate_hz:=0.5 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_visual_inspection_validation.yaml visual_inspection_params:=\$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_validation.yaml"
+PERCEPTION_SAFETY_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false use_detector:=true geometry_input_mode:=detector use_perception_safety:=true perception_max_inference_rate_hz:=2.0 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_safety_validation.yaml"
+PERCEPTION_DIAGNOSTICS_LAUNCH_CMD="ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false use_detector:=true geometry_input_mode:=detector use_perception_safety:=true use_perception_diagnostics:=true use_perception_system_monitor:=true perception_max_inference_rate_hz:=2.0 perception_tracking_params:=\$(ros2 pkg prefix --share robot_perception)/config/tracking_safety_validation.yaml"
 
 safe_source_setup() {
   local setup_file="$1"
@@ -32,15 +32,15 @@ Factory Patrol Gazebo + RViz demo helper
 Usage:
   bash scripts/run_factory_patrol_demo.sh
   bash scripts/run_factory_patrol_demo.sh --launch
-  bash scripts/run_factory_patrol_demo.sh --phase5
-  bash scripts/run_factory_patrol_demo.sh --phase6
-  bash scripts/run_factory_patrol_demo.sh --phase7
+  bash scripts/run_factory_patrol_demo.sh --visual-inspection
+  bash scripts/run_factory_patrol_demo.sh --perception-safety
+  bash scripts/run_factory_patrol_demo.sh --perception-diagnostics
 
 Default mode prints the launch command and expected runtime topics.
 --launch starts the demo in this terminal.
---phase5 starts the detector, visual inspection task, existing navigation adapter, and Nav2.
---phase6 starts the detector, perception safety policy, existing Safety Gate, and Nav2.
---phase7 adds low-frequency perception diagnostics and the existing system monitor/fault supervisor.
+--visual-inspection starts the detector, visual inspection task, existing navigation adapter, and Nav2.
+--perception-safety starts the detector, perception safety policy, existing Safety Gate, and Nav2.
+--perception-diagnostics adds low-frequency perception diagnostics and the existing system monitor/fault supervisor.
 EOF
 }
 
@@ -82,12 +82,12 @@ echo "  debug RViz:   src/robot_simulation/rviz/factory_patrol_debug.rviz"
 echo
 echo "[factory-patrol-demo] Launch command:"
 echo "  ${LAUNCH_CMD}"
-echo "[factory-patrol-demo] Phase 5 launch command:"
-echo "  ${PHASE5_LAUNCH_CMD}"
-echo "[factory-patrol-demo] Phase 6 launch command:"
-echo "  ${PHASE6_LAUNCH_CMD}"
-echo "[factory-patrol-demo] Phase 7 launch command:"
-echo "  ${PHASE7_LAUNCH_CMD}"
+echo "[factory-patrol-demo] Visual inspection launch command:"
+echo "  ${VISUAL_INSPECTION_LAUNCH_CMD}"
+echo "[factory-patrol-demo] Perception safety launch command:"
+echo "  ${PERCEPTION_SAFETY_LAUNCH_CMD}"
+echo "[factory-patrol-demo] Perception diagnostics launch command:"
+echo "  ${PERCEPTION_DIAGNOSTICS_LAUNCH_CMD}"
 echo
 echo "[factory-patrol-demo] Expected runtime topics:"
 cat <<'EOF'
@@ -122,29 +122,29 @@ case "${1:-}" in
     echo "[factory-patrol-demo] Running: ${LAUNCH_CMD}"
     exec ros2 launch robot_bringup factory_patrol_demo.launch.py gui:=true use_rviz:=true
     ;;
-  "--phase5")
+  "--visual-inspection")
     echo
-    echo "[factory-patrol-demo] Running: ${PHASE5_LAUNCH_CMD}"
+    echo "[factory-patrol-demo] Running: ${VISUAL_INSPECTION_LAUNCH_CMD}"
     exec ros2 launch robot_bringup factory_patrol_demo.launch.py \
       gui:=true use_rviz:=true use_nav2:=true use_detector:=true \
       geometry_input_mode:=detector use_visual_inspection:=true \
       perception_max_inference_rate_hz:=0.5 \
-      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase5_validation.yaml" \
-      visual_inspection_params:="$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_phase5_validation.yaml"
+      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_visual_inspection_validation.yaml" \
+      visual_inspection_params:="$(ros2 pkg prefix --share robot_tasks)/config/visual_inspection_validation.yaml"
     ;;
-  "--phase6")
+  "--perception-safety")
     echo
-    echo "[factory-patrol-demo] Running: ${PHASE6_LAUNCH_CMD}"
+    echo "[factory-patrol-demo] Running: ${PERCEPTION_SAFETY_LAUNCH_CMD}"
     exec ros2 launch robot_bringup factory_patrol_demo.launch.py \
       gui:=false use_rviz:=false use_nav2:=true use_mission_runner:=false \
       use_detector:=true \
       geometry_input_mode:=detector use_perception_safety:=true \
       perception_max_inference_rate_hz:=2.0 \
-      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
+      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_safety_validation.yaml"
     ;;
-  "--phase7")
+  "--perception-diagnostics")
     echo
-    echo "[factory-patrol-demo] Running: ${PHASE7_LAUNCH_CMD}"
+    echo "[factory-patrol-demo] Running: ${PERCEPTION_DIAGNOSTICS_LAUNCH_CMD}"
     export FACTORY_PATROL_DETECTOR_MODE=true
     export FACTORY_PATROL_PERCEPTION_SAFETY_MODE=true
     export FACTORY_PATROL_PERCEPTION_DIAGNOSTICS_MODE=true
@@ -153,7 +153,7 @@ case "${1:-}" in
       use_detector:=true geometry_input_mode:=detector use_perception_safety:=true \
       use_perception_diagnostics:=true use_perception_system_monitor:=true \
       perception_max_inference_rate_hz:=2.0 \
-      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_phase6_validation.yaml"
+      perception_tracking_params:="$(ros2 pkg prefix --share robot_perception)/config/tracking_safety_validation.yaml"
     ;;
   *)
     echo "FAIL: unknown argument: ${1}" >&2

@@ -14,7 +14,7 @@ if ! command -v ros2 >/dev/null 2>&1; then
   fail "ros2 command not found; run this in an Ubuntu/WSL shell with ROS2 sourced"
 fi
 
-echo "Checking Phase 4B safety runtime topics. Start bringup/Nav2 first."
+echo "Checking safety runtime topics. Start bringup/Nav2 first."
 
 TOPICS=(
   "/cmd_vel"

@@ -21,9 +21,9 @@ OK_LEVEL = 0
 ERROR_LEVEL = 2
 
 
-class Phase7Probe(Node):
+class PerceptionDiagnosticsProbe(Node):
     def __init__(self):
-        super().__init__("phase7_perception_diagnostics_runtime_probe")
+        super().__init__("perception_diagnostics_runtime_probe")
         self.lock = threading.Lock()
         self.statuses = {}
         self.health = []
@@ -175,7 +175,7 @@ def spin_inputs(node, stop_event):
 
 def main():
     rclpy.init(args=sys.argv)
-    node = Phase7Probe()
+    node = PerceptionDiagnosticsProbe()
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     spin_thread = threading.Thread(target=executor.spin, daemon=True)

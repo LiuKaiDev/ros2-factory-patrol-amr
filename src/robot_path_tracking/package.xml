@@ -4,7 +4,7 @@
   <name>robot_path_tracking</name>
   <version>0.0.0</version>
   <description>Reference path publishing and Pure Pursuit / Stanley tracking controllers.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

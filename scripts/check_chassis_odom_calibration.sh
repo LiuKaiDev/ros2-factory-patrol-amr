@@ -69,9 +69,9 @@ require_grep "track_width_m" "${CALIBRATION_DOC}" \
   "calibration doc does not describe track_width_m"
 require_grep "odom_pose_covariance" "${CALIBRATION_DOC}" \
   "calibration doc does not describe odom pose covariance"
-require_grep "TBD" "${CALIBRATION_DOC}" \
-  "calibration doc should keep real measurement values as TBD"
-require_grep "Phase 3B" "${CHASSIS_DOC}" \
-  "chassis protocol doc does not include Phase 3B notes"
+require_grep "当前仓库没有实体底盘标定结论" "${CALIBRATION_DOC}" \
+  "calibration doc must distinguish simulation defaults from physical calibration"
+require_grep "CMD_TIMEOUT" "${CHASSIS_DOC}" \
+  "chassis protocol doc does not document command timeout handling"
 
 pass "chassis odom covariance, calibration parameters, docs, and kinematics tests are present"

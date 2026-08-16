@@ -19,10 +19,10 @@
       <shadows>true</shadows>
     </scene>
 
-    <!-- Phase 5A factory patrol semantic layer.
+    <!-- Factory patrol semantic layer.
          These are simple SDF primitives for a low-speed semi-closed patrol site.
          Dynamic obstacles, real SLAM map generation, and closed-loop scenario
-         validation are intentionally left to later phases. -->
+         validation are intentionally outside this static showcase layer. -->
     <model name="factory_patrol_main_road">
       <static>true</static>
       <pose>0 0 0.062 0 0 0</pose>
@@ -85,19 +85,19 @@
       </link>
     </model>
 
-    <!-- Phase 3 visual-only person target, offset so the Phase 2 center target
+    <!-- Visual-only person detection target, offset so the geometry target
          remains an independent synthetic-geometry regression fixture. -->
     <include>
       <uri>model://person_standing</uri>
-      <name>phase3_person_detection_target</name>
+      <name>person_detection_target</name>
       <pose>2.80 -0.75 0 0 0 1.5708</pose>
       <static>true</static>
     </include>
 
-    <!-- Phase 6 close-range validation fixture. The licensed person mesh is
+    <!-- Close-range perception safety fixture. The licensed person mesh is
          scaled to remain fully visible inside the camera vertical FOV below
          the 1.5 m STOP threshold and is hidden until the runtime probe moves it. -->
-    <model name="phase6_person_safety_target">
+    <model name="person_safety_target">
       <static>true</static>
       <pose>0 0 -2 0 0 1.5708</pose>
       <link name="link">
@@ -113,8 +113,8 @@
       </link>
     </model>
 
-    <!-- Phase 2 visual-only target. Center-ray/front-face P_gt: [2.70, 0.00, 0.495]. -->
-    <model name="phase2_geometry_validation_target">
+    <!-- Visual-only geometry validation target. Center-ray/front-face P_gt: [2.70, 0.00, 0.495]. -->
+    <model name="geometry_validation_target">
       <static>true</static>
       <pose>2.76 0 0.66 0 0 0</pose>
       <link name="target_link">

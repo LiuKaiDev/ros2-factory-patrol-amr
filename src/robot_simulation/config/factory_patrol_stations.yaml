@@ -1,4 +1,4 @@
-# Phase 5A factory patrol station seed configuration.
+# factory patrol station seed configuration.
 # Coordinates are simulation design anchors matched to factory_patrol.sdf, not
 # measured field data. They can be refined after a real SLAM/map alignment pass.
 frame_id: map

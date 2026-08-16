@@ -18,9 +18,9 @@ from ros_gz_interfaces.srv import SetEntityPose
 from std_msgs.msg import String
 
 
-class Phase6Probe(Node):
+class PerceptionSafetyProbe(Node):
     def __init__(self):
-        super().__init__("phase6_perception_safety_runtime_probe")
+        super().__init__("perception_safety_runtime_probe")
         self._lock = threading.Lock()
         self.events = []
         self.targets = []
@@ -109,11 +109,11 @@ class Phase6Probe(Node):
             raise RuntimeError(f"Gazebo rejected fixture pose for {name}")
 
     def move_standard_person(self, x, y, z=0.0):
-        self.move_fixture("phase3_person_detection_target", x, y, z)
+        self.move_fixture("person_detection_target", x, y, z)
         return x, y
 
     def move_close_person(self, x, y, z=0.0):
-        self.move_fixture("phase6_person_safety_target", x, y, z)
+        self.move_fixture("person_safety_target", x, y, z)
         return x, y
 
     def send_navigation_goal(self):
@@ -130,7 +130,7 @@ class Phase6Probe(Node):
             "Nav2 goal acceptance", lambda: future.result() if future.done() else None, 20.0
         )
         if not goal_handle.accepted:
-            raise RuntimeError("Nav2 rejected the Phase 6 validation goal")
+            raise RuntimeError("Nav2 rejected the perception safety validation goal")
         return goal_handle
 
     def wait_for_event(self, start_index, predicate, description, timeout_sec=35.0):
@@ -213,7 +213,7 @@ def message_stamp_seconds(message):
 
 def main():
     rclpy.init(args=sys.argv)
-    node = Phase6Probe()
+    node = PerceptionSafetyProbe()
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     spin_thread = threading.Thread(target=executor.spin, daemon=True)
@@ -330,74 +330,74 @@ def main():
             name: node.count_publishers(name)
             for name in ("/cmd_vel", "/nav2_cmd_vel")
         }
-        print("[phase6-check] PASS: deterministic perception safety runtime validation")
+        print("[perception-safety-check] PASS: deterministic perception safety runtime validation")
         print(
-            f"[phase6-check] clear_fixture_pose=({far_pose[0]:.3f}, {far_pose[1]:.3f})"
+            f"[perception-safety-check] clear_fixture_pose=({far_pose[0]:.3f}, {far_pose[1]:.3f})"
         )
-        print(f"[phase6-check] clear_person_distance={clear_event.distance_m:.3f} m")
-        print(f"[phase6-check] clear_perception_state={clear_event.event_type}")
-        print("[phase6-check] clear_final_safety_state=NORMAL")
+        print(f"[perception-safety-check] clear_person_distance={clear_event.distance_m:.3f} m")
+        print(f"[perception-safety-check] clear_perception_state={clear_event.event_type}")
+        print("[perception-safety-check] clear_final_safety_state=NORMAL")
         print(
-            f"[phase6-check] speed_fixture_pose=({speed_pose[0]:.3f}, {speed_pose[1]:.3f})"
+            f"[perception-safety-check] speed_fixture_pose=({speed_pose[0]:.3f}, {speed_pose[1]:.3f})"
         )
-        print(f"[phase6-check] speed_person_distance={speed_event.distance_m:.3f} m")
+        print(f"[perception-safety-check] speed_person_distance={speed_event.distance_m:.3f} m")
         print(
-            f"[phase6-check] speed_upstream_velocity=(linear={speed_upstream[1]:.3f}, angular={speed_upstream[2]:.3f})"
-        )
-        print(
-            f"[phase6-check] speed_final_velocity=(linear={speed_final[1]:.3f}, angular={speed_final[2]:.3f})"
-        )
-        print("[phase6-check] speed_effective_safety_state=SPEED_LIMITED")
-        print(
-            f"[phase6-check] stop_fixture_pose=({stop_pose[0]:.3f}, {stop_pose[1]:.3f}), scale=0.40"
-        )
-        print(f"[phase6-check] stop_person_distance={stop_event.distance_m:.3f} m")
-        print(
-            f"[phase6-check] stop_upstream_velocity=(linear={stop_upstream[1]:.3f}, angular={stop_upstream[2]:.3f})"
+            f"[perception-safety-check] speed_upstream_velocity=(linear={speed_upstream[1]:.3f}, angular={speed_upstream[2]:.3f})"
         )
         print(
-            f"[phase6-check] stop_final_velocity=(linear={stop_final[1]:.3f}, angular={stop_final[2]:.3f})"
+            f"[perception-safety-check] speed_final_velocity=(linear={speed_final[1]:.3f}, angular={speed_final[2]:.3f})"
         )
-        print("[phase6-check] stop_effective_safety_state=STOP")
+        print("[perception-safety-check] speed_effective_safety_state=SPEED_LIMITED")
         print(
-            "[phase6-check] danger_zone=factory_person_danger_zone "
+            f"[perception-safety-check] stop_fixture_pose=({stop_pose[0]:.3f}, {stop_pose[1]:.3f}), scale=0.40"
+        )
+        print(f"[perception-safety-check] stop_person_distance={stop_event.distance_m:.3f} m")
+        print(
+            f"[perception-safety-check] stop_upstream_velocity=(linear={stop_upstream[1]:.3f}, angular={stop_upstream[2]:.3f})"
+        )
+        print(
+            f"[perception-safety-check] stop_final_velocity=(linear={stop_final[1]:.3f}, angular={stop_final[2]:.3f})"
+        )
+        print("[perception-safety-check] stop_effective_safety_state=STOP")
+        print(
+            "[perception-safety-check] danger_zone=factory_person_danger_zone "
             "polygon=[(3.00,-1.20),(3.80,-1.20),(3.80,-0.30),(3.00,-0.30)]"
         )
         print(
-            f"[phase6-check] danger_person_map_pose=({zone_event.target_position.x:.3f}, {zone_event.target_position.y:.3f})"
+            f"[perception-safety-check] danger_person_map_pose=({zone_event.target_position.x:.3f}, {zone_event.target_position.y:.3f})"
         )
-        print(f"[phase6-check] danger_person_distance={zone_event.distance_m:.3f} m")
-        print("[phase6-check] danger_inside_zone=true")
-        print("[phase6-check] danger_effective_safety_state=STOP")
+        print(f"[perception-safety-check] danger_person_distance={zone_event.distance_m:.3f} m")
+        print("[perception-safety-check] danger_inside_zone=true")
+        print("[perception-safety-check] danger_effective_safety_state=STOP")
         print(
-            f"[phase6-check] danger_final_velocity=(linear={zone_final[1]:.3f}, angular={zone_final[2]:.3f})"
-        )
-        print(
-            f"[phase6-check] recovery_fixture_pose=({recovery_pose[0]:.3f}, {recovery_pose[1]:.3f})"
-        )
-        print("[phase6-check] recovery_clear_policy=3 valid observations")
-        print(f"[phase6-check] recovery_event={recovery_event.event_type}")
-        print("[phase6-check] recovery_final_safety_state=NORMAL")
-        print(
-            f"[phase6-check] recovery_upstream_velocity=(linear={recovery_upstream[1]:.3f}, angular={recovery_upstream[2]:.3f})"
+            f"[perception-safety-check] danger_final_velocity=(linear={zone_final[1]:.3f}, angular={zone_final[2]:.3f})"
         )
         print(
-            f"[phase6-check] recovery_final_velocity=(linear={recovery_final[1]:.3f}, angular={recovery_final[2]:.3f})"
+            f"[perception-safety-check] recovery_fixture_pose=({recovery_pose[0]:.3f}, {recovery_pose[1]:.3f})"
         )
-        print("[phase6-check] navigation_recovery=existing Nav2 goal remained active")
+        print("[perception-safety-check] recovery_clear_policy=3 valid observations")
+        print(f"[perception-safety-check] recovery_event={recovery_event.event_type}")
+        print("[perception-safety-check] recovery_final_safety_state=NORMAL")
         print(
-            f"[phase6-check] stop_condition_timestamp={message_stamp_seconds(stop_event):.9f} sim_s"
+            f"[perception-safety-check] recovery_upstream_velocity=(linear={recovery_upstream[1]:.3f}, angular={recovery_upstream[2]:.3f})"
         )
-        print(f"[phase6-check] stop_event_receipt_timestamp={stop_receipt_ns / 1.0e9:.9f} sim_s")
-        print(f"[phase6-check] final_safe_cmd_timestamp={stop_final[0] / 1.0e9:.9f} sim_s")
-        print(f"[phase6-check] stop_response_latency={response_latency_sec:.6f} s")
         print(
-            "[phase6-check] velocity_topic_publishers="
+            f"[perception-safety-check] recovery_final_velocity=(linear={recovery_final[1]:.3f}, angular={recovery_final[2]:.3f})"
+        )
+        print("[perception-safety-check] navigation_recovery=existing Nav2 goal remained active")
+        print(
+            f"[perception-safety-check] stop_condition_timestamp={message_stamp_seconds(stop_event):.9f} sim_s"
+        )
+        print(f"[perception-safety-check] stop_event_receipt_timestamp={stop_receipt_ns / 1.0e9:.9f} sim_s")
+        print(f"[perception-safety-check] final_safe_cmd_timestamp={stop_final[0] / 1.0e9:.9f} sim_s")
+        print(f"[perception-safety-check] stop_response_latency={response_latency_sec:.6f} s")
+        print(
+            "[perception-safety-check] velocity_topic_publishers="
             f"cmd_vel:{perception_publishers['/cmd_vel']} "
             f"nav2_cmd_vel:{perception_publishers['/nav2_cmd_vel']}"
         )
     except Exception as error:
-        print(f"[phase6-check] FAIL: {error}", file=sys.stderr)
+        print(f"[perception-safety-check] FAIL: {error}", file=sys.stderr)
         return_code = 1
     else:
         return_code = 0

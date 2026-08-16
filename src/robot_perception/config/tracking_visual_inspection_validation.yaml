@@ -12,6 +12,6 @@ geometry_validation_node:
     inspection.min_confidence: 0.5
     inspection.event_topic: /perception/events
     roi_ratio: 0.15
-    # The Phase 5 person fixture must remain reachable at its 1.2 m observation pose.
+    # The visual inspection person fixture must remain reachable at its 1.2 m observation pose.
     safety.enabled: false
     safety.danger_zone_enabled: false

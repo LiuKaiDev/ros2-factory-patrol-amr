@@ -4,7 +4,7 @@
   <name>robot_interfaces_core</name>
   <version>0.0.0</version>
   <description>Core robot state, chassis, and statistics interfaces.</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="LiuKaiDev@users.noreply.github.com">LiuKaiDev</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

@@ -68,7 +68,7 @@ sample_map_pose() {
   printf '%s\n' "${pose}" >"${output_file}"
 }
 
-echo "[phase5-check] Validating visual inspection event and mission chain..."
+echo "[visual-inspection-check] Validating visual inspection event and mission chain..."
 topic_type_is /perception/events robot_interfaces_perception/msg/PerceptionEvent
 topic_type_is /inspection/observation_pose geometry_msgs/msg/PoseStamped
 topic_type_is /inspection/status std_msgs/msg/String
@@ -77,9 +77,9 @@ topic_type_is /navigate_sequence/current_goal geometry_msgs/msg/PoseStamped
 perception_allowlist="$(timeout 5s ros2 param get /geometry_validation_node inspection.allowed_classes 2>/dev/null || true)"
 task_allowlist="$(timeout 5s ros2 param get /visual_inspection_task_node inspection.allowed_classes 2>/dev/null || true)"
 [[ "${perception_allowlist}" == *person* ]] ||
-  fail "Phase 5 validation requires the explicit perception person allowlist profile"
+  fail "visual inspection validation requires the explicit perception person allowlist profile"
 [[ "${task_allowlist}" == *person* ]] ||
-  fail "Phase 5 validation requires the explicit task person allowlist profile"
+  fail "visual inspection validation requires the explicit task person allowlist profile"
 echo "PASS: static person fixture is explicitly enabled only for this validation profile"
 
 event_log="$(mktemp)"
@@ -144,14 +144,14 @@ wait "${status_echo_pid}" || fail "visual inspection task did not report SUCCEED
 status_echo_pid=""
 wait "${observation_echo_pid}" || fail "no finite map-frame observation pose was published"
 observation_echo_pid=""
-wait "${nav_goal_echo_pid}" || fail "existing navigation adapter did not publish the Phase 5 goal"
+wait "${nav_goal_echo_pid}" || fail "existing navigation adapter did not publish the visual inspection goal"
 nav_goal_echo_pid=""
 grep -q '^data:.*SUCCEEDED:' "${status_log}" ||
   fail "visual inspection task did not report SUCCEEDED"
 grep -q 'frame_id: map' "${observation_pose_log}" ||
   fail "no finite map-frame observation pose was published"
 grep -q 'frame_id: map' "${nav_goal_log}" ||
-  fail "existing navigation adapter did not publish the Phase 5 goal"
+  fail "existing navigation adapter did not publish the visual inspection goal"
 # Immediate duplicate suppression is checked inside the validation profile's 120-second cooldown.
 sleep 5
 kill "${event_echo_pid}" 2>/dev/null || true
@@ -290,18 +290,18 @@ timeout 5s ros2 node list | grep -Fxq /cmd_vel_mux_node ||
   fail "existing combined cmd_vel mux/Safety Gate node is not running"
 echo "PASS: Nav2 command remains /nav2_cmd_vel -> existing mux/Safety Gate -> /cmd_vel"
 
-echo "[phase5-check] target_id=${target_id}"
-echo "[phase5-check] target_class=${target_class} (explicit static validation fixture)"
-echo "[phase5-check] event_timestamp=${required_sec}.${required_nanosec} sim seconds"
-echo "[phase5-check] target_map_pose=(${target_x}, ${target_y})"
-echo "[phase5-check] observation_pose=(${observation_x}, ${observation_y})"
-echo "[phase5-check] configured_standoff_distance=1.2 m"
-echo "[phase5-check] planned_target_distance=${planned_distance} m"
-echo "[phase5-check] nav2_goal_acceptance=accepted"
-echo "[phase5-check] nav2_result=SUCCEEDED"
-echo "[phase5-check] mission_elapsed=${mission_duration} sim seconds"
-echo "[phase5-check] final_robot_pose=(${final_x}, ${final_y}, yaw=${final_yaw})"
-echo "[phase5-check] final_observation_pose_error=${final_goal_error} m"
-echo "[phase5-check] actual_final_robot_target_distance=${final_distance} m"
-echo "[phase5-check] robot_displacement=${movement_distance} m"
-echo "[phase5-check] PASS: Phase 5 mission succeeded and target became PROCESSED"
+echo "[visual-inspection-check] target_id=${target_id}"
+echo "[visual-inspection-check] target_class=${target_class} (explicit static validation fixture)"
+echo "[visual-inspection-check] event_timestamp=${required_sec}.${required_nanosec} sim seconds"
+echo "[visual-inspection-check] target_map_pose=(${target_x}, ${target_y})"
+echo "[visual-inspection-check] observation_pose=(${observation_x}, ${observation_y})"
+echo "[visual-inspection-check] configured_standoff_distance=1.2 m"
+echo "[visual-inspection-check] planned_target_distance=${planned_distance} m"
+echo "[visual-inspection-check] nav2_goal_acceptance=accepted"
+echo "[visual-inspection-check] nav2_result=SUCCEEDED"
+echo "[visual-inspection-check] mission_elapsed=${mission_duration} sim seconds"
+echo "[visual-inspection-check] final_robot_pose=(${final_x}, ${final_y}, yaw=${final_yaw})"
+echo "[visual-inspection-check] final_observation_pose_error=${final_goal_error} m"
+echo "[visual-inspection-check] actual_final_robot_target_distance=${final_distance} m"
+echo "[visual-inspection-check] robot_displacement=${movement_distance} m"
+echo "[visual-inspection-check] PASS: visual inspection mission succeeded and target became PROCESSED"

@@ -46,19 +46,19 @@ detector_executable="$(ros2 pkg prefix robot_perception)/lib/robot_perception/de
 diag_pid=$!
 "${monitor_executable}" --ros-args \
   -p use_sim_time:=false -p monitor_perception:=true \
-  > /tmp/factory_patrol_system_monitor_phase7.log 2>&1 &
+  > /tmp/factory_patrol_system_monitor_perception_diagnostics.log 2>&1 &
 monitor_pid=$!
 "${fault_executable}" --ros-args \
   -p use_sim_time:=false -p startup_grace_ms:=1000 \
-  > /tmp/factory_patrol_fault_supervisor_phase7.log 2>&1 &
+  > /tmp/factory_patrol_fault_supervisor_perception_diagnostics.log 2>&1 &
 fault_pid=$!
 
 timeout 180s python3 scripts/perception_diagnostics_runtime_probe.py
 
-"${detector_executable}" --ros-args -r __node:=phase7_detector_failure_probe \
-  -p model_path:=/tmp/phase7_missing_detector_model.onnx \
-  -p image_topic:=/phase7/missing_rgb -p debug_image_enabled:=false \
-  > /tmp/factory_patrol_detector_failure_phase7.log 2>&1 &
+"${detector_executable}" --ros-args -r __node:=perception_diagnostics_detector_failure_probe \
+  -p model_path:=/tmp/perception_diagnostics_missing_detector_model.onnx \
+  -p image_topic:=/perception_diagnostics/missing_rgb -p debug_image_enabled:=false \
+  > /tmp/factory_patrol_detector_failure_perception_diagnostics.log 2>&1 &
 detector_pid=$!
 if timeout 12s ros2 topic echo --once --timeout 10 /perception/diagnostics \
   --filter "any(s.name == 'perception/detector' and s.hardware_id == 'factory_patrol_detector' and s.message == 'model/backend unavailable' for s in m.status)" \
